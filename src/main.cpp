@@ -232,6 +232,7 @@ struct ScreenDef
 
 static const ScreenDef screens[] = {
     /* SCREEN_HOME        */ { drawHomeScreen,       handleHomeTouch,       nullptr,                    false },
+    /* SCREEN_SNAPSHOT    */ { drawSnapshotScreen,   handleSnapshotTouch,   refreshSnapshotResults,     true  },
     /* SCREEN_WIFI_STATUS */ { drawWifiStatusScreen, handleWifiStatusTouch, refreshWifiStatusResults,   true  },
     /* SCREEN_SYSTEM      */ { drawSystemScreen,     handleSystemTouch,     nullptr,                    true  },
     /* SCREEN_TOOLS       */ { drawToolsScreen,      handleToolsTouch,      refreshToolsResults,        true  },
@@ -313,6 +314,14 @@ void loop()
     {
         lastHomeTemperatureRefresh = millis();
         refreshHomeTemperature();
+    }
+
+    static unsigned long lastSnapshotRefresh = 0;
+    if (state.currentScreen == SCREEN_SNAPSHOT &&
+        millis() - lastSnapshotRefresh >= 250)
+    {
+        lastSnapshotRefresh = millis();
+        refreshSnapshotResults();
     }
 
     if (getTouch(x, y))

@@ -50,12 +50,30 @@ src/
   audio/
     sound_manager.*     Non-blocking sound playback
   screens/              Example screens
+    text_table_page.*   Reusable two-column, eight-row weather page layout
+  widgets/
+    thermometer_widget.* Resizable thermometer graphic
 ```
 
 `main.cpp` routes each `Screen` enum value through a screen table. To add a
 screen, define its draw, enter, and touch-handler functions, add its interface
 to `include/app.h`, then add a matching entry to the table. Shared device
 features are exposed through the CYD and sound helper headers.
+
+Weather pages that use the common two-column layout can render up to eight
+rows with `drawTextTablePage()` and route their button touches through
+`handleTextTablePageTouch()` from `src/screens/text_table_page.h`. Each row
+uses the System screen's 9-point sans-serif font and chooses separate white,
+yellow, cyan, or pink label/value colors. The page supplies its background
+color, the value-column x position (the label column ends 20 pixels before
+it), Back callback, and optional second and third navigation buttons; Home is
+provided by the template. The title bar keeps the shared system header color.
+
+`src/widgets/thermometer_widget.h` provides a resizable thermometer drawing
+primitive. Configure its position, size, temperature range, colors, and
+optional apparent-temperature fill in `ThermometerWidgetOptions`, then call
+`drawThermometerWidget()` to render it. The default size fits a quarter-width
+column between the standard header and navigation bar.
 
 ## Setup
 
@@ -90,7 +108,8 @@ and retain their cached value until selected again.
 
 | Screen | Button 1 | Button 2 | Button 3 | Button 4 |
 |---|---|---|---|---|
-| Home | — | — | — | System |
+| Home | Now | — | — | System |
+| Snapshot | Back | — | — | Home |
 | WiFi Status | Refresh | — | — | Home |
 | System | Back | Tools | Refresh | Home |
 | Tools | Back | NTP | Cali TS | Home |

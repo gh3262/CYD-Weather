@@ -92,6 +92,7 @@ void drawHomeScreen()
     refreshHomeTemperature();
     refreshHomeTime();
 
+    drawNav1("Now");
     drawNav4("System");
 }
 
@@ -103,6 +104,12 @@ void enterHomeScreen()
 
 void handleHomeTouch(int x, int y)
 {
+    if (navPressed1(x, y))
+    {
+        enterSnapshotScreen();
+        return;
+    }
+
     // System button
     if (navPressed4(x, y))
     {
