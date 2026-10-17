@@ -2,8 +2,10 @@
 #include <WiFi.h>
 #include "app.h"
 #include "credentials.h"
+#include "adafruitio/adafruitio_manager.h"
 
 AppState state = {SCREEN_HOME, PING_NOT_RUN, PING_NOT_RUN};
+AdafruitIOManager adafruitIOManager;
 
 // Connection
 bool connectWiFi();
@@ -22,7 +24,7 @@ void setup()
         }
     }
 
-    showSplash("CYD Framework");
+    showSplash("CYD Weather Display");
 
     if (!soundInit())
         Serial.println("Sound initialization failed.");
@@ -31,6 +33,9 @@ void setup()
 
     if (wifiOk && !syncTime())
         Serial.println("Time synchronization failed; start time unavailable.");
+
+    if (wifiOk)
+        adafruitIOManager.begin();
 
     // Played after the blocking boot steps so loop() can sequence the tones
     playSound(wifiOk ? SOUND_SUCCESS : SOUND_ERROR);
@@ -184,6 +189,9 @@ static void maintainWiFi()
             networkSignalLED(WiFi.RSSI());
             playSound(SOUND_SUCCESS);
 
+            if (!adafruitIOManager.isRunning())
+                adafruitIOManager.begin();
+
             // Time was never set if the boot-time sync was skipped or failed
             if (synchronizedStartDateTime()[0] == '\0')
                 startNtpSync();
@@ -297,6 +305,14 @@ void loop()
 
             lastMinute = timeinfo.tm_min;
         }
+    }
+
+    static unsigned long lastHomeTemperatureRefresh = 0;
+    if (state.currentScreen == SCREEN_HOME &&
+        millis() - lastHomeTemperatureRefresh >= 250)
+    {
+        lastHomeTemperatureRefresh = millis();
+        refreshHomeTemperature();
     }
 
     if (getTouch(x, y))

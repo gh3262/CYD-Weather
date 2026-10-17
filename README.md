@@ -43,6 +43,9 @@ include/
 src/
   main.cpp              Startup, WiFi connect/maintain, screen table, touch loop
   cyd_globals.cpp       Shared display and touch objects
+  adafruitio/
+    adafruitio_manager.* Active-page polling and cached values
+    feed_catalog.cpp     Feed names, types, units, and long-value metadata
   audio/
     sound_manager.*     Non-blocking sound playback
   screens/              Example screens
@@ -61,10 +64,26 @@ features are exposed through the CYD and sound helper headers.
    - One or more WiFi SSID/password pairs in `wifiNetworks`.
    - `NTP_SERVER_1` and `NTP_SERVER_2`.
    - `TZ_STRING` to a POSIX time zone, such as `CST6CDT,M3.2.0,M11.1.0`.
+   - `AIO_USERNAME` and `AIO_KEY` for Adafruit IO.
 3. Build and upload with `pio run -t upload`; open the serial monitor at
    115200 baud.
 
 Library and platform versions are pinned in `platformio.ini`.
+
+## Adafruit IO feeds
+
+`src/adafruitio/feed_catalog.cpp` contains the feed catalog. Edit it to add or
+update feed names, types, units, long-value metadata, and refresh policy.
+`src/adafruitio/adafruitio_manager.*` handles active-page polling. Use
+`adafruitIOManager` to call
+`setActiveFeeds()` when a page is entered, then read cached values with
+`getFeedValue()` and update times with `getFeedUpdatedAt()`. Values are fetched
+over the HTTPS API and kept as `String`s so long alert text is not truncated.
+Each catalog entry also indicates whether its value may exceed 45 characters,
+so page layouts can plan for wrapping or scrolling. The polling task runs
+independently of the display loop. `Periodic` feeds are refreshed every minute
+even when their page is not active; `OnDemand` feeds are fetched when selected
+and retain their cached value until selected again.
 
 ## Example navigation
 

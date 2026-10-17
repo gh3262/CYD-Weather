@@ -81,6 +81,7 @@
 #define CYD_PINK        0xF81F
 #define CYD_BROWN       0xA145
 #define CYD_PURPLE      0x8010
+#define CYD_DARK_PURPLE 0x4008
 #define CYD_NAVY        0x000F
 #define CYD_LIGHT_GRAY  0xC618
 #define CYD_DARK_GRAY   0x4208

@@ -24,4 +24,7 @@ const size_t WIFI_NETWORK_COUNT =
  
 #define TZ_STRING "add time zone string here"
 
+#define AIO_USERNAME "YOUR_AIO_USERNAME"
+#define AIO_KEY "YOUR_AIO_KEY"
+
 #endif
