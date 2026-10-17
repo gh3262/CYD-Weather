@@ -1,0 +1,29 @@
+feed_key,display_name,category,data_type,unit,may_exceed_45_chars,refresh_policy
+big-alert,Full Alert,Info Text,long_text,,true,on_demand
+headline-alert,Headline Alert,Info Text,long_text,,true,on_demand
+weather-alerts,Weather Alert Summary,Info Text,long_text,,true,on_demand
+nbr-alerts,Number of Active Alerts,Info Text,integer,,false,on_demand
+currentcloudcover,Current Cloud Cover,Clouds,integer,%,false,on_demand
+currentconditioncode,Current Conditions,Condition,text,,false,on_demand
+currenthumidity,Current Humidity,Humidity,integer,%,false,on_demand
+currentprecipitationintensity,Current Precipitation Intensity,Precipitation,float,in/hr,false,on_demand
+currentpressure,Current Barometer,Barometer,float,hPa,false,on_demand
+currentpressuretrend,Barometer Trend,Barometer,text,,false,on_demand
+currenttemperature,Current Temperature (F),Temperature,float,°F,false,on_demand
+currenttemperatureapparent,Current Apparent Temperature (F),Temperature,float,°F,false,on_demand
+currenttemperaturedewpoint,Current Dew Point (F),Temperature,float,°F,false,on_demand
+currentuv,Current UV Index,Condition,integer,,false,on_demand
+currentwinddirection,Current Wind Direction,Wind,text,,false,on_demand
+currentwindgust,Current Wind Gust (mph),Wind,integer,mph,false,on_demand
+currentwindspeed,Current Wind Speed (mph),Wind,integer,mph,false,on_demand
+feed-avg,Current Average Temperature (F),Temperature,float,°F,false,periodic
+wapi.feels-like,Current Feels Like Temperature (F),Temperature,float,°F,false,on_demand
+wapi.desc,Current Conditions WAPI,Condition,text,,false,on_demand
+wapi.heat-index,Current Heat Index (F),Temperature,float,°F,false,on_demand
+wapi.wind-chill,Current Wind Chill (F),Temperature,float,°F,false,on_demand
+om-desc,Current Weather Description,Condition,text,,false,on_demand
+om-current,Current Long Weather Description,Info Text,text,,true,on_demand
+currentwinddegrees,Current Wind Bearing,Wind,integer,,false,on_demand
+nws.00,Current Forecast,Info Text,text,,true,on_demand
+nws.01,Next Forecast,Info Text,text,,true,on_demand
+nws.02,Following Forecast,Info Text,text,,true,on_demand

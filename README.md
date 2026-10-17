@@ -45,7 +45,8 @@ src/
   cyd_globals.cpp       Shared display and touch objects
   adafruitio/
     adafruitio_manager.* Active-page polling and cached values
-    feed_catalog.cpp     Feed names, types, units, and long-value metadata
+    feed_catalog.csv     Editable feed catalog
+    feed_catalog.cpp     Compiled feed definitions
   audio/
     sound_manager.*     Non-blocking sound playback
   screens/              Example screens
@@ -72,10 +73,10 @@ Library and platform versions are pinned in `platformio.ini`.
 
 ## Adafruit IO feeds
 
-`src/adafruitio/feed_catalog.cpp` contains the feed catalog. Edit it to add or
-update feed names, types, units, long-value metadata, and refresh policy.
-`src/adafruitio/adafruitio_manager.*` handles active-page polling. Use
-`adafruitIOManager` to call
+`src/adafruitio/feed_catalog.csv` is an editable export of the feed catalog.
+The firmware currently compiles definitions from `feed_catalog.cpp`; CSV edits
+must also be applied there to affect the build. `src/adafruitio/adafruitio_manager.*`
+handles active-page polling. Use `adafruitIOManager` to call
 `setActiveFeeds()` when a page is entered, then read cached values with
 `getFeedValue()` and update times with `getFeedUpdatedAt()`. Values are fetched
 over the HTTPS API and kept as `String`s so long alert text is not truncated.
