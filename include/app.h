@@ -4,7 +4,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include "cyd.h"
-#include "bluetooth/ble_manager.h"
 #include "audio/sound_manager.h"
 
 // ====================================================
@@ -17,7 +16,6 @@ enum Screen
     SCREEN_WIFI_STATUS,
     SCREEN_SYSTEM,
     SCREEN_TOOLS,
-    SCREEN_BT_LE,
     SCREEN_TOUCH_CALIBRATION,
     SCREEN_COUNT   // keep last
 };
@@ -81,12 +79,6 @@ void refreshToolsResults();
 void drawTouchCalibrationScreen();
 void enterTouchCalibrationScreen();
 void handleTouchCalibrationTouch(int x, int y);
-
-// bt_le_screen.cpp
-void updateBtLe();   // polls the BLE manager, redraws if visible
-void drawBtLeScreen();
-void enterBtLeScreen();
-void handleBtLeTouch(int x, int y);
 
 // Background jobs: each start*() returns at once, and
 // updateBackgroundJobs() (called from loop) redraws when one finishes

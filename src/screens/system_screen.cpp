@@ -7,7 +7,6 @@ void drawSystemScreen()
     titleBar("SYSTEM");
 
     drawButton(220, 49, 92, 36, "WiFi");
-    drawButton(220, 91, 92, 36, "BT LE");
 
     setBodyFont();
     gfx->setTextSize(1);
@@ -65,10 +64,6 @@ void handleSystemTouch(int x, int y)
     if (touchInRect(x, y, 220, 49, 92, 36))
     {
         enterWifiStatusScreen();
-    }
-    else if (touchInRect(x, y, 220, 91, 92, 36))
-    {
-        enterBtLeScreen();
     }
     // Back button
     else if (navPressed1(x, y))

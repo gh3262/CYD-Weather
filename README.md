@@ -2,7 +2,7 @@
 
 A PlatformIO foundation for projects built on the ESP32 Cheap Yellow Display
 (CYD, ESP32-2432S028R). It provides the display, touch, navigation, sound,
-WiFi connection, clock, and Bluetooth LE building blocks so a project can add
+WiFi connection, and clock building blocks so a project can add
 its own screens and behavior without rebuilding the device layer.
 
 ## Included framework features
@@ -18,14 +18,11 @@ its own screens and behavior without rebuilding the device layer.
   Tools; successful raw touch limits are saved in ESP32 non-volatile storage.
 - **Sound:** non-blocking built-in tones and tone sequences for the speaker
   amplifier.
-- **Bluetooth LE:** pairing, bonding, connection state, reconnect behavior,
-  and connection events through a BLE manager.
-- **Example screens:** Home, WiFi Status, System, Tools, and BT LE demonstrate
+- **Example screens:** Home, WiFi Status, System, and Tools demonstrate
   how to compose screens with the shared navigation layout.
 
 The WiFi connection code scans for configured access points internally. There
-is no separate nearby-network scanner page. The Bluetooth LE connection
-manager remains, but the camera and media-control screens are not included.
+is no separate nearby-network scanner page.
 
 ## Project layout
 
@@ -45,15 +42,13 @@ src/
   cyd_globals.cpp       Shared display and touch objects
   audio/
     sound_manager.*     Non-blocking sound playback
-  bluetooth/
-    ble_manager.*       BLE pairing, bonding, and connection state
   screens/              Example screens
 ```
 
 `main.cpp` routes each `Screen` enum value through a screen table. To add a
 screen, define its draw, enter, and touch-handler functions, add its interface
 to `include/app.h`, then add a matching entry to the table. Shared device
-features are exposed through the CYD, sound, and BLE helper headers.
+features are exposed through the CYD and sound helper headers.
 
 ## Setup
 
@@ -76,9 +71,8 @@ Library and platform versions are pinned in `platformio.ini`.
 | WiFi Status | Refresh | — | — | Home |
 | System | Back | Tools | Refresh | Home |
 | Tools | Back | NTP | Cali TS | Home |
-| BT LE | Pair / Connect / Stop / Cancel / Disconnect | Forget | — | Home |
 
 Buttons keep a consistent position across screens. Button 4 returns Home on
 all screens except Home, where it opens System. The System screen also has
-WiFi and BT LE shortcut buttons in its upper-right corner. Tools has a Ping
+WiFi shortcut button in its upper-right corner. Tools has a Ping
 button at the upper right and opens touchscreen calibration with **Cali TS**.

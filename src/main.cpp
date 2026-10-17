@@ -15,31 +15,6 @@ void setup()
 {
     Serial.begin(115200);
 
-    // analogReadResolution(12);
-    // analogSetAttenuation(ADC_11db);
-
-    // Serial.println("ADC test");
-
-    // while(true)
-    // {
-    //     Serial.print("34: ");
-    //     Serial.println(analogRead(34));
-    //     Serial.println("-----");
-    //     Serial.print("32: ");
-    //     Serial.println(analogRead(32));
-    //     Serial.print("33: ");
-    //     Serial.println(analogRead(33));
-    //     Serial.print("25: ");
-    //     Serial.println(analogRead(25));
-    //     Serial.print("26: ");
-    //     Serial.println(analogRead(26));
-    //     Serial.print("27: ");
-    //     Serial.println(analogRead(27));
-    //     Serial.println("-----");
-    //     //Serial.println(analogRead(34));
-    //     delay(1000);
-    // }
-
     if (!initCYD())
     {
         while (true)
@@ -51,9 +26,6 @@ void setup()
 
     if (!soundInit())
         Serial.println("Sound initialization failed.");
-
-    if (!bleInit())
-        Serial.println("BLE initialization failed.");
 
     const bool wifiOk = connectWiFi();
 
@@ -255,7 +227,6 @@ static const ScreenDef screens[] = {
     /* SCREEN_WIFI_STATUS */ { drawWifiStatusScreen, handleWifiStatusTouch, refreshWifiStatusResults,   true  },
     /* SCREEN_SYSTEM      */ { drawSystemScreen,     handleSystemTouch,     nullptr,                    true  },
     /* SCREEN_TOOLS       */ { drawToolsScreen,      handleToolsTouch,      refreshToolsResults,        true  },
-    /* SCREEN_BT_LE       */ { drawBtLeScreen,       handleBtLeTouch,       nullptr,                    true  },
     /* SCREEN_TOUCH_CALIBRATION */ { drawTouchCalibrationScreen, handleTouchCalibrationTouch, nullptr, false },
 };
 
@@ -309,14 +280,6 @@ void loop()
 
     maintainWiFi();
     soundUpdate();
-    updateBtLe();
-    switch (bleTakeEvent())
-    {
-    case BT_EVENT_CONNECTED: playSound(SOUND_SUCCESS); break;
-    case BT_EVENT_FAILED:
-    case BT_EVENT_LOST:      playSound(SOUND_ERROR);   break;
-    default:                 break;
-    }
     updateBackgroundJobs();
 
     static int lastMinute = -1;

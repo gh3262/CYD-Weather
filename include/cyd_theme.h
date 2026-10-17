@@ -19,6 +19,7 @@
 
 #define COLOR_BUTTON       CYD_DARK_GREEN
 #define COLOR_BUTTON_ALT   CYD_DARK_RED
+#define COLOR_BUTTON_OPT   CYD_DARK_GRAY
 #define COLOR_BUTTON_TEXT  CYD_WHITE
 
 // ====================================================
