@@ -1,4 +1,7 @@
-# CYD Framework
+# CYD Weather Display based on CYD-Framework Project
+
+The goal of this project is to collect various weather feeds from AdafruitIO and
+display different useful weather data such as current weather, forecasts, etc.
 
 A PlatformIO foundation for projects built on the ESP32 Cheap Yellow Display
 (CYD, ESP32-2432S028R). It provides the display, touch, navigation, sound,
