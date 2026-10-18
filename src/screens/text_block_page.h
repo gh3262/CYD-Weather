@@ -18,6 +18,8 @@ struct TextBlockPage
     void (*backAction)();
     TextTableButton button2;
     TextTableButton button3;
+    // Optional action when the text area is tapped (e.g. page down).
+    void (*textTapAction)();
 };
 
 // lineCount (optional) receives the total number of wrapped lines.

@@ -93,6 +93,7 @@ void drawHomeScreen()
     refreshHomeTime();
 
     drawNav1("Now");
+    drawNav3("Forecast");
     drawNav4("System");
 }
 
@@ -107,6 +108,12 @@ void handleHomeTouch(int x, int y)
     if (navPressed1(x, y))
     {
         enterSnapshotScreen();
+        return;
+    }
+
+    if (navPressed3(x, y))
+    {
+        enterForecastScreen();
         return;
     }
 

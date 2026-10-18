@@ -76,7 +76,9 @@ word-wrapped in the same 9-point font into up to eight visible lines, honors
 newlines, hard-breaks words too wide for a line, and replaces the unsupported
 degree symbol with a space. `firstLine` sets the first wrapped line to show,
 and the optional `lineCount` output reports the total, so a page can use its
-second and third buttons for Up/Down scrolling. Call
+second and third buttons for Up/Down scrolling, or set `textTapAction` to
+page when the text is tapped. A small arrow at the bottom right marks text
+continuing below the visible lines. Call
 `refreshTextBlockPageText()` to redraw only the text area when a feed changes.
 
 `src/widgets/thermometer_widget.h` provides a resizable thermometer drawing
@@ -126,16 +128,23 @@ periodic or its page is open.
 
 | Screen | Button 1 | Button 2 | Button 3 | Button 4 |
 |---|---|---|---|---|
-| Home | Now | — | — | System |
+| Home | Now | — | Forecast | System |
 | Snapshot | Back | Summary | — | Home |
 | Summary | Back | Up* | Down* | Home |
+| Forecast | Back | Next | Today | Home |
 | WiFi Status | Refresh | — | — | Home |
 | System | Back | Tools | Refresh | Home |
 | Tools | Back | NTP | Cali TS | Home |
 
 Buttons keep a consistent position across screens. Summary shows the
 `om-current` feed; its Up/Down buttons (*) appear only when the text needs
-more than eight lines. Button 4 returns Home on
+more than eight lines. Forecast cycles through `nws.00`–`nws.13`: Next and
+Back move forward and backward, wrapping at either end, and Today jumps back
+to `nws.00`. Nighttime forecasts (first two words contain "night", any case,
+such as "Tonight" or "Tuesday Night") use a
+dark gray background; daytime forecasts use dark green. When a forecast is longer than eight lines, a small arrow appears
+at the bottom right; tap the text to page down (it wraps to the top). Forecast loads `nws.00`–`nws.04` when opened, then
+fetches the next two forecasts in the browsing direction. Button 4 returns Home on
 all screens except Home, where it opens System. The System screen also has
 WiFi shortcut button in its upper-right corner. Tools has a Ping
 button at the upper right and opens touchscreen calibration with **Cali TS**.

@@ -163,6 +163,15 @@ bool refreshTextBlockPageText(const TextBlockPage &page, size_t *lineCount)
     if (lineCount)
         *lineCount = lines;
 
+    // Small down-arrow below the last line when more text follows.
+    if (lines > page.firstLine + TEXT_BLOCK_VISIBLE_LINES)
+    {
+        const int tipY = NAV_Y - 3;
+        const int centerX = TEXT_BLOCK_RIGHT - 4;
+        gfx->fillTriangle(centerX - 5, tipY - 6, centerX + 5, tipY - 6,
+                          centerX, tipY, textTableColorValue(page.textColor));
+    }
+
     gfx->setTextWrap(true);
     gfx->setTextColor(COLOR_TEXT);
     setDefaultFont();
@@ -208,6 +217,9 @@ bool handleTextBlockPageTouch(const TextBlockPage &page, int x, int y)
         page.button3.action();
     else if (navPressed4(x, y))
         enterHomeScreen();
+    else if (page.textTapAction &&
+             touchInRect(x, y, 0, HEADER_HEIGHT, SCREEN_WIDTH, NAV_Y - HEADER_HEIGHT - 1))
+        page.textTapAction();
     else
         return false;
 
