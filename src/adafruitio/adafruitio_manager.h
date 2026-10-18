@@ -30,7 +30,12 @@ struct AdafruitIOFeedDefinition
 
 extern const AdafruitIOFeedDefinition AIO_FEEDS[];
 extern const size_t AIO_FEED_COUNT;
-static const size_t AIO_FEED_CAPACITY = 28;
+static const size_t AIO_FEED_CAPACITY = 39;
+
+// Adafruit IO limits data writes, not reads; this ceiling only guards against
+// runaway polling. HTTP 429 responses still pause all requests.
+static const size_t AIO_REQUESTS_PER_WINDOW = 60;
+static const uint32_t AIO_REQUEST_WINDOW_MS = 60000;
 
 class AdafruitIOManager
 {
@@ -52,16 +57,26 @@ private:
         uint32_t lastAttempt;
         uint32_t updatedAt;
         bool attempted;
+        bool failed;
         bool hasValue;
         bool active;
     };
 
     static void workerTask(void *parameter);
     void runWorker();
-    bool fetchLatestValue(size_t feedIndex, String &value, int &httpStatus);
+    bool hasRequestSlot() const;
+    void recordRequest();
+    bool fetchLatestValue(size_t feedIndex, String &value, int &httpStatus,
+                          uint32_t &retryAfterMs);
     int findFeed(const char *feedKey) const;
 
     FeedCache _feedCache[AIO_FEED_CAPACITY] = {};
+    // Ring buffer of recent request times, used to stay under the rate limit.
+    uint32_t _requestTimes[AIO_REQUESTS_PER_WINDOW] = {};
+    size_t _requestCount = 0;
+    size_t _nextRequestSlot = 0;
+    uint32_t _pausedUntil = 0;
+    bool _paused = false;
     SemaphoreHandle_t _mutex = nullptr;
     TaskHandle_t _worker = nullptr;
 };

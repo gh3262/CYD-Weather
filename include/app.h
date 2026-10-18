@@ -14,6 +14,7 @@ enum Screen
 {
     SCREEN_HOME,
     SCREEN_SNAPSHOT,
+    SCREEN_SUMMARY,
     SCREEN_WIFI_STATUS,
     SCREEN_SYSTEM,
     SCREEN_TOOLS,
@@ -65,6 +66,12 @@ void drawSnapshotScreen();
 void enterSnapshotScreen();
 void handleSnapshotTouch(int x, int y);
 void refreshSnapshotResults();
+
+// summary_screen.cpp
+void drawSummaryScreen();
+void enterSummaryScreen();
+void handleSummaryTouch(int x, int y);
+void refreshSummaryResults();
 
 // wifi_status_screen.cpp
 void drawWifiStatusScreen();

@@ -11,24 +11,28 @@ static const char *const SNAPSHOT_FEED_KEYS[] = {
     "feed-avg",
     "currenthumidity",
     "currentpressure",
+    "currentpressuretrend",
     "currentuv",
+    "currentcloudcover",
+    "currentwinddirection",
     "currentwindspeed",
     "currentwindgust",
-    "currentwinddirection",
 };
 
-static const char *const SNAPSHOT_LABELS[] = {
+static const int SNAPSHOT_VALUE_COLUMN_X = 150;
+static const size_t SNAPSHOT_ROW_COUNT = 7;
+
+static const char *const SNAPSHOT_LABELS[SNAPSHOT_ROW_COUNT] = {
     "Conditions",
     "Temperature",
     "Humidity",
     "Barometer",
-    "UV Index",
+    "UV / Clouds",
     "Wind",
-    "Gusting",
-    "Wind Direction",
+    "Wind / Gust",
 };
 
-static const TextTableColor SNAPSHOT_LABEL_COLORS[] = {
+static const TextTableColor SNAPSHOT_LABEL_COLORS[SNAPSHOT_ROW_COUNT] = {
     TextTableColor::Yellow,
     TextTableColor::White,
     TextTableColor::Pink,
@@ -36,11 +40,10 @@ static const TextTableColor SNAPSHOT_LABEL_COLORS[] = {
     TextTableColor::Yellow,
     TextTableColor::Cyan,
     TextTableColor::Cyan,
-    TextTableColor::Cyan,
 };
 
-static String snapshotValues[8];
-static String lastRenderedValues[8];
+static String snapshotValues[SNAPSHOT_ROW_COUNT];
+static String lastRenderedValues[SNAPSHOT_ROW_COUNT];
 static bool forceSnapshotRender = true;
 
 static String readSnapshotFeed(const char *feedKey)
@@ -48,7 +51,8 @@ static String readSnapshotFeed(const char *feedKey)
     String value;
     if (!adafruitIOManager.getFeedValue(feedKey, value))
         return "--";
-    return value;
+    value.trim();
+    return value.isEmpty() ? String("--") : value;
 }
 
 static bool parseSnapshotNumber(const String &value, float &number)
@@ -68,7 +72,9 @@ static String readSnapshotTemperature()
     if (!parseSnapshotNumber(value, temperature))
         return "-- F";
 
-    return String(static_cast<long>(lroundf(temperature))) + " F";
+    const float celsius = (temperature - 32.0f) * 5.0f / 9.0f;
+    return String(static_cast<long>(lroundf(temperature))) + " F (" +
+           String(static_cast<long>(lroundf(celsius))) + " C)";
 }
 
 static String readSnapshotPressure()
@@ -85,29 +91,43 @@ static String readSnapshotPressure()
 
 static bool updateSnapshotRows(bool redrawPage)
 {
-    snapshotValues[0] = readSnapshotFeed(SNAPSHOT_FEED_KEYS[0]);
+    snapshotValues[0] = readSnapshotFeed("currentconditioncode");
     snapshotValues[1] = readSnapshotTemperature();
-    for (size_t i = 2; i < 8; ++i)
-        snapshotValues[i] = readSnapshotFeed(SNAPSHOT_FEED_KEYS[i]);
 
+    snapshotValues[2] = readSnapshotFeed("currenthumidity");
     if (snapshotValues[2] != "--")
         snapshotValues[2] += " %";
+
     snapshotValues[3] = readSnapshotPressure();
     if (snapshotValues[3] != "--")
+    {
         snapshotValues[3] += " hPa";
-    if (snapshotValues[5] != "--")
-        snapshotValues[5] += " mph";
-    if (snapshotValues[6] != "--")
+        const String trend = readSnapshotFeed("currentpressuretrend");
+        if (trend != "--")
+            snapshotValues[3] += " " + trend;
+    }
+
+    snapshotValues[4] = readSnapshotFeed("currentuv");
+    const String cloudCover = readSnapshotFeed("currentcloudcover");
+    if (cloudCover != "--")
+        snapshotValues[4] += " - " + cloudCover + " %";
+
+    snapshotValues[5] = readSnapshotFeed("currentwinddirection");
+
+    const String windSpeed = readSnapshotFeed("currentwindspeed");
+    const String windGust = readSnapshotFeed("currentwindgust");
+    snapshotValues[6] = windSpeed + " / " + windGust;
+    if (windSpeed != "--" || windGust != "--")
         snapshotValues[6] += " mph";
 
     bool changed = forceSnapshotRender;
-    for (size_t i = 0; i < 8; ++i)
+    for (size_t i = 0; i < SNAPSHOT_ROW_COUNT; ++i)
         changed = changed || snapshotValues[i] != lastRenderedValues[i];
     if (!changed)
         return true;
 
-    TextTableRow rows[8];
-    for (size_t i = 0; i < 8; ++i)
+    TextTableRow rows[SNAPSHOT_ROW_COUNT];
+    for (size_t i = 0; i < SNAPSHOT_ROW_COUNT; ++i)
     {
         rows[i] = {
             SNAPSHOT_LABELS[i],
@@ -120,11 +140,11 @@ static bool updateSnapshotRows(bool redrawPage)
     const TextTablePage page = {
         "Snapshot",
         CYD_NAVY,
-        160,
+        SNAPSHOT_VALUE_COLUMN_X,
         rows,
-        8,
+        SNAPSHOT_ROW_COUNT,
         enterHomeScreen,
-        {nullptr, nullptr},
+        {"Summary", enterSummaryScreen},
         {nullptr, nullptr},
     };
 
@@ -133,7 +153,7 @@ static bool updateSnapshotRows(bool redrawPage)
         : refreshTextTablePageRows(page);
     if (rendered)
     {
-        for (size_t i = 0; i < 8; ++i)
+        for (size_t i = 0; i < SNAPSHOT_ROW_COUNT; ++i)
             lastRenderedValues[i] = snapshotValues[i];
         forceSnapshotRender = false;
     }
@@ -163,11 +183,11 @@ void handleSnapshotTouch(int x, int y)
     const TextTablePage page = {
         "Snapshot",
         CYD_NAVY,
-        160,
+        SNAPSHOT_VALUE_COLUMN_X,
         nullptr,
         0,
         enterHomeScreen,
-        {nullptr, nullptr},
+        {"Summary", enterSummaryScreen},
         {nullptr, nullptr},
     };
     handleTextTablePageTouch(page, x, y);

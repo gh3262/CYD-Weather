@@ -1,0 +1,215 @@
+#include "text_block_page.h"
+
+#include "app.h"
+
+static const int TEXT_BLOCK_LEFT = 8;
+static const int TEXT_BLOCK_RIGHT = SCREEN_WIDTH - 8;
+static const int TEXT_BLOCK_FIRST_BASELINE = 50;
+static const int TEXT_BLOCK_LINE_SPACING = 19;
+
+static bool isValidButton(const TextTableButton &button)
+{
+    return (button.label == nullptr) == (button.action == nullptr);
+}
+
+static bool isValidPage(const TextBlockPage &page)
+{
+    return page.title &&
+           page.backAction &&
+           isValidButton(page.button2) &&
+           isValidButton(page.button3);
+}
+
+// The GFX fonts only cover printable ASCII, so normalize feed text first.
+static String sanitizeText(const char *text)
+{
+    String result;
+    if (!text)
+        return result;
+
+    for (const unsigned char *p = reinterpret_cast<const unsigned char *>(text); *p; ++p)
+    {
+        if (*p == '\n')
+            result += '\n';
+        else if (*p == '\t')
+            result += ' ';
+        else if (*p == 0xC2 && p[1] == 0xB0)
+        {
+            result += ' ';  // "56.9°F" becomes "56.9 F"
+            ++p;
+        }
+        else if (*p >= 0x20 && *p < 0x7F)
+            result += static_cast<char>(*p);
+    }
+    result.trim();
+    return result;
+}
+
+static int textWidth(const String &text)
+{
+    if (text.isEmpty())
+        return 0;
+
+    int16_t x1, y1;
+    uint16_t width, height;
+    gfx->getTextBounds(text.c_str(), 0, 0, &x1, &y1, &width, &height);
+    return x1 + width;
+}
+
+class LineWriter
+{
+public:
+    LineWriter(size_t firstLine, int maxWidth)
+        : _firstLine(firstLine), _maxWidth(maxWidth) {}
+
+    void emit(const String &line)
+    {
+        if (_count >= _firstLine &&
+            _count < _firstLine + TEXT_BLOCK_VISIBLE_LINES)
+        {
+            const int row = static_cast<int>(_count - _firstLine);
+            gfx->setCursor(
+                TEXT_BLOCK_LEFT,
+                TEXT_BLOCK_FIRST_BASELINE + row * TEXT_BLOCK_LINE_SPACING);
+            gfx->print(line);
+        }
+        ++_count;
+    }
+
+    // Splits a word that cannot fit on a line by itself.
+    String emitOversizedWord(String word)
+    {
+        while (textWidth(word) > _maxWidth && word.length() > 1)
+        {
+            size_t fit = 1;
+            while (fit < word.length() &&
+                   textWidth(word.substring(0, fit + 1)) <= _maxWidth)
+                ++fit;
+            emit(word.substring(0, fit));
+            word = word.substring(fit);
+        }
+        return word;
+    }
+
+    int maxWidth() const { return _maxWidth; }
+    size_t count() const { return _count; }
+
+private:
+    size_t _firstLine;
+    int _maxWidth;
+    size_t _count = 0;
+};
+
+static size_t layoutText(const String &text, size_t firstLine)
+{
+    LineWriter writer(firstLine, TEXT_BLOCK_RIGHT - TEXT_BLOCK_LEFT);
+
+    int paragraphStart = 0;
+    while (paragraphStart <= static_cast<int>(text.length()))
+    {
+        int paragraphEnd = text.indexOf('\n', paragraphStart);
+        if (paragraphEnd < 0)
+            paragraphEnd = text.length();
+
+        const String paragraph = text.substring(paragraphStart, paragraphEnd);
+        String line;
+        int wordStart = 0;
+        while (wordStart < static_cast<int>(paragraph.length()))
+        {
+            if (paragraph[wordStart] == ' ')
+            {
+                ++wordStart;
+                continue;
+            }
+
+            int wordEnd = paragraph.indexOf(' ', wordStart);
+            if (wordEnd < 0)
+                wordEnd = paragraph.length();
+            String word = paragraph.substring(wordStart, wordEnd);
+            wordStart = wordEnd;
+
+            const String candidate = line.isEmpty() ? word : line + " " + word;
+            if (textWidth(candidate) <= writer.maxWidth())
+            {
+                line = candidate;
+                continue;
+            }
+
+            if (!line.isEmpty())
+                writer.emit(line);
+            line = writer.emitOversizedWord(word);
+        }
+
+        // An empty paragraph keeps a blank line between paragraphs.
+        writer.emit(line);
+        paragraphStart = paragraphEnd + 1;
+    }
+
+    return text.isEmpty() ? 0 : writer.count();
+}
+
+bool refreshTextBlockPageText(const TextBlockPage &page, size_t *lineCount)
+{
+    gfx->fillRect(
+        0, HEADER_HEIGHT, SCREEN_WIDTH, NAV_Y - HEADER_HEIGHT,
+        page.backgroundColor);
+
+    setBodyFont();
+    gfx->setTextSize(1);
+    gfx->setTextWrap(false);
+    gfx->setTextColor(textTableColorValue(page.textColor));
+
+    const size_t lines = layoutText(sanitizeText(page.text), page.firstLine);
+    if (lineCount)
+        *lineCount = lines;
+
+    gfx->setTextWrap(true);
+    gfx->setTextColor(COLOR_TEXT);
+    setDefaultFont();
+    gfx->setTextSize(2);
+    return true;
+}
+
+bool drawTextBlockPage(const TextBlockPage &page, size_t *lineCount)
+{
+    if (!isValidPage(page))
+    {
+        Serial.println("Text block: invalid page definition.");
+        return false;
+    }
+
+    clearScreen(page.backgroundColor);
+    titleBar(page.title);
+
+    refreshTextBlockPageText(page, lineCount);
+
+    drawNav1("Back");
+    if (page.button2.label)
+        drawNav2(page.button2.label);
+    if (page.button3.label)
+        drawNav3(page.button3.label);
+    drawNav4("Home");
+    return true;
+}
+
+bool handleTextBlockPageTouch(const TextBlockPage &page, int x, int y)
+{
+    if (!isValidPage(page))
+    {
+        Serial.println("Text block: invalid page button definition.");
+        return false;
+    }
+
+    if (navPressed1(x, y))
+        page.backAction();
+    else if (navPressed2(x, y) && page.button2.action)
+        page.button2.action();
+    else if (navPressed3(x, y) && page.button3.action)
+        page.button3.action();
+    else if (navPressed4(x, y))
+        enterHomeScreen();
+    else
+        return false;
+
+    return true;
+}

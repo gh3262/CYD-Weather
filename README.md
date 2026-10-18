@@ -51,6 +51,7 @@ src/
     sound_manager.*     Non-blocking sound playback
   screens/              Example screens
     text_table_page.*   Reusable two-column, eight-row weather page layout
+    text_block_page.*   Reusable word-wrapped long-text page layout
   widgets/
     thermometer_widget.* Resizable thermometer graphic
 ```
@@ -68,6 +69,15 @@ yellow, cyan, or pink label/value colors. The page supplies its background
 color, the value-column x position (the label column ends 20 pixels before
 it), Back callback, and optional second and third navigation buttons; Home is
 provided by the template. The title bar keeps the shared system header color.
+
+Long-text feeds such as `om-current` use `drawTextBlockPage()` and
+`handleTextBlockPageTouch()` from `src/screens/text_block_page.h`. The text is
+word-wrapped in the same 9-point font into up to eight visible lines, honors
+newlines, hard-breaks words too wide for a line, and replaces the unsupported
+degree symbol with a space. `firstLine` sets the first wrapped line to show,
+and the optional `lineCount` output reports the total, so a page can use its
+second and third buttons for Up/Down scrolling. Call
+`refreshTextBlockPageText()` to redraw only the text area when a feed changes.
 
 `src/widgets/thermometer_widget.h` provides a resizable thermometer drawing
 primitive. Configure its position, size, temperature range, colors, and
@@ -104,17 +114,28 @@ independently of the display loop. `Periodic` feeds are refreshed every minute
 even when their page is not active; `OnDemand` feeds are fetched when selected
 and retain their cached value until selected again.
 
+Adafruit IO's per-minute rate limit applies to data writes, not reads. As a
+safety ceiling against runaway polling, the manager still sends at most 60
+requests per rolling minute. If Adafruit IO throttles with HTTP 429, all
+requests pause for the
+`Retry-After` period (60 seconds if none is given), and cached values remain
+on screen. A failed fetch is retried after 30 seconds while the feed is
+periodic or its page is open.
+
 ## Example navigation
 
 | Screen | Button 1 | Button 2 | Button 3 | Button 4 |
 |---|---|---|---|---|
 | Home | Now | — | — | System |
-| Snapshot | Back | — | — | Home |
+| Snapshot | Back | Summary | — | Home |
+| Summary | Back | Up* | Down* | Home |
 | WiFi Status | Refresh | — | — | Home |
 | System | Back | Tools | Refresh | Home |
 | Tools | Back | NTP | Cali TS | Home |
 
-Buttons keep a consistent position across screens. Button 4 returns Home on
+Buttons keep a consistent position across screens. Summary shows the
+`om-current` feed; its Up/Down buttons (*) appear only when the text needs
+more than eight lines. Button 4 returns Home on
 all screens except Home, where it opens System. The System screen also has
 WiFi shortcut button in its upper-right corner. Tools has a Ping
 button at the upper right and opens touchscreen calibration with **Cali TS**.

@@ -7,7 +7,7 @@ static const int TEXT_TABLE_GUTTER_WIDTH = 20;
 static const int TEXT_TABLE_FIRST_BASELINE = 50;
 static const int TEXT_TABLE_ROW_SPACING = 19;
 
-static uint16_t colorValue(TextTableColor color)
+uint16_t textTableColorValue(TextTableColor color)
 {
     switch (color)
     {
@@ -67,12 +67,12 @@ bool refreshTextTablePageRows(const TextTablePage &page)
         int16_t x1, y1;
         uint16_t width, height;
         gfx->getTextBounds(label, 0, 0, &x1, &y1, &width, &height);
-        gfx->setTextColor(colorValue(row.labelColor));
+        gfx->setTextColor(textTableColorValue(row.labelColor));
         const int labelRight = page.valueColumnX - TEXT_TABLE_GUTTER_WIDTH;
         gfx->setCursor(labelRight - (x1 + width) + 1, baseline);
         gfx->print(label);
 
-        gfx->setTextColor(colorValue(row.valueColor));
+        gfx->setTextColor(textTableColorValue(row.valueColor));
         gfx->setCursor(page.valueColumnX, baseline);
         gfx->print(value);
     }

@@ -37,6 +37,8 @@ struct TextTablePage
     TextTableButton button3;
 };
 
+uint16_t textTableColorValue(TextTableColor color);
+
 bool drawTextTablePage(const TextTablePage &page);
 bool refreshTextTablePageRows(const TextTablePage &page);
 bool handleTextTablePageTouch(const TextTablePage &page, int x, int y);

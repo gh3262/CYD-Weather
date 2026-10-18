@@ -8,8 +8,12 @@
 #include "credentials.h"
 
 static const uint32_t FEED_POLL_INTERVAL_MS = 60000;
+static const uint32_t FAILED_FEED_RETRY_MS = 30000;
+static const uint32_t DEFAULT_THROTTLE_PAUSE_MS = 60000;
+static const uint32_t MAX_THROTTLE_PAUSE_MS = 600000;
 static const uint32_t NETWORK_RETRY_DELAY_MS = 1000;
 static const uint32_t REQUEST_TIMEOUT_MS = 5000;
+static const int HTTP_TOO_MANY_REQUESTS = 429;
 
 static const char AIO_ROOT_CA[] =
     "-----BEGIN CERTIFICATE-----\n"
@@ -161,6 +165,23 @@ void AdafruitIOManager::workerTask(void *parameter)
     static_cast<AdafruitIOManager *>(parameter)->runWorker();
 }
 
+bool AdafruitIOManager::hasRequestSlot() const
+{
+    if (_requestCount < AIO_REQUESTS_PER_WINDOW)
+        return true;
+
+    // When the ring buffer is full, the next slot holds the oldest request.
+    return millis() - _requestTimes[_nextRequestSlot] >= AIO_REQUEST_WINDOW_MS;
+}
+
+void AdafruitIOManager::recordRequest()
+{
+    _requestTimes[_nextRequestSlot] = millis();
+    _nextRequestSlot = (_nextRequestSlot + 1) % AIO_REQUESTS_PER_WINDOW;
+    if (_requestCount < AIO_REQUESTS_PER_WINDOW)
+        ++_requestCount;
+}
+
 void AdafruitIOManager::runWorker()
 {
     for (;;)
@@ -168,6 +189,23 @@ void AdafruitIOManager::runWorker()
         if (WiFi.status() != WL_CONNECTED)
         {
             vTaskDelay(pdMS_TO_TICKS(NETWORK_RETRY_DELAY_MS));
+            continue;
+        }
+
+        if (_paused)
+        {
+            if (static_cast<int32_t>(millis() - _pausedUntil) < 0)
+            {
+                vTaskDelay(pdMS_TO_TICKS(NETWORK_RETRY_DELAY_MS));
+                continue;
+            }
+            _paused = false;
+            Serial.println("Adafruit IO: resuming requests after throttle pause.");
+        }
+
+        if (!hasRequestSlot())
+        {
+            vTaskDelay(pdMS_TO_TICKS(250));
             continue;
         }
 
@@ -180,8 +218,10 @@ void AdafruitIOManager::runWorker()
             const bool periodic =
                 AIO_FEEDS[i].refreshPolicy == AdafruitIORefreshPolicy::Periodic;
             const bool shouldFetch = periodic || feed.active;
+            const uint32_t elapsed = now - feed.lastAttempt;
             const bool due = !feed.attempted ||
-                (periodic && now - feed.lastAttempt >= FEED_POLL_INTERVAL_MS);
+                (feed.failed && elapsed >= FAILED_FEED_RETRY_MS) ||
+                (periodic && elapsed >= FEED_POLL_INTERVAL_MS);
             if (shouldFetch && due)
             {
                 selectedFeed = static_cast<int>(i);
@@ -198,12 +238,15 @@ void AdafruitIOManager::runWorker()
 
         String value;
         int httpStatus = 0;
+        uint32_t retryAfterMs = 0;
+        recordRequest();
         const bool succeeded = fetchLatestValue(
-            static_cast<size_t>(selectedFeed), value, httpStatus);
+            static_cast<size_t>(selectedFeed), value, httpStatus, retryAfterMs);
 
         xSemaphoreTake(_mutex, portMAX_DELAY);
         FeedCache &feed = _feedCache[selectedFeed];
         feed.attempted = true;
+        feed.failed = !succeeded;
         feed.lastAttempt = millis();
         if (succeeded)
         {
@@ -213,14 +256,24 @@ void AdafruitIOManager::runWorker()
         }
         xSemaphoreGive(_mutex);
 
-        if (!succeeded)
+        if (httpStatus == HTTP_TOO_MANY_REQUESTS)
+        {
+            // Cached values stay on screen while all requests wait out the limit.
+            _paused = true;
+            _pausedUntil = millis() + retryAfterMs;
+            Serial.printf("Adafruit IO: rate limited; pausing requests for %lu s.\n",
+                          static_cast<unsigned long>(retryAfterMs / 1000));
+        }
+        else if (!succeeded)
+        {
             Serial.printf("Adafruit IO: fetch failed for '%s' (HTTP %d).\n",
                           AIO_FEEDS[selectedFeed].key, httpStatus);
+        }
     }
 }
 
 bool AdafruitIOManager::fetchLatestValue(
-    size_t feedIndex, String &value, int &httpStatus)
+    size_t feedIndex, String &value, int &httpStatus, uint32_t &retryAfterMs)
 {
     WiFiClientSecure client;
     client.setCACert(AIO_ROOT_CA);
@@ -240,7 +293,17 @@ bool AdafruitIOManager::fetchLatestValue(
 
     http.addHeader("X-AIO-Key", AIO_KEY);
     http.addHeader("Accept", "application/json");
+    const char *responseHeaders[] = {"Retry-After"};
+    http.collectHeaders(responseHeaders, 1);
     httpStatus = http.GET();
+
+    if (httpStatus == HTTP_TOO_MANY_REQUESTS)
+    {
+        const long retryAfterSeconds = http.header("Retry-After").toInt();
+        retryAfterMs = retryAfterSeconds > 0
+            ? min(static_cast<uint32_t>(retryAfterSeconds) * 1000, MAX_THROTTLE_PAUSE_MS)
+            : DEFAULT_THROTTLE_PAUSE_MS;
+    }
 
     bool succeeded = false;
     if (httpStatus == HTTP_CODE_OK)

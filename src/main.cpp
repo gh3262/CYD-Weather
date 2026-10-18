@@ -233,6 +233,7 @@ struct ScreenDef
 static const ScreenDef screens[] = {
     /* SCREEN_HOME        */ { drawHomeScreen,       handleHomeTouch,       nullptr,                    false },
     /* SCREEN_SNAPSHOT    */ { drawSnapshotScreen,   handleSnapshotTouch,   refreshSnapshotResults,     true  },
+    /* SCREEN_SUMMARY     */ { drawSummaryScreen,    handleSummaryTouch,    refreshSummaryResults,      true  },
     /* SCREEN_WIFI_STATUS */ { drawWifiStatusScreen, handleWifiStatusTouch, refreshWifiStatusResults,   true  },
     /* SCREEN_SYSTEM      */ { drawSystemScreen,     handleSystemTouch,     nullptr,                    true  },
     /* SCREEN_TOOLS       */ { drawToolsScreen,      handleToolsTouch,      refreshToolsResults,        true  },
@@ -322,6 +323,14 @@ void loop()
     {
         lastSnapshotRefresh = millis();
         refreshSnapshotResults();
+    }
+
+    static unsigned long lastSummaryRefresh = 0;
+    if (state.currentScreen == SCREEN_SUMMARY &&
+        millis() - lastSummaryRefresh >= 250)
+    {
+        lastSummaryRefresh = millis();
+        refreshSummaryResults();
     }
 
     if (getTouch(x, y))
