@@ -165,6 +165,52 @@ void AdafruitIOManager::workerTask(void *parameter)
     static_cast<AdafruitIOManager *>(parameter)->runWorker();
 }
 
+bool AdafruitIOManager::setFeedHistoryCount(const char *feedKey, size_t count)
+{
+    const int index = findFeed(feedKey);
+    if (!_mutex || index < 0 || count == 0 || count > 1000)
+    {
+        Serial.println("Adafruit IO: invalid history request (expected 1-1000 entries).");
+        return false;
+    }
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    FeedCache &feed = _feedCache[index];
+    if (feed.historyCount != count)
+    {
+        feed.historyCount = count;
+        feed.attempted = false;
+        feed.history.clear();
+        feed.cachedHistoryCount = 0;
+    }
+    xSemaphoreGive(_mutex);
+    return true;
+}
+
+bool AdafruitIOManager::getFeedValues(
+    const char *feedKey, std::vector<String> &values) const
+{
+    const int index = findFeed(feedKey);
+    if (!_mutex || index < 0)
+        return false;
+
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    const FeedCache &feed = _feedCache[index];
+    const bool available = feed.cachedHistoryCount == feed.historyCount;
+    if (available)
+    {
+        if (feed.historyCount == 1)
+        {
+            values.clear();
+            if (feed.hasValue)
+                values.push_back(feed.value);
+        }
+        else
+            values = feed.history;
+    }
+    xSemaphoreGive(_mutex);
+    return available;
+}
+
 bool AdafruitIOManager::hasRequestSlot() const
 {
     if (_requestCount < AIO_REQUESTS_PER_WINDOW)
@@ -211,6 +257,7 @@ void AdafruitIOManager::runWorker()
 
         const uint32_t now = millis();
         int selectedFeed = -1;
+        size_t historyCount = 1;
         xSemaphoreTake(_mutex, portMAX_DELAY);
         for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
         {
@@ -225,6 +272,7 @@ void AdafruitIOManager::runWorker()
             if (shouldFetch && due)
             {
                 selectedFeed = static_cast<int>(i);
+                historyCount = feed.historyCount;
                 break;
             }
         }
@@ -236,23 +284,34 @@ void AdafruitIOManager::runWorker()
             continue;
         }
 
-        String value;
+        std::vector<String> values;
         int httpStatus = 0;
         uint32_t retryAfterMs = 0;
         recordRequest();
-        const bool succeeded = fetchLatestValue(
-            static_cast<size_t>(selectedFeed), value, httpStatus, retryAfterMs);
+        const bool succeeded = fetchLatestValues(
+            static_cast<size_t>(selectedFeed), historyCount, values,
+            httpStatus, retryAfterMs);
 
         xSemaphoreTake(_mutex, portMAX_DELAY);
         FeedCache &feed = _feedCache[selectedFeed];
-        feed.attempted = true;
-        feed.failed = !succeeded;
-        feed.lastAttempt = millis();
-        if (succeeded)
+        // A count change during the request leaves the new request pending.
+        if (feed.historyCount == historyCount)
         {
-            feed.value = value;
-            feed.hasValue = true;
-            feed.updatedAt = millis();
+            feed.attempted = true;
+            feed.failed = !succeeded;
+            feed.lastAttempt = millis();
+            if (succeeded)
+            {
+                if (!values.empty())
+                    feed.value = values.front();
+                else
+                    feed.value = "";
+                feed.hasValue = !values.empty();
+                feed.cachedHistoryCount = historyCount;
+                if (historyCount > 1)
+                    feed.history = std::move(values);
+                feed.updatedAt = millis();
+            }
         }
         xSemaphoreGive(_mutex);
 
@@ -272,8 +331,9 @@ void AdafruitIOManager::runWorker()
     }
 }
 
-bool AdafruitIOManager::fetchLatestValue(
-    size_t feedIndex, String &value, int &httpStatus, uint32_t &retryAfterMs)
+bool AdafruitIOManager::fetchLatestValues(
+    size_t feedIndex, size_t count, std::vector<String> &values,
+    int &httpStatus, uint32_t &retryAfterMs)
 {
     WiFiClientSecure client;
     client.setCACert(AIO_ROOT_CA);
@@ -281,10 +341,14 @@ bool AdafruitIOManager::fetchLatestValue(
     HTTPClient http;
     http.setConnectTimeout(REQUEST_TIMEOUT_MS);
     http.setTimeout(REQUEST_TIMEOUT_MS);
+    // Stream JSON parsing requires an unchunked HTTP response.
+    http.useHTTP10(true);
 
     const String url = String("https://io.adafruit.com/api/v2/") +
                        AIO_USERNAME + "/feeds/" +
-                       AIO_FEEDS[feedIndex].key + "/data/last";
+                       AIO_FEEDS[feedIndex].key +
+                       (count == 1 ? String("/data/last")
+                                   : String("/data?limit=") + String(count));
     if (!http.begin(client, url))
     {
         httpStatus = -1;
@@ -309,11 +373,32 @@ bool AdafruitIOManager::fetchLatestValue(
     if (httpStatus == HTTP_CODE_OK)
     {
         JsonDocument document;
-        const DeserializationError error = deserializeJson(document, http.getStream());
-        if (!error && document["value"].is<const char *>())
+        JsonDocument filter;
+        if (count == 1)
+            filter["value"] = true;
+        else
+            filter[0]["value"] = true;
+        const DeserializationError error = deserializeJson(
+            document, http.getStream(), DeserializationOption::Filter(filter));
+        if (!error && count == 1 && document["value"].is<const char *>())
         {
-            value = document["value"].as<const char *>();
+            values.push_back(String(document["value"].as<const char *>()));
             succeeded = true;
+        }
+        else if (!error && count > 1 && document.is<JsonArray>())
+        {
+            succeeded = true;
+            for (JsonVariant entry : document.as<JsonArray>())
+            {
+                if (!entry["value"].is<const char *>() || values.size() >= count)
+                {
+                    Serial.printf("Adafruit IO: invalid history response for '%s'.\n",
+                                  AIO_FEEDS[feedIndex].key);
+                    succeeded = false;
+                    break;
+                }
+                values.push_back(String(entry["value"].as<const char *>()));
+            }
         }
         else if (error)
         {

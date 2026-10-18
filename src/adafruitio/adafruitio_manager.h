@@ -2,6 +2,7 @@
 #define ADAFRUITIO_MANAGER_H
 
 #include <Arduino.h>
+#include <vector>
 
 enum class AdafruitIOValueType
 {
@@ -50,6 +51,10 @@ public:
     bool getFeedValue(const char *feedKey, String &value) const;
     bool getFeedUpdatedAt(const char *feedKey, uint32_t &updatedAt) const;
 
+    // History is newest first. The API allows up to 1000 entries per request.
+    bool setFeedHistoryCount(const char *feedKey, size_t count);
+    bool getFeedValues(const char *feedKey, std::vector<String> &values) const;
+
 private:
     struct FeedCache
     {
@@ -60,13 +65,17 @@ private:
         bool failed;
         bool hasValue;
         bool active;
+        size_t historyCount = 1;
+        size_t cachedHistoryCount = 0;
+        std::vector<String> history;
     };
 
     static void workerTask(void *parameter);
     void runWorker();
     bool hasRequestSlot() const;
     void recordRequest();
-    bool fetchLatestValue(size_t feedIndex, String &value, int &httpStatus,
+    bool fetchLatestValues(size_t feedIndex, size_t count,
+                          std::vector<String> &values, int &httpStatus,
                           uint32_t &retryAfterMs);
     int findFeed(const char *feedKey) const;
 

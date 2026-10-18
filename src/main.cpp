@@ -6,6 +6,7 @@
 
 AppState state = {SCREEN_HOME, PING_NOT_RUN, PING_NOT_RUN};
 AdafruitIOManager adafruitIOManager;
+bool headerAlertActive = false;
 
 // Connection
 bool connectWiFi();
@@ -237,10 +238,13 @@ struct ScreenDef
 static const unsigned long SCREEN_POLL_INTERVAL_MS = 250;
 
 static const ScreenDef screens[] = {
-    /* SCREEN_HOME        */ { drawHomeScreen,       handleHomeTouch,       nullptr,                  refreshHomeTemperature, false },
+    /* SCREEN_HOME        */ { drawHomeScreen,       handleHomeTouch,       nullptr,                  refreshHomeScreen,      false },
     /* SCREEN_SNAPSHOT    */ { drawSnapshotScreen,   handleSnapshotTouch,   nullptr,                  refreshSnapshotResults, true  },
     /* SCREEN_SUMMARY     */ { drawSummaryScreen,    handleSummaryTouch,    nullptr,                  refreshSummaryResults,  true  },
     /* SCREEN_FORECAST    */ { drawForecastScreen,   handleForecastTouch,   nullptr,                  refreshForecastResults, true  },
+    /* SCREEN_ALERTS      */ { drawAlertsScreen,     handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
+    /* SCREEN_ALERT_DETAILS */ { drawAlertsScreen,   handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
+    /* SCREEN_FULL_ALERT  */ { drawAlertsScreen,     handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
     /* SCREEN_WIFI_STATUS */ { drawWifiStatusScreen, handleWifiStatusTouch, refreshWifiStatusResults, nullptr,                true  },
     /* SCREEN_SYSTEM      */ { drawSystemScreen,     handleSystemTouch,     nullptr,                  nullptr,                true  },
     /* SCREEN_TOOLS       */ { drawToolsScreen,      handleToolsTouch,      refreshToolsResults,      nullptr,                true  },
@@ -263,12 +267,28 @@ void refreshCurrentScreenResults()
         screen.refreshResults();
 }
 
+static void updateAlertIndicator()
+{
+    String value;
+    const bool active =
+        adafruitIOManager.getFeedValue("nbr-alerts", value) && value.toInt() > 0;
+    if (active == headerAlertActive)
+        return;
+
+    headerAlertActive = active;
+    // Calibration draws its own targets; its next title bar picks up the state.
+    if (state.currentScreen != SCREEN_TOUCH_CALIBRATION)
+        drawAlertIndicator();
+}
+
 static void pollCurrentScreen()
 {
     static unsigned long lastPoll = 0;
     if (millis() - lastPoll < SCREEN_POLL_INTERVAL_MS)
         return;
     lastPoll = millis();
+
+    updateAlertIndicator();
 
     const ScreenDef &screen = screens[state.currentScreen];
     if (screen.poll)

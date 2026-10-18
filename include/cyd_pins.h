@@ -69,6 +69,7 @@
 #define CYD_BLACK       0x0000
 #define CYD_WHITE       0xFFFF
 #define CYD_RED         0xF800
+#define CYD_BRIGHTRED  0xF810
 #define CYD_DARK_RED    0x8000
 #define CYD_GREEN       0x07E0
 #define CYD_DARK_GREEN  0x03E0

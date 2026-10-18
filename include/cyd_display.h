@@ -67,6 +67,23 @@ inline void drawClock()
     gfx->setCursor(248, 15);
     gfx->print(currentTimeString());
 }
+// Set from the Adafruit IO 'nbr-alerts' feed; shown on every title bar.
+extern bool headerAlertActive;
+
+static const int ALERT_INDICATOR_X = 234;
+static const int ALERT_INDICATOR_Y = 14;
+static const int ALERT_INDICATOR_RADIUS = 8;
+
+// Inactive draws in the header color so a cleared alert disappears.
+inline void drawAlertIndicator()
+{
+    gfx->fillCircle(
+        ALERT_INDICATOR_X,
+        ALERT_INDICATOR_Y,
+        ALERT_INDICATOR_RADIUS,
+        headerAlertActive ? CYD_BRIGHTRED : COLOR_HEADER_BG);
+}
+
 inline void titleBar(
     const char *title,
     uint16_t bgColor = COLOR_HEADER_BG,
@@ -81,6 +98,10 @@ inline void titleBar(
 
     setDefaultFont();
     drawClock();
+
+    // The header was just filled, so only an active alert needs drawing.
+    if (headerAlertActive)
+        drawAlertIndicator();
 }
 
 inline void centerText(

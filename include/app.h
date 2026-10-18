@@ -16,6 +16,9 @@ enum Screen
     SCREEN_SNAPSHOT,
     SCREEN_SUMMARY,
     SCREEN_FORECAST,
+    SCREEN_ALERTS,
+    SCREEN_ALERT_DETAILS,
+    SCREEN_FULL_ALERT,
     SCREEN_WIFI_STATUS,
     SCREEN_SYSTEM,
     SCREEN_TOOLS,
@@ -61,6 +64,7 @@ void enterHomeScreen();
 void handleHomeTouch(int x, int y);
 void refreshHomeTime();
 void refreshHomeTemperature();
+void refreshHomeScreen();
 
 // snapshot_screen.cpp
 void drawSnapshotScreen();
@@ -73,6 +77,14 @@ void drawSummaryScreen();
 void enterSummaryScreen();
 void handleSummaryTouch(int x, int y);
 void refreshSummaryResults();
+
+// alerts_screen.cpp
+void drawAlertsScreen();
+void enterAlertsScreen();
+void handleAlertsTouch(int x, int y);
+void refreshAlertsResults();
+void enterAlertDetailsScreen();
+void enterFullAlertScreen();
 
 // forecast_screen.cpp
 void drawForecastScreen();

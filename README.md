@@ -119,6 +119,11 @@ independently of the display loop. `Periodic` feeds are refreshed every minute
 even when their page is not active; `OnDemand` feeds are fetched when selected
 and retain their cached value until selected again.
 
+For feeds with separate entries, `setFeedHistoryCount()` requests the latest
+1-1000 entries and `getFeedValues()` reads them in newest-first order. History
+uses the same background worker, request budget, and retry handling as single
+values. Only the JSON value fields are retained, including full long text.
+
 Adafruit IO's per-minute rate limit applies to data writes, not reads. As a
 safety ceiling against runaway polling, the manager still sends at most 60
 requests per rolling minute. If Adafruit IO throttles with HTTP 429, all
@@ -126,6 +131,28 @@ requests pause for the
 `Retry-After` period (60 seconds if none is given), and cached values remain
 on screen. A failed fetch is retried after 30 seconds while the feed is
 periodic or its page is open.
+
+A red dot to the left of the header clock marks active weather alerts. It
+follows the periodic `nbr-alerts` feed: the dot shows when the count is above
+zero and is hidden (header color) when the count is zero or not yet loaded.
+While alerts are active, Home also shows a red "Active Alert" button between
+the temperature and the navigation bar that opens the Alerts page.
+
+Alerts shows the latest `headline-alert` paragraph followed by the active count
+(for example, " - 2 Alerts"). Details fetches the newest `nbr-alerts` entries
+from `weather-alerts`, one per page, newest first. Back and Next wrap through
+the available entries; Alerts returns to the headline page. If fewer entries
+are available than the reported count, the page notes this rather than making
+up missing entries. Tap headline or detail text to page through long entries,
+wrapping back to the beginning.
+
+Full Alert shows the latest `big-alert` value without truncation, with Up and
+Down paging through its wrapped text and Back returning to the headline.
+Each alert view fetches its text when entered; a changed alert count also
+requests fresh text and resets scrolling. When the count is zero or unavailable,
+all three views show "No Current Alerts" instead of old cached alert text.
+The API allows at most 1000 history entries in a request; a larger alert count
+produces a logged error and an explanatory Details message, not a truncated list.
 
 ## Example navigation
 
@@ -135,6 +162,9 @@ periodic or its page is open.
 | Snapshot | Back | Summary | — | Home |
 | Summary | Back | Up* | Down* | Home |
 | Forecast | Back | Next | Today | Home |
+| Alerts | Back | Details | Full Alert | Home |
+| Alert Details | Back | Next | Alerts | Home |
+| Full Alert | Back | Up | Down | Home |
 | WiFi Status | Refresh | — | — | Home |
 | System | Back | Tools | Refresh | Home |
 | Tools | Back | NTP | Cali TS | Home |
