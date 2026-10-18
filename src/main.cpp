@@ -226,19 +226,25 @@ struct ScreenDef
 {
     void (*draw)();
     void (*handleTouch)(int x, int y);
-    void (*refreshResults)();   // nullptr when the screen has no live result rows
+    // Called when a background job (ping, NTP) finishes; nullptr if unused.
+    void (*refreshResults)();
+    // Called every SCREEN_POLL_INTERVAL_MS while the screen is shown; must only
+    // redraw what changed. nullptr when the screen has no live data.
+    void (*poll)();
     bool hasHomeButton;
 };
 
+static const unsigned long SCREEN_POLL_INTERVAL_MS = 250;
+
 static const ScreenDef screens[] = {
-    /* SCREEN_HOME        */ { drawHomeScreen,       handleHomeTouch,       nullptr,                    false },
-    /* SCREEN_SNAPSHOT    */ { drawSnapshotScreen,   handleSnapshotTouch,   refreshSnapshotResults,     true  },
-    /* SCREEN_SUMMARY     */ { drawSummaryScreen,    handleSummaryTouch,    refreshSummaryResults,      true  },
-    /* SCREEN_FORECAST    */ { drawForecastScreen,   handleForecastTouch,   refreshForecastResults,     true  },
-    /* SCREEN_WIFI_STATUS */ { drawWifiStatusScreen, handleWifiStatusTouch, refreshWifiStatusResults,   true  },
-    /* SCREEN_SYSTEM      */ { drawSystemScreen,     handleSystemTouch,     nullptr,                    true  },
-    /* SCREEN_TOOLS       */ { drawToolsScreen,      handleToolsTouch,      refreshToolsResults,        true  },
-    /* SCREEN_TOUCH_CALIBRATION */ { drawTouchCalibrationScreen, handleTouchCalibrationTouch, nullptr, false },
+    /* SCREEN_HOME        */ { drawHomeScreen,       handleHomeTouch,       nullptr,                  refreshHomeTemperature, false },
+    /* SCREEN_SNAPSHOT    */ { drawSnapshotScreen,   handleSnapshotTouch,   nullptr,                  refreshSnapshotResults, true  },
+    /* SCREEN_SUMMARY     */ { drawSummaryScreen,    handleSummaryTouch,    nullptr,                  refreshSummaryResults,  true  },
+    /* SCREEN_FORECAST    */ { drawForecastScreen,   handleForecastTouch,   nullptr,                  refreshForecastResults, true  },
+    /* SCREEN_WIFI_STATUS */ { drawWifiStatusScreen, handleWifiStatusTouch, refreshWifiStatusResults, nullptr,                true  },
+    /* SCREEN_SYSTEM      */ { drawSystemScreen,     handleSystemTouch,     nullptr,                  nullptr,                true  },
+    /* SCREEN_TOOLS       */ { drawToolsScreen,      handleToolsTouch,      refreshToolsResults,      nullptr,                true  },
+    /* SCREEN_TOUCH_CALIBRATION */ { drawTouchCalibrationScreen, handleTouchCalibrationTouch, nullptr, nullptr,       false },
 };
 
 static_assert(sizeof(screens) / sizeof(screens[0]) == SCREEN_COUNT,
@@ -255,6 +261,18 @@ void refreshCurrentScreenResults()
 
     if (screen.refreshResults)
         screen.refreshResults();
+}
+
+static void pollCurrentScreen()
+{
+    static unsigned long lastPoll = 0;
+    if (millis() - lastPoll < SCREEN_POLL_INTERVAL_MS)
+        return;
+    lastPoll = millis();
+
+    const ScreenDef &screen = screens[state.currentScreen];
+    if (screen.poll)
+        screen.poll();
 }
 
 void colorTest()
@@ -310,37 +328,7 @@ void loop()
         }
     }
 
-    static unsigned long lastHomeTemperatureRefresh = 0;
-    if (state.currentScreen == SCREEN_HOME &&
-        millis() - lastHomeTemperatureRefresh >= 250)
-    {
-        lastHomeTemperatureRefresh = millis();
-        refreshHomeTemperature();
-    }
-
-    static unsigned long lastSnapshotRefresh = 0;
-    if (state.currentScreen == SCREEN_SNAPSHOT &&
-        millis() - lastSnapshotRefresh >= 250)
-    {
-        lastSnapshotRefresh = millis();
-        refreshSnapshotResults();
-    }
-
-    static unsigned long lastSummaryRefresh = 0;
-    if (state.currentScreen == SCREEN_SUMMARY &&
-        millis() - lastSummaryRefresh >= 250)
-    {
-        lastSummaryRefresh = millis();
-        refreshSummaryResults();
-    }
-
-    static unsigned long lastForecastRefresh = 0;
-    if (state.currentScreen == SCREEN_FORECAST &&
-        millis() - lastForecastRefresh >= 250)
-    {
-        lastForecastRefresh = millis();
-        refreshForecastResults();
-    }
+    pollCurrentScreen();
 
     if (getTouch(x, y))
     {

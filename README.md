@@ -58,7 +58,10 @@ src/
 
 `main.cpp` routes each `Screen` enum value through a screen table. To add a
 screen, define its draw, enter, and touch-handler functions, add its interface
-to `include/app.h`, then add a matching entry to the table. Shared device
+to `include/app.h`, then add a matching entry to the table. Screens with live
+data supply a `poll` function, called every 250 ms while the screen is shown,
+that redraws only changed values; `refreshResults` is reserved for one-off
+redraws when a background ping or NTP job finishes. Shared device
 features are exposed through the CYD and sound helper headers.
 
 Weather pages that use the common two-column layout can render up to eight
