@@ -244,6 +244,7 @@ static const ScreenDef screens[] = {
     /* SCREEN_FORECAST    */ { drawForecastScreen,   handleForecastTouch,   nullptr,                  refreshForecastResults, true  },
     /* SCREEN_DETAILS     */ { drawDetailsScreen,    handleDetailsTouch,    nullptr,                  refreshDetailsResults,  true  },
     /* SCREEN_PRECIPITATION */ { drawPrecipitationScreen, handlePrecipitationTouch, nullptr,           refreshPrecipitationResults, true },
+    /* SCREEN_BAROMETER    */ { drawBarometerScreen, handleBarometerTouch, nullptr,                   refreshBarometerResults, true },
     /* SCREEN_TEMPERATURES */ { drawTemperaturesScreen, handleTemperaturesTouch, nullptr,               refreshTemperaturesResults, true },
     /* SCREEN_ASTRONOMICAL */ { drawAstronomicalScreen, handleAstronomicalTouch, nullptr,               refreshAstronomicalResults, true },
     /* SCREEN_ALERTS      */ { drawAlertsScreen,     handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },

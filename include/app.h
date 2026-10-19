@@ -18,6 +18,7 @@ enum Screen
     SCREEN_FORECAST,
     SCREEN_DETAILS,
     SCREEN_PRECIPITATION,
+    SCREEN_BAROMETER,
     SCREEN_TEMPERATURES,
     SCREEN_ASTRONOMICAL,
     SCREEN_ALERTS,
@@ -107,6 +108,12 @@ void drawPrecipitationScreen();
 void enterPrecipitationScreen();
 void handlePrecipitationTouch(int x, int y);
 void refreshPrecipitationResults();
+
+// barometer_screen.cpp
+void drawBarometerScreen();
+void enterBarometerScreen();
+void handleBarometerTouch(int x, int y);
+void refreshBarometerResults();
 
 // temperatures_screen.cpp
 void drawTemperaturesScreen();

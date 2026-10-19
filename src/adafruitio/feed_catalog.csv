@@ -7,8 +7,6 @@ currentcloudcover,Current Cloud Cover,Clouds,integer,%,FALSE,periodic
 currentconditioncode,Current Conditions,Condition,text,,FALSE,periodic
 currenthumidity,Current Humidity,Humidity,integer,%,FALSE,periodic
 currentprecipitationintensity,Current Precipitation Intensity,Precipitation,float,in/hr,FALSE,on_demand
-currentpressure,Current Barometer,Barometer,float,hPa,FALSE,periodic
-currentpressuretrend,Barometer Trend,Barometer,text,,FALSE,periodic
 currenttemperature,Current Temperature (F),Temperature,float,°F,FALSE,on_demand
 currenttemperatureapparent,Current Apparent Temperature (F),Temperature,float,°F,FALSE,on_demand
 currenttemperaturedewpoint,Current Dew Point (F),Temperature,float,°F,FALSE,on_demand
@@ -69,3 +67,15 @@ days2precipitationtype,Ype of precipitation  2 days,Precipitation,text,,FALSE,on
 days5precipitationchance,Chance of precipitation 5 days in percent,Precipitation,integer,%,FALSE,on_demand
 days5precipitationamount,Mount of precipitation  5 days,Precipitation,float,in,FALSE,on_demand
 days5precipitationtype,Ype of precipitation  5 days,Precipitation,text,,FALSE,on_demand
+currentpressure,Current Barometer,Barometer,float,hPa,FALSE,periodic
+currentpressuretrend,Current Barometer Trend,Barometer,text,,FALSE,periodic
+hours1pressure,Hour 1 Barometric Pressure,Barometer,float,hPa,FALSE,on_demand
+hours1pressuretrend,Hour 1 Barometric Trend,Barometer,text,,FALSE,on_demand
+hours2pressure,Hour 2 Barometric Pressure,Barometer,float,hPa,FALSE,on_demand
+hours2pressuretrend,Hour 2 Barometric Trend,Barometer,text,,FALSE,on_demand
+hours6pressure,Hour 6 Barometric Pressure,Barometer,float,hPa,FALSE,on_demand
+hours6pressuretrend,Hour 6 Barometric Trend,Barometer,text,,FALSE,on_demand
+hours12pressure,Hour 12 Barometric Pressure,Barometer,float,hPa,FALSE,on_demand
+hours12pressuretrend,Hour 12 Barometric Trend,Barometer,text,,FALSE,on_demand
+hours24pressure,Hour 24 Barometric Pressure,Barometer,float,hPa,FALSE,on_demand
+hours24pressuretrend,Hour 24 Barometric Trend,Barometer,text,,FALSE,on_demand

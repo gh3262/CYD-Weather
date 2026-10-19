@@ -187,6 +187,7 @@ produces a logged error and an explanatory Details message, not a truncated list
 |---|---|---|---|---|
 | Home | Now | Forecast | Details | System |
 | Details | Back | — | — | Home |
+| Barometer | Back | — | — | Home |
 | Temperatures | Back | — | — | Home |
 | Astronomical | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
@@ -220,14 +221,21 @@ These diagnostics, together with free/minimum heap, are sampled when System
 is opened or its Refresh button is pressed; they do not poll the network.
 
 Details provides a two-column, four-row button grid in the left two-thirds
-of the content area. Its first button, **Temps**, opens Temperatures; the
-bottom-left button, **Astro**, opens Astronomical. The remaining six slots
+of the content area. The left column contains **Temps**, **Baro**, **Precip**,
+and **Astro**, opening Temperatures, Barometer, Precipitation, and Astronomical,
+respectively. The remaining four slots
 are inactive placeholders. The right third shows the
 thermometer using `feed-avg` in red and `currenttemperatureapparent` in cyan,
 on a 10 to 100 F scale. The tube is centered in its panel, with Fahrenheit
 ticks on the left and Celsius ticks on the right (enabled by
 `ThermometerWidgetOptions::showCelsiusScale`). Until a temperature is available it shows `-- F`
 instead of a default reading.
+
+Barometer uses a monospaced three-column table with cyan **Time**, **Pressure**,
+and **Trend** headers. Its rows show Current, 1 Hour, 2 Hours, 6 Hours, 12 Hours,
+and 24 Hours using the corresponding pressure/trend feeds. Pressure is in hPa;
+unavailable values show `--`. Only changed rows are redrawn as feeds arrive.
+Back returns to Details.
 
 Temperatures uses the text-table layout for `feed-avg`, `wapi.feels-like`,
 `currenttemperatureapparent`, `currenttemperaturedewpoint`,

@@ -9,8 +9,6 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"currentconditioncode", "Current Conditions", "Condition", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::Periodic},
     {"currenthumidity", "Current Humidity", "Humidity", AdafruitIOValueType::Integer, "%", false, AdafruitIORefreshPolicy::Periodic},
     {"currentprecipitationintensity", "Current Precipitation Intensity", "Precipitation", AdafruitIOValueType::Float, "in/hr", false, AdafruitIORefreshPolicy::OnDemand},
-    {"currentpressure", "Current Barometer", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::Periodic},
-    {"currentpressuretrend", "Barometer Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::Periodic},
     {"currenttemperature", "Current Temperature (F)", "Temperature", AdafruitIOValueType::Float, "°F", false, AdafruitIORefreshPolicy::OnDemand},
     {"currenttemperatureapparent", "Current Apparent Temperature (F)", "Temperature", AdafruitIOValueType::Float, "°F", false, AdafruitIORefreshPolicy::OnDemand},
     {"currenttemperaturedewpoint", "Current Dew Point (F)", "Temperature", AdafruitIOValueType::Float, "°F", false, AdafruitIORefreshPolicy::OnDemand},
@@ -71,6 +69,18 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"days5precipitationchance", "Chance of precipitation 5 days in percent", "Precipitation", AdafruitIOValueType::Integer, "%", false, AdafruitIORefreshPolicy::OnDemand},
     {"days5precipitationamount", "Mount of precipitation  5 days", "Precipitation", AdafruitIOValueType::Float, "in", false, AdafruitIORefreshPolicy::OnDemand},
     {"days5precipitationtype", "Ype of precipitation  5 days", "Precipitation", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"currentpressure", "Current Barometer", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::Periodic},
+    {"currentpressuretrend", "Current Barometer Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::Periodic},
+    {"hours1pressure", "Hour 1 Barometric Pressure", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours1pressuretrend", "Hour 1 Barometric Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours2pressure", "Hour 2 Barometric Pressure", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours2pressuretrend", "Hour 2 Barometric Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours6pressure", "Hour 6 Barometric Pressure", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours6pressuretrend", "Hour 6 Barometric Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours12pressure", "Hour 12 Barometric Pressure", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours12pressuretrend", "Hour 12 Barometric Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours24pressure", "Hour 24 Barometric Pressure", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours24pressuretrend", "Hour 24 Barometric Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
 };
 
 const size_t AIO_FEED_COUNT = sizeof(AIO_FEEDS) / sizeof(AIO_FEEDS[0]);

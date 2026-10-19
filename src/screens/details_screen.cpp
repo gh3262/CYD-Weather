@@ -21,7 +21,7 @@ static const int GRID_BUTTON_HEIGHT =
 static const TextTableButton DETAIL_BUTTONS[GRID_COLUMNS * GRID_ROWS] = {
     {"Temps", enterTemperaturesScreen},
     {nullptr, nullptr},
-    {nullptr, nullptr},
+    {"Baro", enterBarometerScreen},
     {nullptr, nullptr},
     {"Precip", enterPrecipitationScreen},
     {nullptr, nullptr},
