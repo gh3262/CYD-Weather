@@ -39,16 +39,33 @@ nws.11,Following Forecast 120 hrs,Info Text,text,,TRUE,on_demand
 nws.12,Following Forecast 132 hrs,Info Text,text,,TRUE,on_demand
 nws.13,Following Forecast 144 hrs,Info Text,text,,TRUE,on_demand
 days1conditioncode,Tomorrow's forcast condition code,Condition,text,,FALSE,on_demand
-days1precipitationchance,Chance of precipitation tomorrow in percent,Precipitation,integer,%,FALSE,on_demand
-days2precipitationchance,Chance of precipitation 2 days in percent,Precipitation,integer,%,FALSE,on_demand
-days5precipitationchance,Chance of precipitation 5 days in percent,Precipitation,integer,%,FALSE,on_demand
-hours12precipitationchance,Chance of precipitation in 12 hrs,Precipitation,integer,%,FALSE,on_demand
-hours6precipitationchance,Chance of precipitation in 6 hrs,Precipitation,integer,%,FALSE,on_demand
-hours2precipitationchance,Chance of precipitation in 2 hrs,Precipitation,integer,%,FALSE,on_demand
-hours1precipitationchance,Chance of precipitation in 1 hr,Precipitation,integer,%,FALSE,on_demand
-m5precipitationchance,Chance of precipitation in 5 minutes,Precipitation,integer,%,FALSE,periodic
 days1sunrise,time of next sunrise,Astronomical,time,,FALSE,on_demand
 days1sunset,time of next sunset,Astronomical,time,,FALSE,on_demand
 days1moonphase,next moon phase,Astronomical,text,,FALSE,on_demand
 days1moonrise,time of next moon rise,Astronomical,time,,FALSE,on_demand
 days1moonset,time of next moon set,Astronomical,time,,FALSE,on_demand
+m5precipitationchance,Chance of precipitation in 5 minutes,Precipitation,integer,%,FALSE,periodic
+hours1precipitationchance,Chance of precipitation in 1 hr,Precipitation,integer,%,FALSE,on_demand
+hours1precipitationamount,Amount of precipitation in 1 hour,Precipitation,float,in,FALSE,on_demand
+hours1precipitationtype,Type of precipitation  1 hour,Precipitation,text,,FALSE,on_demand
+hours2precipitationchance,Chance of precipitation in 2 hrs,Precipitation,integer,%,FALSE,on_demand
+hours2precipitationamount,Amount of precipitation  2 hour,Precipitation,float,in,FALSE,on_demand
+hours2precipitationtype,Type of precipitation  2 hour,Precipitation,text,,FALSE,on_demand
+hours6precipitationchance,Chance of precipitation in 6 hrs,Precipitation,integer,%,FALSE,on_demand
+hours6precipitationamount,Amount of precipitation  6 hour,Precipitation,float,in,FALSE,on_demand
+hours6precipitationtype,Type of precipitation  6 hour,Precipitation,text,,FALSE,on_demand
+hours12precipitationchance,Chance of precipitation in 12 hrs,Precipitation,integer,%,FALSE,on_demand
+hours12precipitationamount,Namount of precipitation  12 hour,Precipitation,float,in,FALSE,on_demand
+hours12precipitationtype,Ntype of precipitation  12 hour,Precipitation,text,,FALSE,on_demand
+hours24precipitationchance,Chance of precipitation in 24 hrs,Precipitation,integer,%,FALSE,on_demand
+hours24precipitationamount,Namount of precipitation  24 hour,Precipitation,float,in,FALSE,on_demand
+hours24precipitationtype,Ntype of precipitation  24 hour,Precipitation,text,,FALSE,on_demand
+days1precipitationchance,Chance of precipitation tomorrow in percent,Precipitation,integer,%,FALSE,on_demand
+days1precipitationamount,Mount of precipitation  1 days,Precipitation,float,in,FALSE,on_demand
+days1precipitationtype,Ype of precipitation  1 days,Precipitation,text,,FALSE,on_demand
+days2precipitationchance,Chance of precipitation 2 days in percent,Precipitation,integer,%,FALSE,on_demand
+days2precipitationamount,Mount of precipitation  2 days,Precipitation,float,in,FALSE,on_demand
+days2precipitationtype,Ype of precipitation  2 days,Precipitation,text,,FALSE,on_demand
+days5precipitationchance,Chance of precipitation 5 days in percent,Precipitation,integer,%,FALSE,on_demand
+days5precipitationamount,Mount of precipitation  5 days,Precipitation,float,in,FALSE,on_demand
+days5precipitationtype,Ype of precipitation  5 days,Precipitation,text,,FALSE,on_demand
