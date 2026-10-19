@@ -23,6 +23,7 @@ struct TextBlockPage
 };
 
 // lineCount (optional) receives the total number of wrapped lines.
+// The most recent text layout is cached; scrolling reuses its line offsets.
 bool drawTextBlockPage(const TextBlockPage &page, size_t *lineCount = nullptr);
 bool refreshTextBlockPageText(const TextBlockPage &page, size_t *lineCount = nullptr);
 bool handleTextBlockPageTouch(const TextBlockPage &page, int x, int y);

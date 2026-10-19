@@ -1,11 +1,23 @@
 #include "text_block_page.h"
 
 #include "app.h"
+#include <vector>
 
 static const int TEXT_BLOCK_LEFT = 8;
 static const int TEXT_BLOCK_RIGHT = SCREEN_WIDTH - 8;
 static const int TEXT_BLOCK_FIRST_BASELINE = 50;
 static const int TEXT_BLOCK_LINE_SPACING = 19;
+
+struct WrappedLine
+{
+    size_t offset;
+    size_t length;
+};
+
+static String cachedSource;
+static String cachedText;
+static std::vector<WrappedLine> cachedLines;
+static bool layoutCached = false;
 
 static bool isValidButton(const TextTableButton &button)
 {
@@ -59,21 +71,12 @@ static int textWidth(const String &text)
 class LineWriter
 {
 public:
-    LineWriter(size_t firstLine, int maxWidth)
-        : _firstLine(firstLine), _maxWidth(maxWidth) {}
+    explicit LineWriter(int maxWidth) : _maxWidth(maxWidth) {}
 
     void emit(const String &line)
     {
-        if (_count >= _firstLine &&
-            _count < _firstLine + TEXT_BLOCK_VISIBLE_LINES)
-        {
-            const int row = static_cast<int>(_count - _firstLine);
-            gfx->setCursor(
-                TEXT_BLOCK_LEFT,
-                TEXT_BLOCK_FIRST_BASELINE + row * TEXT_BLOCK_LINE_SPACING);
-            gfx->print(line);
-        }
-        ++_count;
+        cachedLines.push_back({cachedText.length(), line.length()});
+        cachedText += line;
     }
 
     // Splits a word that cannot fit on a line by itself.
@@ -92,17 +95,24 @@ public:
     }
 
     int maxWidth() const { return _maxWidth; }
-    size_t count() const { return _count; }
 
 private:
-    size_t _firstLine;
     int _maxWidth;
-    size_t _count = 0;
 };
 
-static size_t layoutText(const String &text, size_t firstLine)
+static bool layoutText(const String &text)
 {
-    LineWriter writer(firstLine, TEXT_BLOCK_RIGHT - TEXT_BLOCK_LEFT);
+    LineWriter writer(TEXT_BLOCK_RIGHT - TEXT_BLOCK_LEFT);
+    cachedText = "";
+    cachedLines.clear();
+    if (text.isEmpty())
+        return true;
+
+    if (!cachedText.reserve(text.length()))
+    {
+        Serial.println("Text block: could not allocate wrapped text cache.");
+        return false;
+    }
 
     int paragraphStart = 0;
     while (paragraphStart <= static_cast<int>(text.length()))
@@ -144,22 +154,53 @@ static size_t layoutText(const String &text, size_t firstLine)
         writer.emit(line);
         paragraphStart = paragraphEnd + 1;
     }
-
-    return text.isEmpty() ? 0 : writer.count();
+    return true;
 }
 
 bool refreshTextBlockPageText(const TextBlockPage &page, size_t *lineCount)
 {
+    setBodyFont();
+    gfx->setTextSize(1);
+    const char *source = page.text ? page.text : "";
+    if (!layoutCached || cachedSource != source)
+    {
+        layoutCached = false;
+        if (!cachedSource.reserve(strlen(source)))
+        {
+            Serial.println("Text block: could not allocate source text cache.");
+            setDefaultFont();
+            gfx->setTextSize(2);
+            return false;
+        }
+        cachedSource = source;
+        if (!layoutText(sanitizeText(source)))
+        {
+            setDefaultFont();
+            gfx->setTextSize(2);
+            return false;
+        }
+        layoutCached = true;
+    }
+
     gfx->fillRect(
         0, HEADER_HEIGHT, SCREEN_WIDTH, NAV_Y - HEADER_HEIGHT,
         page.backgroundColor);
-
-    setBodyFont();
-    gfx->setTextSize(1);
     gfx->setTextWrap(false);
     gfx->setTextColor(textTableColorValue(page.textColor));
 
-    const size_t lines = layoutText(sanitizeText(page.text), page.firstLine);
+    const size_t lines = cachedLines.size();
+    for (size_t row = 0;
+         row < TEXT_BLOCK_VISIBLE_LINES &&
+         page.firstLine < lines && row < lines - page.firstLine;
+         ++row)
+    {
+        const WrappedLine &line = cachedLines[page.firstLine + row];
+        gfx->setCursor(
+            TEXT_BLOCK_LEFT,
+            TEXT_BLOCK_FIRST_BASELINE + static_cast<int>(row) * TEXT_BLOCK_LINE_SPACING);
+        for (size_t i = 0; i < line.length; ++i)
+            gfx->write(static_cast<uint8_t>(cachedText[line.offset + i]));
+    }
     if (lineCount)
         *lineCount = lines;
 
@@ -190,7 +231,8 @@ bool drawTextBlockPage(const TextBlockPage &page, size_t *lineCount)
     clearScreen(page.backgroundColor);
     titleBar(page.title);
 
-    refreshTextBlockPageText(page, lineCount);
+    if (!refreshTextBlockPageText(page, lineCount))
+        return false;
 
     drawNav1("Back");
     if (page.button2.label)

@@ -1,6 +1,8 @@
 #ifndef CYD_HELPERS_H
 #define CYD_HELPERS_H
 #include <Arduino.h>
+#include <math.h>
+#include <stdlib.h>
 #include "cyd_pins.h"
 // ====================================================
 // RGB LED Helpers
@@ -123,5 +125,67 @@ inline const char* formatUptime()
         seconds);
 
     return buffer;
+}
+// ====================================================
+// Temperature Feed Helpers
+// ====================================================
+inline bool parseTemperatureFeedValue(const String &value, float &temperature)
+{
+    String trimmed = value;
+    trimmed.trim();
+    char *end = nullptr;
+    temperature = strtof(trimmed.c_str(), &end);
+    return end != trimmed.c_str() && *end == '\0' && isfinite(temperature);
+}
+
+inline String formatTemperatureFeedValue(const String &value, unsigned int decimalPlaces = 0)
+{
+    float temperature;
+    if (!parseTemperatureFeedValue(value, temperature))
+        return "-- F";
+
+    const float celsius = (temperature - 32.0f) * 5.0f / 9.0f;
+    if (decimalPlaces > 0)
+        return String(temperature, decimalPlaces) + " F (" +
+               String(celsius, decimalPlaces) + " C)";
+
+    return String(static_cast<long>(lroundf(temperature))) + " F (" +
+           String(static_cast<long>(lroundf(celsius))) + " C)";
+}
+
+// ====================================================
+// Moon Phase Helpers
+// ====================================================
+// Converts a moon phase feed value (e.g. "waxingGibbous") to display text
+// (e.g. "Waxing Gibbous"). Unknown values are returned unchanged.
+inline const char* moonPhaseDisplayName(const char* feedValue)
+{
+    struct MoonPhaseName
+    {
+        const char* feed;
+        const char* display;
+    };
+
+    static const MoonPhaseName names[] = {
+        {"new", "New Moon"},
+        {"waxingCrescent", "Waxing Crescent"},
+        {"firstQuarter", "First Quarter"},
+        {"waxingGibbous", "Waxing Gibbous"},
+        {"full", "Full Moon"},
+        {"waningGibbous", "Waning Gibbous"},
+        {"thirdQuarter", "Third Quarter"},
+        {"waningCrescent", "Waning Crescent"},
+    };
+
+    if (feedValue == nullptr)
+        return "--";
+
+    for (const MoonPhaseName& name : names)
+    {
+        if (strcasecmp(feedValue, name.feed) == 0)
+            return name.display;
+    }
+
+    return feedValue;
 }
 #endif

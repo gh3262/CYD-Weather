@@ -16,6 +16,9 @@ enum Screen
     SCREEN_SNAPSHOT,
     SCREEN_SUMMARY,
     SCREEN_FORECAST,
+    SCREEN_DETAILS,
+    SCREEN_TEMPERATURES,
+    SCREEN_ASTRONOMICAL,
     SCREEN_ALERTS,
     SCREEN_ALERT_DETAILS,
     SCREEN_FULL_ALERT,
@@ -91,6 +94,24 @@ void drawForecastScreen();
 void enterForecastScreen();
 void handleForecastTouch(int x, int y);
 void refreshForecastResults();
+
+// details_screen.cpp
+void drawDetailsScreen();
+void enterDetailsScreen();
+void handleDetailsTouch(int x, int y);
+void refreshDetailsResults();
+
+// temperatures_screen.cpp
+void drawTemperaturesScreen();
+void enterTemperaturesScreen();
+void handleTemperaturesTouch(int x, int y);
+void refreshTemperaturesResults();
+
+// astronomical_screen.cpp
+void drawAstronomicalScreen();
+void enterAstronomicalScreen();
+void handleAstronomicalTouch(int x, int y);
+void refreshAstronomicalResults();
 
 // wifi_status_screen.cpp
 void drawWifiStatusScreen();

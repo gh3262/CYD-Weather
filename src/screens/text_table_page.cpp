@@ -6,6 +6,21 @@ static const size_t TEXT_TABLE_MAX_ROWS = 8;
 static const int TEXT_TABLE_GUTTER_WIDTH = 20;
 static const int TEXT_TABLE_FIRST_BASELINE = 50;
 static const int TEXT_TABLE_ROW_SPACING = 19;
+static const int TEXT_TABLE_ROW_ASCENT = 14;
+
+struct RenderedTableRow
+{
+    String label;
+    String value;
+    TextTableColor labelColor;
+    TextTableColor valueColor;
+};
+
+static RenderedTableRow renderedRows[TEXT_TABLE_MAX_ROWS];
+static bool tableCacheValid = false;
+static size_t renderedRowCount = 0;
+static int renderedValueColumnX = 0;
+static uint16_t renderedBackgroundColor = 0;
 
 uint16_t textTableColorValue(TextTableColor color)
 {
@@ -51,9 +66,16 @@ bool refreshTextTablePageRows(const TextTablePage &page)
         return false;
     }
 
-    gfx->fillRect(
-        0, HEADER_HEIGHT, SCREEN_WIDTH, NAV_Y - HEADER_HEIGHT,
-        page.backgroundColor);
+    const bool reset = !tableCacheValid ||
+        renderedRowCount != page.rowCount ||
+        renderedValueColumnX != page.valueColumnX ||
+        renderedBackgroundColor != page.backgroundColor;
+    if (reset)
+    {
+        gfx->fillRect(
+            0, HEADER_HEIGHT, SCREEN_WIDTH, NAV_Y - HEADER_HEIGHT,
+            page.backgroundColor);
+    }
     setBodyFont();
     gfx->setTextSize(1);
     for (size_t i = 0; i < page.rowCount; ++i)
@@ -61,21 +83,51 @@ bool refreshTextTablePageRows(const TextTablePage &page)
         const TextTableRow &row = page.rows[i];
         const char *label = row.label ? row.label : "";
         const char *value = row.value ? row.value : "";
+        RenderedTableRow &previous = renderedRows[i];
+        const bool labelChanged = reset || previous.label != label ||
+            previous.labelColor != row.labelColor;
+        const bool valueChanged = reset || previous.value != value ||
+            previous.valueColor != row.valueColor;
+        if (!labelChanged && !valueChanged)
+            continue;
+
         const int baseline = TEXT_TABLE_FIRST_BASELINE +
                              static_cast<int>(i) * TEXT_TABLE_ROW_SPACING;
 
-        int16_t x1, y1;
-        uint16_t width, height;
-        gfx->getTextBounds(label, 0, 0, &x1, &y1, &width, &height);
-        gfx->setTextColor(textTableColorValue(row.labelColor));
-        const int labelRight = page.valueColumnX - TEXT_TABLE_GUTTER_WIDTH;
-        gfx->setCursor(labelRight - (x1 + width) + 1, baseline);
-        gfx->print(label);
+        if (!reset)
+        {
+            const int clearX = labelChanged ? 0 : page.valueColumnX;
+            gfx->fillRect(
+                clearX, baseline - TEXT_TABLE_ROW_ASCENT,
+                SCREEN_WIDTH - clearX, TEXT_TABLE_ROW_SPACING,
+                page.backgroundColor);
+        }
 
+        if (labelChanged)
+        {
+            int16_t x1, y1;
+            uint16_t width, height;
+            gfx->getTextBounds(label, 0, 0, &x1, &y1, &width, &height);
+            gfx->setTextColor(textTableColorValue(row.labelColor));
+            const int labelRight = page.valueColumnX - TEXT_TABLE_GUTTER_WIDTH;
+            gfx->setCursor(labelRight - (x1 + width) + 1, baseline);
+            gfx->print(label);
+        }
+
+        // A label change clears the whole row, including its value.
         gfx->setTextColor(textTableColorValue(row.valueColor));
         gfx->setCursor(page.valueColumnX, baseline);
         gfx->print(value);
+
+        previous.label = label;
+        previous.value = value;
+        previous.labelColor = row.labelColor;
+        previous.valueColor = row.valueColor;
     }
+    renderedRowCount = page.rowCount;
+    renderedValueColumnX = page.valueColumnX;
+    renderedBackgroundColor = page.backgroundColor;
+    tableCacheValid = true;
 
     gfx->setTextColor(COLOR_TEXT);
     setDefaultFont();
@@ -92,6 +144,7 @@ bool drawTextTablePage(const TextTablePage &page)
     }
 
     clearScreen(page.backgroundColor);
+    tableCacheValid = false;
     titleBar(page.title);
 
     if (!refreshTextTablePageRows(page))

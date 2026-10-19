@@ -17,10 +17,11 @@ static const char *const SNAPSHOT_FEED_KEYS[] = {
     "currentwinddirection",
     "currentwindspeed",
     "currentwindgust",
+    "m5precipitationchance",
 };
 
 static const int SNAPSHOT_VALUE_COLUMN_X = 150;
-static const size_t SNAPSHOT_ROW_COUNT = 7;
+static const size_t SNAPSHOT_ROW_COUNT = 8;
 
 static const char *const SNAPSHOT_LABELS[SNAPSHOT_ROW_COUNT] = {
     "Conditions",
@@ -30,6 +31,7 @@ static const char *const SNAPSHOT_LABELS[SNAPSHOT_ROW_COUNT] = {
     "UV / Clouds",
     "Wind",
     "Wind / Gust",
+    "Rain Chance",
 };
 
 static const TextTableColor SNAPSHOT_LABEL_COLORS[SNAPSHOT_ROW_COUNT] = {
@@ -40,6 +42,7 @@ static const TextTableColor SNAPSHOT_LABEL_COLORS[SNAPSHOT_ROW_COUNT] = {
     TextTableColor::Yellow,
     TextTableColor::Cyan,
     TextTableColor::Cyan,
+    TextTableColor::Pink,
 };
 
 static String snapshotValues[SNAPSHOT_ROW_COUNT];
@@ -68,13 +71,7 @@ static String readSnapshotTemperature()
     if (!adafruitIOManager.getFeedValue("feed-avg", value))
         return "-- F";
 
-    float temperature;
-    if (!parseSnapshotNumber(value, temperature))
-        return "-- F";
-
-    const float celsius = (temperature - 32.0f) * 5.0f / 9.0f;
-    return String(static_cast<long>(lroundf(temperature))) + " F (" +
-           String(static_cast<long>(lroundf(celsius))) + " C)";
+    return formatTemperatureFeedValue(value);
 }
 
 static String readSnapshotPressure()
@@ -119,6 +116,10 @@ static bool updateSnapshotRows(bool redrawPage)
     snapshotValues[6] = windSpeed + " / " + windGust;
     if (windSpeed != "--" || windGust != "--")
         snapshotValues[6] += " mph";
+
+    snapshotValues[7] = readSnapshotFeed("m5precipitationchance");
+    if (snapshotValues[7] != "--")
+        snapshotValues[7] += " %";
 
     bool changed = forceSnapshotRender;
     for (size_t i = 0; i < SNAPSHOT_ROW_COUNT; ++i)

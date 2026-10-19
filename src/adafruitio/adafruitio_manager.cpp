@@ -90,6 +90,16 @@ bool AdafruitIOManager::isRunning() const
     return _worker != nullptr;
 }
 
+bool AdafruitIOManager::getWorkerStackHeadroom(size_t &bytes) const
+{
+    bytes = 0;
+    if (!_worker)
+        return false;
+
+    bytes = uxTaskGetStackHighWaterMark(_worker);
+    return true;
+}
+
 int AdafruitIOManager::findFeed(const char *feedKey) const
 {
     if (!feedKey)
@@ -160,6 +170,17 @@ bool AdafruitIOManager::getFeedUpdatedAt(const char *feedKey, uint32_t &updatedA
     return available;
 }
 
+uint32_t AdafruitIOManager::getCacheRevision() const
+{
+    if (!_mutex)
+        return 0;
+
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    const uint32_t revision = _cacheRevision;
+    xSemaphoreGive(_mutex);
+    return revision;
+}
+
 void AdafruitIOManager::workerTask(void *parameter)
 {
     static_cast<AdafruitIOManager *>(parameter)->runWorker();
@@ -181,6 +202,7 @@ bool AdafruitIOManager::setFeedHistoryCount(const char *feedKey, size_t count)
         feed.attempted = false;
         feed.history.clear();
         feed.cachedHistoryCount = 0;
+        ++_cacheRevision;
     }
     xSemaphoreGive(_mutex);
     return true;
@@ -206,6 +228,31 @@ bool AdafruitIOManager::getFeedValues(
         }
         else
             values = feed.history;
+    }
+    xSemaphoreGive(_mutex);
+    return available;
+}
+
+bool AdafruitIOManager::getFeedHistoryEntry(
+    const char *feedKey, size_t &index, String &value, size_t &count) const
+{
+    value = "";
+    count = 0;
+    const int feedIndex = findFeed(feedKey);
+    if (!_mutex || feedIndex < 0)
+        return false;
+
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    const FeedCache &feed = _feedCache[feedIndex];
+    const bool available = feed.cachedHistoryCount == feed.historyCount;
+    if (available)
+    {
+        count = feed.historyCount == 1
+            ? (feed.hasValue ? 1 : 0) : feed.history.size();
+        if (index >= count)
+            index = 0;
+        if (count > 0)
+            value = feed.historyCount == 1 ? feed.value : feed.history[index];
     }
     xSemaphoreGive(_mutex);
     return available;
@@ -302,6 +349,12 @@ void AdafruitIOManager::runWorker()
             feed.lastAttempt = millis();
             if (succeeded)
             {
+                const bool changed =
+                    feed.cachedHistoryCount != historyCount ||
+                    feed.hasValue != !values.empty() ||
+                    (historyCount == 1
+                        ? (!values.empty() && feed.value != values.front())
+                        : feed.history != values);
                 if (!values.empty())
                     feed.value = values.front();
                 else
@@ -311,6 +364,8 @@ void AdafruitIOManager::runWorker()
                 if (historyCount > 1)
                     feed.history = std::move(values);
                 feed.updatedAt = millis();
+                if (changed)
+                    ++_cacheRevision;
             }
         }
         xSemaphoreGive(_mutex);

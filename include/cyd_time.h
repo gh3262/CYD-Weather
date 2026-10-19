@@ -112,4 +112,64 @@ inline const char* currentDateString()
     strftime(buffer, sizeof(buffer), "%m/%d/%Y", &timeinfo);
     return buffer;
 }
+
+// ====================================================
+// UTC Timestamp Feeds ("2026-10-20T20:21:25Z")
+// ====================================================
+
+// Days since 1970-01-01 for a civil date (proleptic Gregorian); avoids
+// mktime(), which would treat the fields as local time
+inline long daysFromCivil(int year, unsigned month, unsigned day)
+{
+    year -= month <= 2;
+    const long era = (year >= 0 ? year : year - 399) / 400;
+    const unsigned yearOfEra = static_cast<unsigned>(year - era * 400);
+    const unsigned dayOfYear = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+    const unsigned dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear;
+    return era * 146097 + static_cast<long>(dayOfEra) - 719468;
+}
+
+// Parses an ISO 8601 UTC timestamp ending in 'Z'; returns false if malformed
+inline bool parseUtcTimestamp(const char* text, time_t& result)
+{
+    if (text == nullptr)
+        return false;
+
+    int year, month, day, hour, minute, second;
+    char zone = '\0';
+    int consumed = 0;
+
+    if (sscanf(text, "%4d-%2d-%2dT%2d:%2d:%2d%c%n",
+               &year, &month, &day, &hour, &minute, &second, &zone, &consumed) != 7)
+        return false;
+
+    if (zone != 'Z' || text[consumed] != '\0')
+        return false;
+
+    if (year < 1970 || month < 1 || month > 12 || day < 1 || day > 31 ||
+        hour > 23 || minute > 59 || second > 60)
+        return false;
+
+    const long days = daysFromCivil(year, month, day);
+    result = static_cast<time_t>(days * 86400L + hour * 3600L + minute * 60L + second);
+    return true;
+}
+
+// Converts a UTC timestamp feed value to local time (TZ_STRING, e.g. US
+// Central with DST) using a strftime format. Returns a static buffer: use it
+// right away. Returns "--" if the value can't be parsed.
+inline const char* formatUtcTimestampLocal(const char* text, const char* format = "%I:%M %p")
+{
+    static char buffer[32];
+    time_t utc;
+    struct tm local;
+
+    if (!parseUtcTimestamp(text, utc) || localtime_r(&utc, &local) == nullptr)
+        return "--";
+
+    if (strftime(buffer, sizeof(buffer), format, &local) == 0)
+        return "--";
+
+    return buffer;
+}
 #endif

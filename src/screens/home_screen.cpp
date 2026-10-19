@@ -154,7 +154,8 @@ void drawHomeScreen()
     refreshHomeAlertButton();
 
     drawNav1("Now");
-    drawNav3("Forecast");
+    drawNav2("Forecast");
+    drawNav3("Details");
     drawNav4("System");
 }
 
@@ -180,9 +181,15 @@ void handleHomeTouch(int x, int y)
         return;
     }
 
-    if (navPressed3(x, y))
+    if (navPressed2(x, y))
     {
         enterForecastScreen();
+        return;
+    }
+
+    if (navPressed3(x, y))
+    {
+        enterDetailsScreen();
         return;
     }
 

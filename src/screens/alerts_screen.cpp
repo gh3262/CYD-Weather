@@ -92,18 +92,14 @@ static void renderAlerts(bool fullRedraw)
         text = "Unable to request alert data. See the serial log.";
     else if (state.currentScreen == SCREEN_ALERT_DETAILS)
     {
-        std::vector<String> entries;
-        if (!adafruitIOManager.getFeedValues("weather-alerts", entries))
+        if (!adafruitIOManager.getFeedHistoryEntry(
+                "weather-alerts", detailIndex, text, detailCount))
             text = "Loading...";
-        else if (entries.empty())
+        else if (detailCount == 0)
             text = "No alert detail entries available.";
         else
         {
-            detailCount = entries.size();
-            if (detailIndex >= detailCount)
-                detailIndex = 0;
             title += " " + String(detailIndex + 1) + "/" + String(detailCount);
-            text = entries[detailIndex];
             if (detailCount < static_cast<size_t>(alertCount))
                 text += "\n\nOnly " + String(detailCount) + " of " +
                         String(alertCount) + " alert entries available.";

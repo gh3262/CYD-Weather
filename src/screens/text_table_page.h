@@ -40,6 +40,8 @@ struct TextTablePage
 uint16_t textTableColorValue(TextTableColor color);
 
 bool drawTextTablePage(const TextTablePage &page);
+// Tracks the currently drawn table and updates only changed values/rows.
+// Use drawTextTablePage() on entry to reset the renderer's cache.
 bool refreshTextTablePageRows(const TextTablePage &page);
 bool handleTextTablePageTouch(const TextTablePage &page, int x, int y);
 

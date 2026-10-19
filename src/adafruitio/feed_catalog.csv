@@ -46,3 +46,9 @@ hours12precipitationchance,Chance of precipitation in 12 hrs,Precipitation,integ
 hours6precipitationchance,Chance of precipitation in 6 hrs,Precipitation,integer,%,FALSE,on_demand
 hours2precipitationchance,Chance of precipitation in 2 hrs,Precipitation,integer,%,FALSE,on_demand
 hours1precipitationchance,Chance of precipitation in 1 hr,Precipitation,integer,%,FALSE,on_demand
+m5precipitationchance,Chance of precipitation in 5 minutes,Precipitation,integer,%,FALSE,periodic
+days1sunrise,time of next sunrise,Astronomical,time,,FALSE,on_demand
+days1sunset,time of next sunset,Astronomical,time,,FALSE,on_demand
+days1moonphase,next moon phase,Astronomical,text,,FALSE,on_demand
+days1moonrise,time of next moon rise,Astronomical,time,,FALSE,on_demand
+days1moonset,time of next moon set,Astronomical,time,,FALSE,on_demand

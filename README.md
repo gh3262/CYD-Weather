@@ -59,8 +59,11 @@ src/
 `main.cpp` routes each `Screen` enum value through a screen table. To add a
 screen, define its draw, enter, and touch-handler functions, add its interface
 to `include/app.h`, then add a matching entry to the table. Screens with live
-data supply a `poll` function, called every 250 ms while the screen is shown,
-that redraws only changed values; `refreshResults` is reserved for one-off
+data supply a `poll` function. Every 250 ms the router checks a thread-safe
+feed-cache revision; it calls the visible screen's poll only after cached data
+or history availability changes, or after a page/background-job redraw.
+Unchanged fetches and failed requests do not trigger repeated formatting.
+Screens still compare displayed values before drawing; `refreshResults` is reserved for one-off
 redraws when a background ping or NTP job finishes. Shared device
 features are exposed through the CYD and sound helper headers.
 
@@ -72,6 +75,11 @@ yellow, cyan, or pink label/value colors. The page supplies its background
 color, the value-column x position (the label column ends 20 pixels before
 it), Back callback, and optional second and third navigation buttons; Home is
 provided by the template. The title bar keeps the shared system header color.
+`drawTextTablePage()` resets the renderer's cache on entry.
+`refreshTextTablePageRows()` leaves unchanged rows alone and clears only a
+changed value's row area in the value column, preserving its label. Label or
+label-color changes redraw that entire row. Layout/background changes clear
+and redraw the content area, including spacer rows.
 
 Long-text feeds such as `om-current` use `drawTextBlockPage()` and
 `handleTextBlockPageTouch()` from `src/screens/text_block_page.h`. The text is
@@ -83,6 +91,11 @@ second and third buttons for Up/Down scrolling, or set `textTapAction` to
 page when the text is tapped. A small arrow at the bottom right marks text
 continuing below the visible lines. Call
 `refreshTextBlockPageText()` to redraw only the text area when a feed changes.
+The renderer caches the most recent source text, one packed buffer of wrapped
+text, and line offsets/lengths. Scrolling and repeated draws of unchanged text
+reuse this layout without sanitizing, measuring, or allocating per-line strings.
+Changing text rebuilds the cache; blank paragraphs, long-word splitting, line
+counts, and overflow indicators retain the same behavior.
 
 `src/widgets/thermometer_widget.h` provides a resizable thermometer drawing
 primitive. Configure its position, size, temperature range, colors, and
@@ -123,6 +136,20 @@ For feeds with separate entries, `setFeedHistoryCount()` requests the latest
 1-1000 entries and `getFeedValues()` reads them in newest-first order. History
 uses the same background worker, request budget, and retry handling as single
 values. Only the JSON value fields are retained, including full long text.
+`getFeedHistoryEntry()` copies just the selected entry and returns the
+available count under the same cache lock. Alert Details uses this instead
+of copying the whole history on each refresh. An out-of-range selection
+resets to the first entry; pending and empty histories remain distinct.
+
+`Time` feeds (such as `days1sunrise`) hold UTC timestamps like
+`2026-10-20T20:21:25Z`. `formatUtcTimestampLocal()` in `cyd_time.h` converts
+them to local time using `TZ_STRING`, including daylight saving time, with an
+optional `strftime` format (default `%I:%M %p`). It returns `--` if the value
+can't be parsed.
+
+`days1moonphase` arrives as camelCase (for example `waxingGibbous`).
+`moonPhaseDisplayName()` in `cyd_helpers.h` converts it to display text such
+as `Waxing Gibbous`, `Full Moon`, or `New Moon`.
 
 Adafruit IO's per-minute rate limit applies to data writes, not reads. As a
 safety ceiling against runaway polling, the manager still sends at most 60
@@ -158,7 +185,10 @@ produces a logged error and an explanatory Details message, not a truncated list
 
 | Screen | Button 1 | Button 2 | Button 3 | Button 4 |
 |---|---|---|---|---|
-| Home | Now | — | Forecast | System |
+| Home | Now | Forecast | Details | System |
+| Details | Back | — | — | Home |
+| Temperatures | Back | — | — | Home |
+| Astronomical | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
 | Summary | Back | Up* | Down* | Home |
 | Forecast | Back | Next | Today | Home |
@@ -175,9 +205,49 @@ more than eight lines. Forecast cycles through `nws.00`–`nws.13`: Next and
 Back move forward and backward, wrapping at either end, and Today jumps back
 to `nws.00`. Nighttime forecasts (first two words contain "night", any case,
 such as "Tonight" or "Tuesday Night") use a
-dark gray background; daytime forecasts use dark green. When a forecast is longer than eight lines, a small arrow appears
+dark gray background; daytime forecasts use olive green. When a forecast is longer than eight lines, a small arrow appears
 at the bottom right; tap the text to page down (it wraps to the top). Forecast loads `nws.00`–`nws.04` when opened, then
 fetches the next two forecasts in the browsing direction. Button 4 returns Home on
 all screens except Home, where it opens System. The System screen also has
 WiFi shortcut button in its upper-right corner. Tools has a Ping
 button at the upper right and opens touchscreen calibration with **Cali TS**.
+
+System shows **Largest Block**, the largest currently available contiguous
+internal 8-bit heap allocation in KB, and **AIO Stack Free**, the minimum
+unused feed-worker stack since startup in bytes (ESP32 FreeRTOS units).
+The stack field shows **Not running** if the worker has not started.
+These diagnostics, together with free/minimum heap, are sampled when System
+is opened or its Refresh button is pressed; they do not poll the network.
+
+Details provides a two-column, four-row button grid in the left two-thirds
+of the content area. Its first button, **Temps**, opens Temperatures; the
+bottom-left button, **Astro**, opens Astronomical. The remaining six slots
+are inactive placeholders. The right third shows the
+thermometer using `feed-avg` in red and `currenttemperatureapparent` in cyan,
+on a 10 to 100 F scale. The tube is centered in its panel, with Fahrenheit
+ticks on the left and Celsius ticks on the right (enabled by
+`ThermometerWidgetOptions::showCelsiusScale`). Until a temperature is available it shows `-- F`
+instead of a default reading.
+
+Temperatures uses the text-table layout for `feed-avg`, `wapi.feels-like`,
+`currenttemperatureapparent`, `currenttemperaturedewpoint`,
+`wapi.heat-index`, and `wapi.wind-chill`, in that order. Feels Like and Apparent
+labels are yellow, Heat Index and Wind Chill are pink, and the other labels
+are cyan. Its columns are shifted left with values starting at x 130.
+Values display one decimal place, such as `61.0 F (16.1 C)`; Snapshot retains
+whole degrees. Missing values show `-- F`. Back returns to Details. Both pages poll the feed cache
+and redraw only when their displayed data changes.
+
+Astronomical shows Sunrise, Sunset, Daylight, Moonrise, Moonset, and Moon Phase using
+the five `days1sun*`/`days1moon*` feeds. UTC timestamps are displayed in local
+US Central time (including daylight saving time) as `03:21 PM`; moon phase
+values use readable names such as `Waxing Crescent`. Missing values show
+`--`. Sun labels are yellow and moon labels are cyan. Feeds are activated
+when the page opens and the table redraws when displayed values change.
+Back returns to Details; Home returns directly to Home.
+Daylight is the difference between the sunrise and sunset Central-time clock
+values, ignoring their dates because the feeds describe the next events.
+It is an estimate when the events fall on different days. The duration is
+displayed as hours and minutes (for example, `11:03`), dropping partial minutes;
+missing or unparseable timestamps show `--`. Blank rows separate Daylight
+from Moonrise and Moonset from Moon Phase.

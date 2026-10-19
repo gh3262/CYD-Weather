@@ -85,7 +85,7 @@ static TextBlockPage forecastPage()
              static_cast<unsigned>(FORECAST_COUNT));
     TextBlockPage page = {
         forecastTitle,
-        static_cast<uint16_t>(isNightForecast() ? CYD_DARK_GRAY : CYD_DARK_GREEN),
+        static_cast<uint16_t>(isNightForecast() ? CYD_DARK_GRAY : CYD_OLIVE_GREEN),
         forecastText.c_str(),
         TextTableColor::White,
         forecastFirstLine,

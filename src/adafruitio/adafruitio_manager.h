@@ -9,7 +9,8 @@ enum class AdafruitIOValueType
     Text,
     LongText,
     Integer,
-    Float
+    Float,
+    Time
 };
 
 enum class AdafruitIORefreshPolicy
@@ -31,7 +32,7 @@ struct AdafruitIOFeedDefinition
 
 extern const AdafruitIOFeedDefinition AIO_FEEDS[];
 extern const size_t AIO_FEED_COUNT;
-static const size_t AIO_FEED_CAPACITY = 47;
+static const size_t AIO_FEED_CAPACITY = 53;
 
 // Adafruit IO limits data writes, not reads; this ceiling only guards against
 // runaway polling. HTTP 429 responses still pause all requests.
@@ -43,6 +44,8 @@ class AdafruitIOManager
 public:
     bool begin();
     bool isRunning() const;
+    // Minimum unused worker stack since startup, in ESP32 bytes.
+    bool getWorkerStackHeadroom(size_t &bytes) const;
 
     // Replaces the subscription set; pass an empty list to deactivate all feeds.
     bool setActiveFeeds(const char *const feedKeys[], size_t count);
@@ -50,10 +53,16 @@ public:
     // Returns false until the active feed has produced a value.
     bool getFeedValue(const char *feedKey, String &value) const;
     bool getFeedUpdatedAt(const char *feedKey, uint32_t &updatedAt) const;
+    // Changes only when cached values/history availability change, not on retries.
+    uint32_t getCacheRevision() const;
 
     // History is newest first. The API allows up to 1000 entries per request.
     bool setFeedHistoryCount(const char *feedKey, size_t count);
     bool getFeedValues(const char *feedKey, std::vector<String> &values) const;
+    // Copies only one entry. An index beyond the available entries resets to zero.
+    // False means history is not ready; true with count == 0 means empty history.
+    bool getFeedHistoryEntry(const char *feedKey, size_t &index,
+                             String &value, size_t &count) const;
 
 private:
     struct FeedCache
@@ -80,6 +89,7 @@ private:
     int findFeed(const char *feedKey) const;
 
     FeedCache _feedCache[AIO_FEED_CAPACITY] = {};
+    uint32_t _cacheRevision = 0;
     // Ring buffer of recent request times, used to stay under the rate limit.
     uint32_t _requestTimes[AIO_REQUESTS_PER_WINDOW] = {};
     size_t _requestCount = 0;

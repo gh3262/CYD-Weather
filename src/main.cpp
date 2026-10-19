@@ -229,8 +229,8 @@ struct ScreenDef
     void (*handleTouch)(int x, int y);
     // Called when a background job (ping, NTP) finishes; nullptr if unused.
     void (*refreshResults)();
-    // Called every SCREEN_POLL_INTERVAL_MS while the screen is shown; must only
-    // redraw what changed. nullptr when the screen has no live data.
+    // Checked every SCREEN_POLL_INTERVAL_MS, called after cache changes or a
+    // screen redraw; must only redraw what changed. nullptr for no live data.
     void (*poll)();
     bool hasHomeButton;
 };
@@ -242,6 +242,9 @@ static const ScreenDef screens[] = {
     /* SCREEN_SNAPSHOT    */ { drawSnapshotScreen,   handleSnapshotTouch,   nullptr,                  refreshSnapshotResults, true  },
     /* SCREEN_SUMMARY     */ { drawSummaryScreen,    handleSummaryTouch,    nullptr,                  refreshSummaryResults,  true  },
     /* SCREEN_FORECAST    */ { drawForecastScreen,   handleForecastTouch,   nullptr,                  refreshForecastResults, true  },
+    /* SCREEN_DETAILS     */ { drawDetailsScreen,    handleDetailsTouch,    nullptr,                  refreshDetailsResults,  true  },
+    /* SCREEN_TEMPERATURES */ { drawTemperaturesScreen, handleTemperaturesTouch, nullptr,               refreshTemperaturesResults, true },
+    /* SCREEN_ASTRONOMICAL */ { drawAstronomicalScreen, handleAstronomicalTouch, nullptr,               refreshAstronomicalResults, true },
     /* SCREEN_ALERTS      */ { drawAlertsScreen,     handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
     /* SCREEN_ALERT_DETAILS */ { drawAlertsScreen,   handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
     /* SCREEN_FULL_ALERT  */ { drawAlertsScreen,     handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
@@ -254,13 +257,17 @@ static const ScreenDef screens[] = {
 static_assert(sizeof(screens) / sizeof(screens[0]) == SCREEN_COUNT,
               "screens[] must have one entry per Screen");
 
+static bool screenPollPending = true;
+
 void drawCurrentScreen()
 {
+    screenPollPending = true;
     screens[state.currentScreen].draw();
 }
 
 void refreshCurrentScreenResults()
 {
+    screenPollPending = true;
     const ScreenDef &screen = screens[state.currentScreen];
 
     if (screen.refreshResults)
@@ -287,6 +294,14 @@ static void pollCurrentScreen()
     if (millis() - lastPoll < SCREEN_POLL_INTERVAL_MS)
         return;
     lastPoll = millis();
+
+    static uint32_t lastRevision = 0;
+    const uint32_t revision = adafruitIOManager.getCacheRevision();
+    if (!screenPollPending && revision == lastRevision)
+        return;
+    // Capture before polling so a concurrent cache update is checked next time.
+    lastRevision = revision;
+    screenPollPending = false;
 
     updateAlertIndicator();
 

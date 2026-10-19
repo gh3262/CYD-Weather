@@ -12,6 +12,7 @@ struct ThermometerWidgetOptions
     float minimumTemperature;
     float maximumTemperature;
     float temperature;
+    bool showCelsiusScale;
     bool hasApparentTemperature;
     float apparentTemperature;
     uint16_t backgroundColor;

@@ -48,6 +48,12 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"hours6precipitationchance", "Chance of precipitation in 6 hrs", "Precipitation", AdafruitIOValueType::Integer, "%", false, AdafruitIORefreshPolicy::OnDemand},
     {"hours2precipitationchance", "Chance of precipitation in 2 hrs", "Precipitation", AdafruitIOValueType::Integer, "%", false, AdafruitIORefreshPolicy::OnDemand},
     {"hours1precipitationchance", "Chance of precipitation in 1 hr", "Precipitation", AdafruitIOValueType::Integer, "%", false, AdafruitIORefreshPolicy::OnDemand},
+    {"m5precipitationchance", "Chance of precipitation in 5 minutes", "Precipitation", AdafruitIOValueType::Integer, "%", false, AdafruitIORefreshPolicy::Periodic},
+    {"days1sunrise", "time of next sunrise", "Astronomical", AdafruitIOValueType::Time, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"days1sunset", "time of next sunset", "Astronomical", AdafruitIOValueType::Time, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"days1moonphase", "next moon phase", "Astronomical", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"days1moonrise", "time of next moon rise", "Astronomical", AdafruitIOValueType::Time, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"days1moonset", "time of next moon set", "Astronomical", AdafruitIOValueType::Time, "", false, AdafruitIORefreshPolicy::OnDemand},
 };
 
 const size_t AIO_FEED_COUNT = sizeof(AIO_FEEDS) / sizeof(AIO_FEEDS[0]);
