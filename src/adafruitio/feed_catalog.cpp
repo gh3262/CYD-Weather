@@ -81,6 +81,21 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"hours12pressuretrend", "Hour 12 Barometric Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
     {"hours24pressure", "Hour 24 Barometric Pressure", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::OnDemand},
     {"hours24pressuretrend", "Hour 24 Barometric Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours1winddirection", "Hour 1 Wind Direction", "Wind", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours1windspeed", "Hour 1 Wind Speed", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours1windgust", "Hour 1 Wind Gust", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours2winddirection", "Hour 2 Wind Direction", "Wind", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours2windspeed", "Hour 2 Wind Speed", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours2windgust", "Hour 2 Wind Gust", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours6winddirection", "Hour 6 Wind Direction", "Wind", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours6windspeed", "Hour 6 Wind Speed", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours6windgust", "Hour 6 Wind Gust", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours12winddirection", "Hour 12 Wind Direction", "Wind", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours12windspeed", "Hour 12 Wind Speed", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours12windgust", "Hour 12 Wind Gust", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours24winddirection", "Hour 24 Wind Direction", "Wind", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours24windspeed", "Hour 24 Wind Speed", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours24windgust", "Hour 24 Wind Gust", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
 };
 
 const size_t AIO_FEED_COUNT = sizeof(AIO_FEEDS) / sizeof(AIO_FEEDS[0]);

@@ -188,6 +188,7 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Home | Now | Forecast | Details | System |
 | Details | Back | — | — | Home |
 | Barometer | Back | — | — | Home |
+| Wind | Back | — | — | Home |
 | Temperatures | Back | — | — | Home |
 | Astronomical | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
@@ -223,7 +224,7 @@ is opened or its Refresh button is pressed; they do not poll the network.
 Details provides a two-column, four-row button grid in the left two-thirds
 of the content area. The left column contains **Temps**, **Baro**, **Precip**,
 and **Astro**, opening Temperatures, Barometer, Precipitation, and Astronomical,
-respectively. The remaining four slots
+respectively. The top-right **Wind** button opens Wind. The remaining three slots
 are inactive placeholders. The right third shows the
 thermometer using `feed-avg` in red and `currenttemperatureapparent` in cyan,
 on a 10 to 100 F scale. The tube is centered in its panel, with Fahrenheit
@@ -236,6 +237,12 @@ and **Trend** headers. Its rows show Current, 1 Hour, 2 Hours, 6 Hours, 12 Hours
 and 24 Hours using the corresponding pressure/trend feeds. Pressure is in hPa;
 unavailable values show `--`. Only changed rows are redrawn as feeds arrive.
 Back returns to Details.
+
+Wind uses the same monospaced layout with cyan **Time**, **Dir**, **Speed**,
+and **Gust** headers. Rows show Current, 1 Hour, 2 Hours, 6 Hours, 12 Hours,
+and 24 Hours. Direction comes from the corresponding wind-direction feed;
+speed and gust are in mph. Missing values show `--`, and only changed rows
+are redrawn. Back returns to Details; Home returns to Home.
 
 Temperatures uses the text-table layout for `feed-avg`, `wapi.feels-like`,
 `currenttemperatureapparent`, `currenttemperaturedewpoint`,
