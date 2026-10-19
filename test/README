@@ -9,3 +9,21 @@ in the development cycle.
 
 More information about PlatformIO Unit Testing:
 - https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+
+Line chart native tests
+-----------------------
+line_chart_widget/test_main.cpp tests the production widget against a recording
+display, without hardware or networking. It covers point mapping, all four
+clipping edges, gaps, uneven sample spacing, timestamps, markers, empty/single
+readings, 100 samples, and invalid-input logging without partial drawing.
+Y-scale tests cover signed and fractional labels, custom intervals, label
+gutters, text bounds, tick counts, text-state reset, and invalid/dense scales.
+
+From the repository root, using an installed C++11 compiler (PowerShell):
+
+g++ -std=c++11 -Wall -Wextra -Werror -Itest\line_chart_widget\stubs -Isrc\widgets src\widgets\line_chart_widget.cpp test\line_chart_widget\test_main.cpp -o "$env:TEMP\cyd-line-chart-tests.exe"
+if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-line-chart-tests.exe" }
+
+Clang++ or "zig c++" can be used in place of g++. The stubs are exclusively for
+this native test command; the normal PlatformIO firmware build uses the actual
+Arduino and display headers.

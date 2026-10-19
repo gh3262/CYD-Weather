@@ -103,6 +103,56 @@ optional apparent-temperature fill in `ThermometerWidgetOptions`, then call
 `drawThermometerWidget()` to render it. The default size fits a quarter-width
 column between the standard header and navigation bar.
 
+`src/widgets/line_chart_widget.h` provides a feed-independent, single-series
+line chart. Set the position, size, `minimumX`/`maximumX`, and
+`minimumY`/`maximumY` in `LineChartWidgetOptions`, then pass an array of
+`LineChartPoint` values to `drawLineChartWidget()`. Points must be ordered by
+nondecreasing X (duplicate X values are allowed). Use `NAN` for a missing Y
+reading to leave a gap rather than draw a zero. Empty data draws just the
+chart background/grid/axes; a single in-range point is visible as a pixel.
+
+The widget clips line segments at all four plot edges, preserves their slopes,
+and never draws outside its rectangle. Axes, quarter-interval grid lines, point
+markers, and colors are configurable. It redraws its rectangle on every call;
+the calling page should redraw only when its data or options change. Invalid
+options or data are logged and return `false` before any drawing. It does not
+retain points, allocate a history buffer, or fetch feeds.
+Enable `showYScale` to reserve a left gutter for numeric Y labels and ticks.
+`yTickInterval` and `yLabelInterval` default to 5 and 10, respectively;
+both are anchored at multiples of their interval, including negative values.
+`yLabelDecimalPlaces` supports 0-3 decimal places and `labelColor` sets the
+label color. Invalid, overly dense, or non-fitting scales are logged and
+rejected before drawing. The scale uses the built-in font and restores the
+standard default font, text size 2, and text color afterward; with the scale
+disabled the widget does not change text settings. Titles and X labels remain
+the containing page's responsibility.
+
+```cpp
+#include "widgets/line_chart_widget.h"
+
+LineChartWidgetOptions chart;
+chart.x = 10;
+chart.y = 45;
+chart.width = 300;
+chart.height = 140;
+chart.minimumX = 0;
+chart.maximumX = 4;
+chart.minimumY = 40;
+chart.maximumY = 90;
+const LineChartPoint points[] = {
+    {0, 61}, {1, 63}, {2, 58}, {3, 66}, {4, 69},
+};
+if (!drawLineChartWidget(chart, points, sizeof(points) / sizeof(points[0])))
+    Serial.println("Could not draw chart.");
+```
+
+X coordinates are `double` so Unix timestamps retain their resolution.
+Callers can instead use sample positions `0` through `count - 1`, but must not
+label these as hourly data. Adafruit IO history currently retains only values,
+newest first; a page must reverse them for plotting. A true hourly chart needs
+timestamped history and hourly data preparation outside the widget. No existing
+page or feed subscription is changed by adding this drawing primitive.
+
 ## Setup
 
 1. Install [PlatformIO](https://platformio.org/).
@@ -189,7 +239,8 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Details | Back | — | — | Home |
 | Barometer | Back | — | — | Home |
 | Wind | Back | — | — | Home |
-| Temperatures | Back | — | — | Home |
+| Temperatures | Back | — | History | Home |
+| Temperature History | Back | — | — | Home |
 | Astronomical | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
 | Summary | Back | Up* | Down* | Home |
@@ -252,6 +303,21 @@ are cyan. Its columns are shifted left with values starting at x 130.
 Values display one decimal place, such as `61.0 F (16.1 C)`; Snapshot retains
 whole degrees. Missing values show `-- F`. Back returns to Details. Both pages poll the feed cache
 and redraw only when their displayed data changes.
+
+Temperatures has a **History** button in navigation position 3. It opens
+**Last 24 Hours**, a page-wide temperature chart requesting the newest 200
+`feed-avg` readings. Values are reversed to plot older readings on the left
+and newer on the right. The Y range is the valid minimum minus 10 F through
+the valid maximum plus 10 F. The actual observed minimum and maximum
+temperatures are displayed above the chart.
+Invalid readings are logged and drawn as gaps; loading, empty history, and
+unavailable history have separate messages. Fewer than 200 readings are
+plotted as available, and the displayed sample count indicates coverage.
+The Y axis has labels every 10 F and ticks every 5 F. The temporary 200-reading
+test window is about 16 hours 35 minutes at five-minute spacing, not a
+timestamp-verified time window; X uses sample order. The page refreshes when
+history changes and restores latest-value polling on exit. Back returns to
+Temperatures; Home returns Home.
 
 Astronomical shows Sunrise, Sunset, Daylight, Moonrise, Moonset, and Moon Phase using
 the five `days1sun*`/`days1moon*` feeds. UTC timestamps are displayed in local
