@@ -27,3 +27,25 @@ if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-line-chart-tests.exe" }
 Clang++ or "zig c++" can be used in place of g++. The stubs are exclusively for
 this native test command; the normal PlatformIO firmware build uses the actual
 Arduino and display headers.
+
+Numeric history native tests
+----------------------------
+These tests use the same ArduinoJson dependency as the firmware. Build from the
+repository root after the normal PlatformIO build has restored dependencies.
+Use g++, clang++, or "zig c++":
+
+g++ -std=c++11 -Wall -Wextra -Werror -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\numeric_history.cpp test\numeric_history\test_main.cpp -o "$env:TEMP\cyd-history-tests.exe"
+if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-history-tests.exe" }
+
+g++ -std=c++11 -Wall -Wextra -Werror -Itest\numeric_history\stubs -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp test\numeric_history\test_manager.cpp -o "$env:TEMP\cyd-history-manager-tests.exe"
+if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-history-manager-tests.exe" }
+
+The first suite covers strict UTC/fractional timestamp parsing, hourly and
+custom buckets, partial windows, gaps, duplicate IDs versus repeated values,
+raw extrema, circular bearings/cancellation, malformed responses, pagination
+header formats, and 1,500 samples across 15 pages. The second compiles the real
+manager against fake HTTP/TLS/FreeRTOS interfaces (no device or credentials)
+to exercise complete-only publication, query/cursor construction, shared
+request accounting, retry timing, stale-result retention, successful empty
+windows, mid-page failure, cancellation during HTTP, throttling, cursor loops,
+and the unchanged latest-value/alert-history response paths.

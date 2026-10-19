@@ -1,9 +1,11 @@
 #include "adafruitio_manager.h"
+#include "numeric_history_page.h"
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <time.h>
 
 #include "credentials.h"
 
@@ -111,6 +113,67 @@ int AdafruitIOManager::findFeed(const char *feedKey) const
             return static_cast<int>(i);
     }
     return -1;
+}
+
+bool AdafruitIOManager::requestNumericHistory(
+    const char *feedKey, const NumericHistoryRequest &request)
+{
+    const int feed = findFeed(feedKey);
+    if (!_mutex || feed < 0 || !validNumericHistoryRequest(request) ||
+        (AIO_FEEDS[feed].type != AdafruitIOValueType::Float &&
+         AIO_FEEDS[feed].type != AdafruitIOValueType::Integer))
+    {
+        Serial.println("Adafruit IO: invalid numeric history request.");
+        return false;
+    }
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    const bool same = _numericFeed == feed &&
+        _numericRequest.windowSeconds == request.windowSeconds &&
+        _numericRequest.bucketSeconds == request.bucketSeconds &&
+        _numericRequest.aggregation == request.aggregation;
+    _numericFeed = feed;
+    _numericRequest = request;
+    ++_numericGeneration;
+    _numericAttempted = false;
+    if (!same)
+    {
+        _numericResult = {};
+        _numericStatus.hasData = false;
+    }
+    _numericStatus.state = NumericHistoryState::Loading;
+    ++_numericStatus.revision;
+    ++_cacheRevision;
+    xSemaphoreGive(_mutex);
+    return true;
+}
+
+void AdafruitIOManager::cancelNumericHistory()
+{
+    if (!_mutex)
+        return;
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    _numericFeed = -1;
+    ++_numericGeneration;
+    _numericStatus = {};
+    _numericResult = {};
+    ++_cacheRevision;
+    xSemaphoreGive(_mutex);
+}
+
+bool AdafruitIOManager::getNumericHistory(
+    NumericHistoryResult &result, NumericHistoryStatus &status) const
+{
+    if (!_mutex)
+    {
+        status = {};
+        return false;
+    }
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    status = _numericStatus;
+    if (status.hasData)
+        result = _numericResult;
+    xSemaphoreGive(_mutex);
+    return status.hasData;
 }
 
 bool AdafruitIOManager::setActiveFeeds(const char *const feedKeys[], size_t count)
@@ -327,6 +390,7 @@ void AdafruitIOManager::runWorker()
 
         if (selectedFeed < 0)
         {
+            processNumericHistory();
             vTaskDelay(pdMS_TO_TICKS(250));
             continue;
         }
@@ -384,6 +448,162 @@ void AdafruitIOManager::runWorker()
                           AIO_FEEDS[selectedFeed].key, httpStatus);
         }
     }
+}
+
+void AdafruitIOManager::processNumericHistory()
+{
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    const int feedIndex = _numericFeed;
+    const uint32_t generation = _numericGeneration;
+    const NumericHistoryRequest request = _numericRequest;
+    const uint32_t elapsed = millis() - _numericLastAttempt;
+    const bool due =
+        !_numericAttempted ||
+        elapsed >= (_numericStatus.state == NumericHistoryState::Failed ? FAILED_FEED_RETRY_MS
+                                                                        : FEED_POLL_INTERVAL_MS);
+    xSemaphoreGive(_mutex);
+
+    if (_workGeneration != generation || feedIndex < 0)
+    {
+        _numericWorking = false;
+        _numericAccumulator = {};
+        _numericCursor = "";
+        _workGeneration = generation;
+    }
+    if (feedIndex < 0 || (!_numericWorking && !due))
+        return;
+
+    bool succeeded = true;
+    if (!_numericWorking)
+    {
+        const time_t now = time(nullptr);
+        // Refuse a fabricated time window when the system clock is unset.
+        succeeded =
+            now >= 1577836800 && _numericAccumulator.begin(request, static_cast<int64_t>(now));
+        if (!succeeded)
+            Serial.println("Adafruit IO: numeric history requires a valid synchronized clock.");
+        _numericPageCount = 0;
+        _numericCursor = "";
+        _numericWorking = succeeded;
+    }
+
+    int httpStatus = 0;
+    uint32_t retryAfterMs = 0;
+    String nextCursor;
+    if (succeeded)
+    {
+        const NumericHistoryResult &window = _numericAccumulator.result();
+        time_t start = static_cast<time_t>(window.startUtc - 1);
+        time_t end = static_cast<time_t>(window.endUtc);
+        struct tm utcStart, utcEnd;
+        char startText[32], endText[32];
+        succeeded =
+            gmtime_r(&start, &utcStart) && gmtime_r(&end, &utcEnd) &&
+            strftime(startText, sizeof(startText), "%Y-%m-%dT%H%%3A%M%%3A%SZ", &utcStart) > 0 &&
+            strftime(endText, sizeof(endText), "%Y-%m-%dT%H%%3A%M%%3A%SZ", &utcEnd) > 0;
+        if (succeeded)
+        {
+            String query = String("?limit=100&start_time=") + startText + "&end_time=" + endText;
+            if (!_numericCursor.isEmpty())
+                query += "&before=" + _numericCursor;
+            recordRequest();
+            succeeded =
+                fetchNumericHistoryPage(static_cast<size_t>(feedIndex), query, _numericAccumulator,
+                                        nextCursor, httpStatus, retryAfterMs);
+            ++_numericPageCount;
+            if (succeeded && !nextCursor.isEmpty() &&
+                (nextCursor == _numericCursor || _numericPageCount >= 256))
+            {
+                Serial.println("Adafruit IO: numeric history pagination did not complete.");
+                succeeded = false;
+            }
+        }
+    }
+
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    const bool current = _numericGeneration == generation && _numericFeed == feedIndex;
+    if (current && (succeeded && !nextCursor.isEmpty()))
+        _numericCursor = nextCursor;
+    else
+    {
+        _numericWorking = false;
+        if (current)
+        {
+            _numericAttempted = true;
+            _numericLastAttempt = millis();
+            if (succeeded)
+            {
+                _numericResult = _numericAccumulator.result();
+                _numericStatus.hasData = true;
+                _numericStatus.state = NumericHistoryState::Ready;
+                if (_numericResult.invalidValueCount)
+                    Serial.printf("Adafruit IO: skipped %lu invalid numeric readings.\n",
+                                  static_cast<unsigned long>(_numericResult.invalidValueCount));
+            }
+            else
+                _numericStatus.state = NumericHistoryState::Failed;
+            ++_numericStatus.revision;
+            ++_cacheRevision;
+        }
+    }
+    xSemaphoreGive(_mutex);
+
+    if (!_numericWorking)
+        _numericAccumulator = {};
+    if (!succeeded)
+        Serial.printf("Adafruit IO: numeric history fetch failed for '%s' (HTTP %d).\n",
+                      AIO_FEEDS[feedIndex].key, httpStatus);
+    if (httpStatus == HTTP_TOO_MANY_REQUESTS)
+    {
+        _paused = true;
+        _pausedUntil = millis() + retryAfterMs;
+        Serial.println("Adafruit IO: numeric history throttled; pausing all requests.");
+    }
+}
+
+bool AdafruitIOManager::fetchNumericHistoryPage(size_t feedIndex, const String &query,
+                                                NumericHistoryAccumulator &accumulator,
+                                                String &nextCursor, int &httpStatus,
+                                                uint32_t &retryAfterMs)
+{
+    WiFiClientSecure client;
+    client.setCACert(AIO_ROOT_CA);
+    HTTPClient http;
+    http.setConnectTimeout(REQUEST_TIMEOUT_MS);
+    http.setTimeout(REQUEST_TIMEOUT_MS);
+    http.useHTTP10(true);
+    const String url = String("https://io.adafruit.com/api/v2/") + AIO_USERNAME + "/feeds/" +
+                       AIO_FEEDS[feedIndex].key + "/data" + query;
+    if (!http.begin(client, url))
+    {
+        httpStatus = -1;
+        return false;
+    }
+    const char *headers[] = {"Retry-After", "Link"};
+    http.collectHeaders(headers, 2);
+    http.addHeader("X-AIO-Key", AIO_KEY);
+    http.addHeader("Accept", "application/json");
+    httpStatus = http.GET();
+    bool succeeded = false;
+    if (httpStatus == HTTP_TOO_MANY_REQUESTS)
+    {
+        const long seconds = http.header("Retry-After").toInt();
+        retryAfterMs = seconds > 0 ? static_cast<uint32_t>(min(seconds, 600L)) * 1000
+                                   : DEFAULT_THROTTLE_PAUSE_MS;
+    }
+    if (httpStatus == HTTP_CODE_OK)
+    {
+        std::string cursor;
+        succeeded = readNumericHistoryPage(http.getStream(), http.header("Link").c_str(),
+                                           accumulator, cursor);
+        if (succeeded)
+            nextCursor = cursor.c_str();
+        else
+            Serial.printf("Adafruit IO: invalid/incomplete numeric history page for '%s'.\n",
+                          AIO_FEEDS[feedIndex].key);
+    }
+    http.end();
+    return succeeded;
 }
 
 bool AdafruitIOManager::fetchLatestValues(

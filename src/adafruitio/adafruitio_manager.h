@@ -3,6 +3,16 @@
 
 #include <Arduino.h>
 #include <vector>
+#include "numeric_history.h"
+
+enum class NumericHistoryState { Idle, Loading, Ready, Failed };
+
+struct NumericHistoryStatus
+{
+    NumericHistoryState state = NumericHistoryState::Idle;
+    bool hasData = false;
+    uint32_t revision = 0;
+};
 
 enum class AdafruitIOValueType
 {
@@ -64,6 +74,13 @@ public:
     bool getFeedHistoryEntry(const char *feedKey, size_t &index,
                              String &value, size_t &count) const;
 
+    // One chart-history subscription at a time, independent of latest/alert data.
+    bool requestNumericHistory(const char *feedKey,
+                               const NumericHistoryRequest &request);
+    void cancelNumericHistory();
+    bool getNumericHistory(NumericHistoryResult &result,
+                           NumericHistoryStatus &status) const;
+
 private:
     struct FeedCache
     {
@@ -87,6 +104,25 @@ private:
                           std::vector<String> &values, int &httpStatus,
                           uint32_t &retryAfterMs);
     int findFeed(const char *feedKey) const;
+    void processNumericHistory();
+    bool fetchNumericHistoryPage(size_t feedIndex, const String &query,
+                                 NumericHistoryAccumulator &accumulator,
+                                 String &nextCursor, int &httpStatus,
+                                 uint32_t &retryAfterMs);
+
+    int _numericFeed = -1;
+    NumericHistoryRequest _numericRequest;
+    uint32_t _numericGeneration = 0;
+    NumericHistoryStatus _numericStatus;
+    NumericHistoryResult _numericResult;
+    uint32_t _numericLastAttempt = 0;
+    bool _numericAttempted = false;
+    // Only the worker accesses staging data; publish after the complete window.
+    uint32_t _workGeneration = 0;
+    bool _numericWorking = false;
+    NumericHistoryAccumulator _numericAccumulator;
+    String _numericCursor;
+    size_t _numericPageCount = 0;
 
     FeedCache _feedCache[AIO_FEED_CAPACITY] = {};
     uint32_t _cacheRevision = 0;

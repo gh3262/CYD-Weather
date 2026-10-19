@@ -303,7 +303,8 @@ static void pollCurrentScreen()
 
     static uint32_t lastRevision = 0;
     const uint32_t revision = adafruitIOManager.getCacheRevision();
-    if (!screenPollPending && revision == lastRevision)
+    if (!screenPollPending && revision == lastRevision &&
+        state.currentScreen != SCREEN_TEMPERATURE_HISTORY)
         return;
     // Capture before polling so a concurrent cache update is checked next time.
     lastRevision = revision;

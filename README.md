@@ -148,10 +148,8 @@ if (!drawLineChartWidget(chart, points, sizeof(points) / sizeof(points[0])))
 
 X coordinates are `double` so Unix timestamps retain their resolution.
 Callers can instead use sample positions `0` through `count - 1`, but must not
-label these as hourly data. Adafruit IO history currently retains only values,
-newest first; a page must reverse them for plotting. A true hourly chart needs
-timestamped history and hourly data preparation outside the widget. No existing
-page or feed subscription is changed by adding this drawing primitive.
+label these as hourly data. Timestamped retrieval and aggregation live in the
+Adafruit IO manager, outside the widget; Temperature History uses that path.
 
 ## Setup
 
@@ -190,6 +188,54 @@ values. Only the JSON value fields are retained, including full long text.
 available count under the same cache lock. Alert Details uses this instead
 of copying the whole history on each refresh. An out-of-range selection
 resets to the first entry; pending and empty histories remain distinct.
+
+### Timestamped numeric history
+
+`requestNumericHistory(feedKey, request)` starts one chart-history subscription,
+independent of the latest-value cache and value-only alert history. The feed
+must have a numeric catalog type. `NumericHistoryRequest` defaults to a rolling
+86,400-second window, 3,600-second buckets, and `HistoryAggregation::Average`.
+It also supports Minimum, Maximum, Latest, and CircularAverage (numeric bearings
+in degrees, such as `currentwinddegrees`). Circular averages with cancelling
+directions are undefined rather than an invented bearing.
+
+`getNumericHistory(result, status)` returns the last complete result and a
+Loading/Ready/Failed/Idle status. A successful empty window is different from a
+failed retrieval. Refresh failures preserve the last complete result; partial
+pages are never published. `cancelNumericHistory()` cancels further retrieval
+and releases the completed cache; an in-flight response is discarded.
+
+The existing background worker fetches `id`, `value`, and `created_at` in pages
+of at most 100 records, filtering irrelevant JSON fields. Both UTC time filters
+are fixed for the entire pagination run. The start filter includes a one-second
+overlap, then local filtering enforces `[startUtc, endUtc)`. The worker extracts
+only the opaque `before` cursor from the API's documented Link header, builds
+subsequent requests against the same feed, and shares the existing rolling
+request budget, TLS verification, HTTP 429 pause, and retry handling. Ordinary
+feed polling runs between pages. It refreshes a completed chart window after
+60 seconds and retries failed windows after 30 seconds, while subscribed.
+
+`created_at` is parsed as UTC, with optional fractional seconds. Buckets are
+anchored to Unix-epoch multiples of the requested interval, not the first
+reading. Partial boundary buckets average their available readings normally.
+Only IDs repeated in overlapping pages are deduplicated; distinct records with
+equal values count normally. Each bucket retains count, sum, min, max, and latest
+value/time (plus sine/cosine sums for circular mode). The result also retains raw
+observed extrema and invalid-value counts. Empty buckets return NaN, preserving
+gaps. Invalid numeric values are counted and logged; missing/malformed timestamps,
+record IDs, JSON, or pagination cause a failed window, not apparent data loss.
+
+Memory grows with bucket count and one bounded response page, not total sample
+count. Limits are 512 buckets, a 31-day window, 256 pages per refresh, and 1,000
+distinct records at one frontier millisecond for overlap deduplication. Exceeding
+a retrieval limit is an explicit failure, never a silently truncated chart.
+An unset system clock also fails rather than inventing a time window.
+No SD-card storage is used yet; retrieval/aggregation and drawing are separate
+so persistent storage can be added later. Local timezone conversion is for
+labels only; UTC bucket identities remain distinct across DST changes.
+
+`getFeedUpdatedAt()` remains the existing cache-fetch `millis()` value; it is
+not the observation's `created_at` timestamp.
 
 `Time` feeds (such as `days1sunrise`) hold UTC timestamps like
 `2026-10-20T20:21:25Z`. `formatUtcTimestampLocal()` in `cyd_time.h` converts
@@ -305,19 +351,19 @@ whole degrees. Missing values show `-- F`. Back returns to Details. Both pages p
 and redraw only when their displayed data changes.
 
 Temperatures has a **History** button in navigation position 3. It opens
-**Last 24 Hours**, a page-wide temperature chart requesting the newest 200
-`feed-avg` readings. Values are reversed to plot older readings on the left
-and newer on the right. The Y range is the valid minimum minus 10 F through
-the valid maximum plus 10 F. The actual observed minimum and maximum
-temperatures are displayed above the chart.
-Invalid readings are logged and drawn as gaps; loading, empty history, and
-unavailable history have separate messages. Fewer than 200 readings are
-plotted as available, and the displayed sample count indicates coverage.
-The Y axis has labels every 10 F and ticks every 5 F. The temporary 200-reading
-test window is about 16 hours 35 minutes at five-minute spacing, not a
-timestamp-verified time window; X uses sample order. The page refreshes when
-history changes and restores latest-value polling on exit. Back returns to
-Temperatures; Home returns Home.
+**Last 24 Hours**, a page-wide `feed-avg` chart covering a timestamp-verified
+rolling 24-hour window. Available samples are averaged by UTC hour, including
+partial first/current hours, and plotted at the midpoint of each bucket's
+visible interval. Empty hours are gaps; data is not carried forward or
+interpolated. The Y range is the raw valid minimum minus 10 F through the raw
+valid maximum plus 10 F. The actual observed minimum and maximum temperatures
+are displayed above the chart, with Y labels every 10 F and ticks every 5 F.
+The bottom labels show the window's local date/time endpoints and valid sample
+count. Local labels use `TZ_STRING`; UTC spacing remains correct across DST.
+Loading, failed, and successfully empty windows have distinct messages.
+Failures, WiFi loss, or a window over two minutes old mark retained chart data
+**Stale** rather than erase it. Back returns to Temperatures; Home returns Home.
+Leaving the page cancels chart retrieval without changing latest-value polling.
 
 Astronomical shows Sunrise, Sunset, Daylight, Moonrise, Moonset, and Moon Phase using
 the five `days1sun*`/`days1moon*` feeds. UTC timestamps are displayed in local
