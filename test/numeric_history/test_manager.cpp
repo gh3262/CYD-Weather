@@ -163,6 +163,82 @@ int main()
     manager.processNumericHistory();
     check(manager.getNumericHistory(result, status) && result.bucketSeconds == 7200 &&
           result.minimum == 60, "replacement request publishes its own data");
+
+    const char *const windFeeds[] = {"currentwindspeed", "currentwindgust"};
+    NumericHistoryRequest windRequests[2];
+    for (NumericHistoryRequest &windRequest : windRequests)
+    {
+        windRequest.windowSeconds = 48 * 3600;
+        windRequest.bucketSeconds = 7200;
+    }
+    windRequests[1].aggregation = HistoryAggregation::Maximum;
+    NumericHistoryRequest mismatched[2] = {windRequests[0], windRequests[1]};
+    mismatched[1].bucketSeconds = 3600;
+    check(!manager.requestNumericHistory(windFeeds, mismatched, 2),
+          "reject series with different buckets");
+    const char *const mixedFeeds[] = {"currentwindspeed", "headline-alert"};
+    check(!manager.requestNumericHistory(mixedFeeds, windRequests, 2),
+          "reject non-numeric series");
+    check(!manager.requestNumericHistory(windFeeds, windRequests, 0) &&
+          !manager.requestNumericHistory(windFeeds, windRequests,
+                                         MAX_NUMERIC_HISTORY_SERIES + 1),
+          "reject empty or oversized series set");
+
+    check(manager.requestNumericHistory(windFeeds, windRequests, 2), "request two series");
+    const size_t firstWindUrl = testUrls.size();
+    testResponses.push_back({200, "[" + record("s1", now - 10, "12") + "]",
+        {{"Link", "<https://io.adafruit.com/data>;rel=\"next\", "
+                  "<https://io.adafruit.com/data?before=speed2>"}}});
+    testResponses.push_back({200, "[" + record("s2", now - 4000, "4") + "]",
+                             {{"Link", "<https://io.adafruit.com/data>"}}});
+    testResponses.push_back({200, "[" + record("g1", now - 10, "25") + "," +
+                                  record("g2", now - 20, "18") + "]",
+                             {{"Link", "<https://io.adafruit.com/data>"}}});
+    NumericHistoryResult windResults[2];
+    manager.processNumericHistory();
+    manager.processNumericHistory();
+    check(!manager.getNumericHistory(windResults, 2, status) &&
+          status.state == NumericHistoryState::Loading && manager._numericWorking,
+          "first finished series is not published alone");
+    manager.processNumericHistory();
+    check(manager.getNumericHistory(windResults, 2, status) &&
+          status.state == NumericHistoryState::Ready, "publish all series together");
+    check(testUrls.size() == firstWindUrl + 3 &&
+          testUrls[firstWindUrl].find("/feeds/currentwindspeed/") != std::string::npos &&
+          testUrls[firstWindUrl + 1].find("&before=speed2") != std::string::npos &&
+          testUrls[firstWindUrl + 2].find("/feeds/currentwindgust/") != std::string::npos,
+          "series fetched in request order with their own pagination");
+    const std::string speedQuery =
+        testUrls[firstWindUrl].substr(testUrls[firstWindUrl].find('?'));
+    const std::string gustQuery =
+        testUrls[firstWindUrl + 2].substr(testUrls[firstWindUrl + 2].find('?'));
+    check(speedQuery == gustQuery, "second series reuses the first series time window");
+    check(windResults[0].sampleCount == 2 && windResults[0].maximum == 12 &&
+          windResults[0].aggregation == HistoryAggregation::Average &&
+          windResults[1].sampleCount == 2 && windResults[1].maximum == 25 &&
+          windResults[1].aggregation == HistoryAggregation::Maximum,
+          "each series keeps its own samples and aggregation");
+    check(windResults[0].startUtc == windResults[1].startUtc &&
+          windResults[0].endUtc == windResults[1].endUtc &&
+          windResults[0].endUtc - windResults[0].startUtc == 48 * 3600 &&
+          windResults[1].bucketSeconds == 7200, "series share the exact window");
+    check(manager.getNumericHistory(result, status) && result.maximum == 12,
+          "single-result read returns the first series");
+    NumericHistoryResult tooMany[MAX_NUMERIC_HISTORY_SERIES + 1];
+    check(!manager.getNumericHistory(tooMany, MAX_NUMERIC_HISTORY_SERIES + 1, status),
+          "cannot read more series than requested");
+
+    check(manager.requestNumericHistory(windFeeds, windRequests, 2), "refresh two series");
+    testResponses.push_back({200, "[" + record("s3", now - 10, "30") + "]",
+                             {{"Link", "<https://io.adafruit.com/data>"}}});
+    testResponses.push_back({500, "", {}});
+    manager.processNumericHistory();
+    manager.processNumericHistory();
+    check(manager.getNumericHistory(windResults, 2, status) &&
+          status.state == NumericHistoryState::Failed &&
+          windResults[0].maximum == 12 && windResults[1].maximum == 25,
+          "later series failure keeps every previous series result");
+    check(!manager._numericWorking, "failed multi-series staging released");
     check(testResponses.empty(), "all HTTP fixtures consumed");
     std::printf("PASS: %zu history manager checks\n", checks);
     return 0;

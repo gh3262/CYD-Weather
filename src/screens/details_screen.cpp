@@ -127,7 +127,7 @@ void handleDetailsTouch(int x, int y)
     for (int i = 0; i < GRID_COLUMNS * GRID_ROWS; ++i)
     {
         if (DETAIL_BUTTONS[i].action &&
-            touchInRect(x, y, gridButtonX(i), gridButtonY(i),
+            buttonPressed(x, y, gridButtonX(i), gridButtonY(i),
                         GRID_BUTTON_WIDTH, GRID_BUTTON_HEIGHT))
         {
             DETAIL_BUTTONS[i].action();

@@ -275,6 +275,42 @@ int main()
     expectInvalid(options, diagonal, 2);
     gfx = &graphics;
 
+    options = testOptions();
+    const LineChartPoint flat[] = {{0, 5}, {10, 5}};
+    const LineChartSeries twoSeries[] = {{diagonal, 2, 21}, {flat, 2, 22}};
+    graphics.reset();
+    check(drawLineChartSeriesWidget(options, twoSeries, 2), "draw two series");
+    check(graphics.rectangles.size() == 1, "series share one cleared chart");
+    check(graphics.lines.size() == 2 && graphics.lines[0].color == 21 &&
+          graphics.lines[1].color == 22, "each series uses its own color, in order");
+    check(graphics.lines[0].x0 == 12 && graphics.lines[0].y0 == 142 &&
+          graphics.lines[0].x1 == 112 && graphics.lines[0].y1 == 42,
+          "first series mapped on shared axes");
+    check(graphics.lines[1].y0 == 92 && graphics.lines[1].y1 == 92,
+          "second series mapped on shared axes");
+    check(graphics.pixels.size() == 4 && graphics.pixels[2].color == 22,
+          "series point pixels use series color");
+
+    const LineChartSeries badSecond[] = {{diagonal, 2, 21}, {unordered, 2, 22}};
+    graphics.reset();
+    size_t previousErrors = Serial.errors;
+    check(!drawLineChartSeriesWidget(options, badSecond, 2), "any invalid series rejected");
+    check(Serial.errors == previousErrors + 1 && graphics.rectangles.empty() &&
+          graphics.lines.empty() && graphics.pixels.empty(),
+          "invalid later series leaves previous chart intact");
+    const LineChartSeries missingBuffer[] = {{diagonal, 2, 21}, {nullptr, 2, 22}};
+    graphics.reset();
+    previousErrors = Serial.errors;
+    check(!drawLineChartSeriesWidget(options, missingBuffer, 2) &&
+          Serial.errors == previousErrors + 1 && graphics.rectangles.empty(),
+          "missing series buffer rejected");
+    graphics.reset();
+    check(!drawLineChartSeriesWidget(options, nullptr, 1), "missing series array rejected");
+    graphics.reset();
+    check(drawLineChartSeriesWidget(options, nullptr, 0) &&
+          graphics.rectangles.size() == 1 && graphics.lines.empty(),
+          "zero series draws an empty chart");
+
     std::printf("PASS: %zu line-chart checks\n", checks);
     return 0;
 }

@@ -2,13 +2,28 @@
 #include "adafruitio/adafruitio_manager.h"
 #include <esp_heap_caps.h>
 
+static const int SYSTEM_BUTTON_X = 220;
+static const int SYSTEM_BUTTON_W = 92;
+static const int SYSTEM_BUTTON_H = 36;
+static const int SYSTEM_WIFI_Y = 49;
+static const int SYSTEM_REFRESH_Y = SYSTEM_WIFI_Y + SYSTEM_BUTTON_H + 6;
+
+static void drawBeepsButton()
+{
+    if (buttonBeepsEnabled())
+        drawNav3("Beeps");
+    else
+        drawButton(NAV_X3, NAV_Y, NAV_WIDTH, NAV_HEIGHT, "Silent", COLOR_BUTTON_OPT);
+}
+
 void drawSystemScreen()
 {
     clearScreen(COLOR_BACKGROUND);
 
     titleBar("SYSTEM");
 
-    drawButton(220, 49, 92, 36, "WiFi");
+    drawButton(SYSTEM_BUTTON_X, SYSTEM_WIFI_Y, SYSTEM_BUTTON_W, SYSTEM_BUTTON_H, "WiFi");
+    drawButton(SYSTEM_BUTTON_X, SYSTEM_REFRESH_Y, SYSTEM_BUTTON_W, SYSTEM_BUTTON_H, "Refresh");
 
     setBodyFont();
     gfx->setTextSize(1);
@@ -70,7 +85,7 @@ void drawSystemScreen()
 
     drawNav1("Back");
     drawNav2("Tools");
-    drawNav3("Refresh");
+    drawBeepsButton();
     drawNav4("Home");
 }
 
@@ -82,9 +97,13 @@ void enterSystemScreen()
 
 void handleSystemTouch(int x, int y)
 {
-    if (touchInRect(x, y, 220, 49, 92, 36))
+    if (buttonPressed(x, y, SYSTEM_BUTTON_X, SYSTEM_WIFI_Y, SYSTEM_BUTTON_W, SYSTEM_BUTTON_H))
     {
         enterWifiStatusScreen();
+    }
+    else if (buttonPressed(x, y, SYSTEM_BUTTON_X, SYSTEM_REFRESH_Y, SYSTEM_BUTTON_W, SYSTEM_BUTTON_H))
+    {
+        drawCurrentScreen();
     }
     // Back button
     else if (navPressed1(x, y))
@@ -98,9 +117,10 @@ void handleSystemTouch(int x, int y)
         enterToolsScreen();
     }
 
-    // Refresh button
+    // Beeps/Silent toggle
     else if (navPressed3(x, y))
     {
-        drawCurrentScreen();
+        setButtonBeepsEnabled(!buttonBeepsEnabled());
+        drawBeepsButton();
     }
 }

@@ -205,7 +205,7 @@ void enterToolsScreen()
 
 void handleToolsTouch(int x, int y)
 {
-    if (touchInRect(x, y, 220, 40, 92, 32))
+    if (buttonPressed(x, y, 220, 40, 92, 32))
     {
         startPings();
         refreshToolsResults();

@@ -3,6 +3,7 @@
 #include "app.h"
 #include "credentials.h"
 #include "adafruitio/adafruitio_manager.h"
+#include "screens/history_chart_page.h"
 
 AppState state = {SCREEN_HOME, PING_NOT_RUN, PING_NOT_RUN};
 AdafruitIOManager adafruitIOManager;
@@ -245,7 +246,8 @@ static const ScreenDef screens[] = {
     /* SCREEN_DETAILS     */ { drawDetailsScreen,    handleDetailsTouch,    nullptr,                  refreshDetailsResults,  true  },
     /* SCREEN_PRECIPITATION */ { drawPrecipitationScreen, handlePrecipitationTouch, nullptr,           refreshPrecipitationResults, true },
     /* SCREEN_BAROMETER    */ { drawBarometerScreen, handleBarometerTouch, nullptr,                   refreshBarometerResults, true },
-    /* SCREEN_WIND         */ { drawWindScreen, handleWindTouch, nullptr,                             refreshWindResults, true },
+        /* SCREEN_BAROMETER_HISTORY */ { drawBarometerHistoryScreen, handleBarometerHistoryTouch, nullptr, refreshBarometerHistoryResults, true },    /* SCREEN_WIND         */ { drawWindScreen, handleWindTouch, nullptr,                             refreshWindResults, true },
+    /* SCREEN_WIND_HISTORY */ { drawWindHistoryScreen, handleWindHistoryTouch, nullptr, refreshWindHistoryResults, true },
     /* SCREEN_TEMPERATURES */ { drawTemperaturesScreen, handleTemperaturesTouch, nullptr,               refreshTemperaturesResults, true },
     /* SCREEN_TEMPERATURE_HISTORY */ { drawTemperatureHistoryScreen, handleTemperatureHistoryTouch, nullptr, refreshTemperatureHistoryResults, true },
     /* SCREEN_ASTRONOMICAL */ { drawAstronomicalScreen, handleAstronomicalTouch, nullptr,               refreshAstronomicalResults, true },
@@ -263,10 +265,18 @@ static_assert(sizeof(screens) / sizeof(screens[0]) == SCREEN_COUNT,
 
 static bool screenPollPending = true;
 
+// History charts poll every interval because their data is outside the feed cache.
+static bool isHistoryChartScreen(Screen screen)
+{
+    return screen == SCREEN_TEMPERATURE_HISTORY ||
+        screen == SCREEN_BAROMETER_HISTORY ||
+        screen == SCREEN_WIND_HISTORY;
+}
+
 void drawCurrentScreen()
 {
-    if (state.currentScreen != SCREEN_TEMPERATURE_HISTORY)
-        leaveTemperatureHistoryScreen();
+    if (!isHistoryChartScreen(state.currentScreen))
+        leaveHistoryChartPage();
     screenPollPending = true;
     screens[state.currentScreen].draw();
 }
@@ -304,7 +314,7 @@ static void pollCurrentScreen()
     static uint32_t lastRevision = 0;
     const uint32_t revision = adafruitIOManager.getCacheRevision();
     if (!screenPollPending && revision == lastRevision &&
-        state.currentScreen != SCREEN_TEMPERATURE_HISTORY)
+        !isHistoryChartScreen(state.currentScreen))
         return;
     // Capture before polling so a concurrent cache update is checked next time.
     lastRevision = revision;

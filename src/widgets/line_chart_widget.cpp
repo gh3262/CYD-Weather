@@ -117,25 +117,14 @@ static void drawChartSegment(double x0, double y0, double x1, double y1,
 bool drawLineChartWidget(const LineChartWidgetOptions &options,
                          const LineChartPoint *points, size_t pointCount)
 {
-    const double rangeX = options.maximumX - options.minimumX;
-    const double rangeY = options.maximumY - options.minimumY;
-    if (!gfx ||
-        options.x < 0 || options.y < 0 ||
-        options.width < 8 || options.height < 8 ||
-        options.width > SCREEN_WIDTH || options.height > SCREEN_HEIGHT ||
-        options.x > SCREEN_WIDTH - options.width ||
-        options.y > SCREEN_HEIGHT - options.height ||
-        !isfinite(options.minimumX) || !isfinite(options.maximumX) ||
-        !isfinite(options.minimumY) || !isfinite(options.maximumY) ||
-        !isfinite(rangeX) || !isfinite(rangeY) ||
-        rangeX <= 0.0 || rangeY <= 0.0 ||
-        (pointCount > 0 && !points))
-    {
-        Serial.println("Line chart widget: invalid bounds, range, or point buffer.");
-        return false;
-    }
+    const LineChartSeries series = {points, pointCount, options.lineColor};
+    return drawLineChartSeriesWidget(options, &series, 1);
+}
 
-    // Validate before clearing so a bad update leaves the previous chart intact.
+static bool validSeriesPoints(const LineChartWidgetOptions &options,
+                              const LineChartPoint *points, size_t pointCount,
+                              double rangeX, double rangeY)
+{
     for (size_t i = 0; i < pointCount; ++i)
     {
         if (!isfinite(points[i].x) || isinf(points[i].y) ||
@@ -149,6 +138,83 @@ bool drawLineChartWidget(const LineChartWidgetOptions &options,
               (!isnan(points[i].y) && !isnan(points[i - 1].y) &&
                !isfinite((points[i].y - options.minimumY) / rangeY -
                          (points[i - 1].y - options.minimumY) / rangeY)))))
+            return false;
+    }
+    return true;
+}
+
+static void drawSeries(const LineChartWidgetOptions &options,
+                       const LineChartSeries &series, double rangeX, double rangeY,
+                       int left, int top, int right, int bottom)
+{
+    const LineChartPoint *points = series.points;
+    bool previousValid = false;
+    double previousX = 0.0;
+    double previousY = 0.0;
+    for (size_t i = 0; i < series.pointCount; ++i)
+    {
+        if (isnan(points[i].y))
+        {
+            previousValid = false;
+            continue;
+        }
+
+        const double x = (points[i].x - options.minimumX) / rangeX;
+        const double y = (points[i].y - options.minimumY) / rangeY;
+        if (previousValid)
+        {
+            drawChartSegment(previousX, previousY, x, y,
+                             left, top, right, bottom, series.color);
+        }
+        if (x >= 0.0 && x <= 1.0 && y >= 0.0 && y <= 1.0)
+        {
+            const int pixelX = chartPixel(x, left, right);
+            const int pixelY = chartPixel(1.0 - y, top, bottom);
+            // A single reading (or a reading beside a gap) remains visible.
+            gfx->drawPixel(pixelX, pixelY, series.color);
+            if (options.showPointMarkers)
+            {
+                gfx->drawLine(max(left, pixelX - 1), pixelY,
+                              min(right, pixelX + 1), pixelY, series.color);
+                gfx->drawLine(pixelX, max(top, pixelY - 1),
+                              pixelX, min(bottom, pixelY + 1), series.color);
+            }
+        }
+        previousX = x;
+        previousY = y;
+        previousValid = true;
+    }
+}
+
+bool drawLineChartSeriesWidget(const LineChartWidgetOptions &options,
+                               const LineChartSeries *series, size_t seriesCount)
+{
+    const double rangeX = options.maximumX - options.minimumX;
+    const double rangeY = options.maximumY - options.minimumY;
+    bool validBuffers = seriesCount == 0 || series;
+    for (size_t s = 0; validBuffers && s < seriesCount; ++s)
+        validBuffers = series[s].pointCount == 0 || series[s].points;
+    if (!gfx ||
+        options.x < 0 || options.y < 0 ||
+        options.width < 8 || options.height < 8 ||
+        options.width > SCREEN_WIDTH || options.height > SCREEN_HEIGHT ||
+        options.x > SCREEN_WIDTH - options.width ||
+        options.y > SCREEN_HEIGHT - options.height ||
+        !isfinite(options.minimumX) || !isfinite(options.maximumX) ||
+        !isfinite(options.minimumY) || !isfinite(options.maximumY) ||
+        !isfinite(rangeX) || !isfinite(rangeY) ||
+        rangeX <= 0.0 || rangeY <= 0.0 ||
+        !validBuffers)
+    {
+        Serial.println("Line chart widget: invalid bounds, range, or point buffer.");
+        return false;
+    }
+
+    // Validate before clearing so a bad update leaves the previous chart intact.
+    for (size_t s = 0; s < seriesCount; ++s)
+    {
+        if (!validSeriesPoints(options, series[s].points, series[s].pointCount,
+                               rangeX, rangeY))
         {
             Serial.println("Line chart widget: invalid or unordered data point.");
             return false;
@@ -243,41 +309,7 @@ bool drawLineChartWidget(const LineChartWidgetOptions &options,
         gfx->setTextSize(2);
     }
 
-    bool previousValid = false;
-    double previousX = 0.0;
-    double previousY = 0.0;
-    for (size_t i = 0; i < pointCount; ++i)
-    {
-        if (isnan(points[i].y))
-        {
-            previousValid = false;
-            continue;
-        }
-
-        const double x = (points[i].x - options.minimumX) / rangeX;
-        const double y = (points[i].y - options.minimumY) / rangeY;
-        if (previousValid)
-        {
-            drawChartSegment(previousX, previousY, x, y,
-                             left, top, right, bottom, options.lineColor);
-        }
-        if (x >= 0.0 && x <= 1.0 && y >= 0.0 && y <= 1.0)
-        {
-            const int pixelX = chartPixel(x, left, right);
-            const int pixelY = chartPixel(1.0 - y, top, bottom);
-            // A single reading (or a reading beside a gap) remains visible.
-            gfx->drawPixel(pixelX, pixelY, options.lineColor);
-            if (options.showPointMarkers)
-            {
-                gfx->drawLine(max(left, pixelX - 1), pixelY,
-                              min(right, pixelX + 1), pixelY, options.lineColor);
-                gfx->drawLine(pixelX, max(top, pixelY - 1),
-                              pixelX, min(bottom, pixelY + 1), options.lineColor);
-            }
-        }
-        previousX = x;
-        previousY = y;
-        previousValid = true;
-    }
+    for (size_t s = 0; s < seriesCount; ++s)
+        drawSeries(options, series[s], rangeX, rangeY, left, top, right, bottom);
     return true;
 }

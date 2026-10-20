@@ -36,6 +36,12 @@ bool soundInit();
 bool playSound(Sound sound);
 bool playTone(uint16_t frequencyHz, uint16_t durationMs);
 bool playToneSequence(const ToneStep *steps, uint8_t count);
+// Short touch-feedback beep. Blocks for its few milliseconds so a following
+// screen redraw cannot stretch it; replaces any sound that is playing.
+bool playButtonBeep();
+// Mutes only button beeps; other sounds still play. On at startup.
+void setButtonBeepsEnabled(bool enabled);
+bool buttonBeepsEnabled();
 void stopSound();
 bool soundPlaying();
 

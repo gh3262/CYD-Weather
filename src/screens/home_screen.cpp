@@ -168,7 +168,7 @@ void enterHomeScreen()
 void handleHomeTouch(int x, int y)
 {
     if (renderedAlertCount > 0 &&
-        touchInRect(x, y, HOME_ALERT_BUTTON_X, HOME_ALERT_BUTTON_Y,
+        buttonPressed(x, y, HOME_ALERT_BUTTON_X, HOME_ALERT_BUTTON_Y,
                     HOME_ALERT_BUTTON_W, HOME_ALERT_BUTTON_H))
     {
         enterAlertsScreen();

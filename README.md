@@ -20,7 +20,11 @@ its own screens and behavior without rebuilding the device layer.
 - **Touch calibration:** a four-target calibration screen accessible from
   Tools; successful raw touch limits are saved in ESP32 non-volatile storage.
 - **Sound:** non-blocking built-in tones and tone sequences for the speaker
-  amplifier.
+  amplifier. Every active button plays a short 30 ms, 2.5 kHz beep when a
+  press is detected: hit-test buttons with `buttonPressed()` (the `navPressed*`
+  helpers already do) instead of `touchInRect()`, after checking that the
+  button is active, so hidden or placeholder buttons stay silent. The beep
+  blocks briefly so a following screen redraw cannot lengthen it.
 - **Example screens:** Home, WiFi Status, System, and Tools demonstrate
   how to compose screens with the shared navigation layout.
 
@@ -103,8 +107,8 @@ optional apparent-temperature fill in `ThermometerWidgetOptions`, then call
 `drawThermometerWidget()` to render it. The default size fits a quarter-width
 column between the standard header and navigation bar.
 
-`src/widgets/line_chart_widget.h` provides a feed-independent, single-series
-line chart. Set the position, size, `minimumX`/`maximumX`, and
+`src/widgets/line_chart_widget.h` provides a feed-independent line chart
+(one or more series). Set the position, size, `minimumX`/`maximumX`, and
 `minimumY`/`maximumY` in `LineChartWidgetOptions`, then pass an array of
 `LineChartPoint` values to `drawLineChartWidget()`. Points must be ordered by
 nondecreasing X (duplicate X values are allowed). Use `NAN` for a missing Y
@@ -149,7 +153,13 @@ if (!drawLineChartWidget(chart, points, sizeof(points) / sizeof(points[0])))
 X coordinates are `double` so Unix timestamps retain their resolution.
 Callers can instead use sample positions `0` through `count - 1`, but must not
 label these as hourly data. Timestamped retrieval and aggregation live in the
-Adafruit IO manager, outside the widget; Temperature History uses that path.
+Adafruit IO manager, outside the widget; Temperature, Barometer, and Wind History use that path.
+
+To plot several lines on shared axes, pass an array of `LineChartSeries`
+(`points`, `pointCount`, `color`) to `drawLineChartSeriesWidget()`. Series are
+drawn in array order, each in its own color. If any series is invalid, the
+call is rejected before anything is drawn. `drawLineChartWidget()` is the
+single-series form and uses `options.lineColor`.
 
 ## Setup
 
@@ -204,6 +214,14 @@ Loading/Ready/Failed/Idle status. A successful empty window is different from a
 failed retrieval. Refresh failures preserve the last complete result; partial
 pages are never published. `cancelNumericHistory()` cancels further retrieval
 and releases the completed cache; an in-flight response is discarded.
+
+`requestNumericHistory(feedKeys, requests, count)` subscribes to up to
+`MAX_NUMERIC_HISTORY_SERIES` (2) numeric feeds at once. All requests must use
+the same window and bucket size, but each can have its own aggregation. Series
+are fetched one after another against the same fixed UTC window, and the
+results are published together only after every series completes. A failure
+keeps every previous result. `getNumericHistory(results, count, status)` reads
+the results in request order; the single-result form returns the first series.
 
 The existing background worker fetches `id`, `value`, and `created_at` in pages
 of at most 100 records, filtering irrelevant JSON fields. Both UTC time filters
@@ -283,8 +301,10 @@ produces a logged error and an explanatory Details message, not a truncated list
 |---|---|---|---|---|
 | Home | Now | Forecast | Details | System |
 | Details | Back | — | — | Home |
-| Barometer | Back | — | — | Home |
-| Wind | Back | — | — | Home |
+| Barometer | Back | — | History | Home |
+| Barometer History | Back | — | — | Home |
+| Wind | Back | — | History | Home |
+| Wind History | Back | — | — | Home |
 | Temperatures | Back | — | History | Home |
 | Temperature History | Back | — | — | Home |
 | Astronomical | Back | — | — | Home |
@@ -294,8 +314,8 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Alerts | Back | Details | Full Alert | Home |
 | Alert Details | Back | Next | Alerts | Home |
 | Full Alert | Back | Up | Down | Home |
-| WiFi Status | Refresh | — | — | Home |
-| System | Back | Tools | Refresh | Home |
+| WiFi Status | Back | Refresh | — | Home |
+| System | Back | Tools | Beeps/Silent | Home |
 | Tools | Back | NTP | Cali TS | Home |
 
 Buttons keep a consistent position across screens. Summary shows the
@@ -308,7 +328,10 @@ dark gray background; daytime forecasts use olive green. When a forecast is long
 at the bottom right; tap the text to page down (it wraps to the top). Forecast loads `nws.00`–`nws.04` when opened, then
 fetches the next two forecasts in the browsing direction. Button 4 returns Home on
 all screens except Home, where it opens System. The System screen also has
-WiFi shortcut button in its upper-right corner. Tools has a Ping
+WiFi shortcut button in its upper-right corner, with a Refresh button below it.
+System's **Beeps** button toggles button-press beeps; while muted it is gray
+and reads **Silent**. Beeps are on at startup and the setting is not saved.
+Muting affects only button beeps, not other sounds. Tools has a Ping
 button at the upper right and opens touchscreen calibration with **Cali TS**.
 
 System shows **Largest Block**, the largest currently available contiguous
@@ -335,11 +358,31 @@ and 24 Hours using the corresponding pressure/trend feeds. Pressure is in hPa;
 unavailable values show `--`. Only changed rows are redrawn as feeds arrive.
 Back returns to Details.
 
+Barometer has a **History** button in navigation position 3. It opens
+**Last 72 Hours**, a `currentpressure` chart that uses the same shared history
+page as Temperature History (`screens/history_chart_page`), with the same
+loading, empty, stale, and cancellation behavior. Readings are averaged into
+2-hour UTC buckets over a rolling 72-hour window. The Y range is the observed
+minimum minus 2 hPa through the observed maximum plus 2 hPa; label spacing
+(1, 2, 5, 10, 20, or 50 hPa) is the finest that gives at most eight labels.
+Back returns to Barometer; Home returns Home.
+
 Wind uses the same monospaced layout with cyan **Time**, **Dir**, **Speed**,
 and **Gust** headers. Rows show Current, 1 Hour, 2 Hours, 6 Hours, 12 Hours,
 and 24 Hours. Direction comes from the corresponding wind-direction feed;
 speed and gust are in mph. Missing values show `--`, and only changed rows
 are redrawn. Back returns to Details; Home returns to Home.
+
+Wind has a **History** button in navigation position 3. It opens
+**Last 48 Hours**, a two-line chart on the shared history page over a rolling
+48-hour window with 2-hour UTC buckets. The cyan line is the bucket average of
+`currentwindspeed`; the yellow line is the bucket maximum (peak gust) of
+`currentwindgust`. Both series use the same window and shared axes. The Y axis
+starts at 0 mph and extends 2 mph above the highest value. The summary line
+shows a colored legend with each series' min-max range. Both feeds are fetched
+one after the other, so loading takes about twice as long as a single-feed
+chart. The chart appears only after both series load. Back returns to Wind;
+Home returns Home.
 
 Temperatures uses the text-table layout for `feed-avg`, `wapi.feels-like`,
 `currenttemperatureapparent`, `currenttemperaturedewpoint`,

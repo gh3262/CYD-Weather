@@ -118,26 +118,51 @@ int AdafruitIOManager::findFeed(const char *feedKey) const
 bool AdafruitIOManager::requestNumericHistory(
     const char *feedKey, const NumericHistoryRequest &request)
 {
-    const int feed = findFeed(feedKey);
-    if (!_mutex || feed < 0 || !validNumericHistoryRequest(request) ||
-        (AIO_FEEDS[feed].type != AdafruitIOValueType::Float &&
-         AIO_FEEDS[feed].type != AdafruitIOValueType::Integer))
+    const char *const feedKeys[] = {feedKey};
+    return requestNumericHistory(feedKeys, &request, 1);
+}
+
+bool AdafruitIOManager::requestNumericHistory(
+    const char *const feedKeys[], const NumericHistoryRequest requests[], size_t count)
+{
+    int feeds[MAX_NUMERIC_HISTORY_SERIES];
+    bool valid = _mutex && feedKeys && requests &&
+        count > 0 && count <= MAX_NUMERIC_HISTORY_SERIES;
+    for (size_t i = 0; valid && i < count; ++i)
+    {
+        feeds[i] = findFeed(feedKeys[i]);
+        valid = feeds[i] >= 0 && validNumericHistoryRequest(requests[i]) &&
+            requests[i].windowSeconds == requests[0].windowSeconds &&
+            requests[i].bucketSeconds == requests[0].bucketSeconds &&
+            (AIO_FEEDS[feeds[i]].type == AdafruitIOValueType::Float ||
+             AIO_FEEDS[feeds[i]].type == AdafruitIOValueType::Integer);
+    }
+    if (!valid)
     {
         Serial.println("Adafruit IO: invalid numeric history request.");
         return false;
     }
     xSemaphoreTake(_mutex, portMAX_DELAY);
-    const bool same = _numericFeed == feed &&
-        _numericRequest.windowSeconds == request.windowSeconds &&
-        _numericRequest.bucketSeconds == request.bucketSeconds &&
-        _numericRequest.aggregation == request.aggregation;
-    _numericFeed = feed;
-    _numericRequest = request;
+    bool same = _numericSeriesCount == count;
+    for (size_t i = 0; same && i < count; ++i)
+    {
+        same = _numericFeeds[i] == feeds[i] &&
+            _numericRequests[i].windowSeconds == requests[i].windowSeconds &&
+            _numericRequests[i].bucketSeconds == requests[i].bucketSeconds &&
+            _numericRequests[i].aggregation == requests[i].aggregation;
+    }
+    _numericSeriesCount = count;
+    for (size_t i = 0; i < count; ++i)
+    {
+        _numericFeeds[i] = feeds[i];
+        _numericRequests[i] = requests[i];
+    }
     ++_numericGeneration;
     _numericAttempted = false;
     if (!same)
     {
-        _numericResult = {};
+        for (NumericHistoryResult &result : _numericResults)
+            result = {};
         _numericStatus.hasData = false;
     }
     _numericStatus.state = NumericHistoryState::Loading;
@@ -152,10 +177,11 @@ void AdafruitIOManager::cancelNumericHistory()
     if (!_mutex)
         return;
     xSemaphoreTake(_mutex, portMAX_DELAY);
-    _numericFeed = -1;
+    _numericSeriesCount = 0;
     ++_numericGeneration;
     _numericStatus = {};
-    _numericResult = {};
+    for (NumericHistoryResult &result : _numericResults)
+        result = {};
     ++_cacheRevision;
     xSemaphoreGive(_mutex);
 }
@@ -163,17 +189,24 @@ void AdafruitIOManager::cancelNumericHistory()
 bool AdafruitIOManager::getNumericHistory(
     NumericHistoryResult &result, NumericHistoryStatus &status) const
 {
-    if (!_mutex)
+    return getNumericHistory(&result, 1, status);
+}
+
+bool AdafruitIOManager::getNumericHistory(
+    NumericHistoryResult results[], size_t count, NumericHistoryStatus &status) const
+{
+    if (!_mutex || !results)
     {
         status = {};
         return false;
     }
     xSemaphoreTake(_mutex, portMAX_DELAY);
     status = _numericStatus;
-    if (status.hasData)
-        result = _numericResult;
+    const bool copied = status.hasData && count <= _numericSeriesCount;
+    for (size_t i = 0; copied && i < count; ++i)
+        results[i] = _numericResults[i];
     xSemaphoreGive(_mutex);
-    return status.hasData;
+    return copied;
 }
 
 bool AdafruitIOManager::setActiveFeeds(const char *const feedKeys[], size_t count)
@@ -453,9 +486,15 @@ void AdafruitIOManager::runWorker()
 void AdafruitIOManager::processNumericHistory()
 {
     xSemaphoreTake(_mutex, portMAX_DELAY);
-    const int feedIndex = _numericFeed;
+    const size_t seriesCount = _numericSeriesCount;
     const uint32_t generation = _numericGeneration;
-    const NumericHistoryRequest request = _numericRequest;
+    int feeds[MAX_NUMERIC_HISTORY_SERIES];
+    NumericHistoryRequest requests[MAX_NUMERIC_HISTORY_SERIES];
+    for (size_t i = 0; i < seriesCount; ++i)
+    {
+        feeds[i] = _numericFeeds[i];
+        requests[i] = _numericRequests[i];
+    }
     const uint32_t elapsed = millis() - _numericLastAttempt;
     const bool due =
         !_numericAttempted ||
@@ -463,23 +502,26 @@ void AdafruitIOManager::processNumericHistory()
                                                                         : FEED_POLL_INTERVAL_MS);
     xSemaphoreGive(_mutex);
 
-    if (_workGeneration != generation || feedIndex < 0)
+    if (_workGeneration != generation || seriesCount == 0)
     {
         _numericWorking = false;
         _numericAccumulator = {};
         _numericCursor = "";
         _workGeneration = generation;
     }
-    if (feedIndex < 0 || (!_numericWorking && !due))
+    if (seriesCount == 0 || (!_numericWorking && !due))
         return;
 
     bool succeeded = true;
     if (!_numericWorking)
     {
         const time_t now = time(nullptr);
+        // Every series shares one end time so their buckets line up.
+        _numericEndUtc = static_cast<int64_t>(now);
+        _numericSeriesIndex = 0;
         // Refuse a fabricated time window when the system clock is unset.
         succeeded =
-            now >= 1577836800 && _numericAccumulator.begin(request, static_cast<int64_t>(now));
+            now >= 1577836800 && _numericAccumulator.begin(requests[0], _numericEndUtc);
         if (!succeeded)
             Serial.println("Adafruit IO: numeric history requires a valid synchronized clock.");
         _numericPageCount = 0;
@@ -487,6 +529,8 @@ void AdafruitIOManager::processNumericHistory()
         _numericWorking = succeeded;
     }
 
+    const size_t series = _numericSeriesIndex;
+    const int feedIndex = feeds[series];
     int httpStatus = 0;
     uint32_t retryAfterMs = 0;
     String nextCursor;
@@ -520,10 +564,25 @@ void AdafruitIOManager::processNumericHistory()
         }
     }
 
+    // A finished series stages its result and the next one starts on a later turn.
+    bool advanced = false;
+    if (succeeded && nextCursor.isEmpty() && series + 1 < seriesCount)
+    {
+        _numericStaged[series] = _numericAccumulator.result();
+        _numericSeriesIndex = series + 1;
+        _numericPageCount = 0;
+        _numericCursor = "";
+        succeeded = _numericAccumulator.begin(requests[series + 1], _numericEndUtc);
+        advanced = succeeded;
+    }
+
     xSemaphoreTake(_mutex, portMAX_DELAY);
-    const bool current = _numericGeneration == generation && _numericFeed == feedIndex;
-    if (current && (succeeded && !nextCursor.isEmpty()))
-        _numericCursor = nextCursor;
+    const bool current = _numericGeneration == generation;
+    if (current && succeeded && (advanced || !nextCursor.isEmpty()))
+    {
+        if (!advanced)
+            _numericCursor = nextCursor;
+    }
     else
     {
         _numericWorking = false;
@@ -533,12 +592,18 @@ void AdafruitIOManager::processNumericHistory()
             _numericLastAttempt = millis();
             if (succeeded)
             {
-                _numericResult = _numericAccumulator.result();
+                for (size_t i = 0; i + 1 < seriesCount; ++i)
+                    _numericResults[i] = _numericStaged[i];
+                _numericResults[seriesCount - 1] = _numericAccumulator.result();
                 _numericStatus.hasData = true;
                 _numericStatus.state = NumericHistoryState::Ready;
-                if (_numericResult.invalidValueCount)
-                    Serial.printf("Adafruit IO: skipped %lu invalid numeric readings.\n",
-                                  static_cast<unsigned long>(_numericResult.invalidValueCount));
+                for (size_t i = 0; i < seriesCount; ++i)
+                {
+                    if (_numericResults[i].invalidValueCount)
+                        Serial.printf("Adafruit IO: skipped %lu invalid numeric readings for '%s'.\n",
+                                      static_cast<unsigned long>(_numericResults[i].invalidValueCount),
+                                      AIO_FEEDS[feeds[i]].key);
+                }
             }
             else
                 _numericStatus.state = NumericHistoryState::Failed;
@@ -549,7 +614,11 @@ void AdafruitIOManager::processNumericHistory()
     xSemaphoreGive(_mutex);
 
     if (!_numericWorking)
+    {
         _numericAccumulator = {};
+        for (NumericHistoryResult &staged : _numericStaged)
+            staged = {};
+    }
     if (!succeeded)
         Serial.printf("Adafruit IO: numeric history fetch failed for '%s' (HTTP %d).\n",
                       AIO_FEEDS[feedIndex].key, httpStatus);

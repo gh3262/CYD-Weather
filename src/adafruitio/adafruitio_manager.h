@@ -48,6 +48,8 @@ static const size_t AIO_FEED_CAPACITY = 95;
 // runaway polling. HTTP 429 responses still pause all requests.
 static const size_t AIO_REQUESTS_PER_WINDOW = 60;
 static const uint32_t AIO_REQUEST_WINDOW_MS = 60000;
+// Feeds that one chart-history subscription can fetch together.
+static const size_t MAX_NUMERIC_HISTORY_SERIES = 2;
 
 class AdafruitIOManager
 {
@@ -77,8 +79,17 @@ public:
     // One chart-history subscription at a time, independent of latest/alert data.
     bool requestNumericHistory(const char *feedKey,
                                const NumericHistoryRequest &request);
+    // Fetches each feed in order over one shared time window and publishes all
+    // results together. Requests must share window and bucket sizes; aggregation
+    // may differ per feed.
+    bool requestNumericHistory(const char *const feedKeys[],
+                               const NumericHistoryRequest requests[], size_t count);
     void cancelNumericHistory();
+    // Copies the first result for single-feed subscriptions.
     bool getNumericHistory(NumericHistoryResult &result,
+                           NumericHistoryStatus &status) const;
+    // count must not exceed the subscribed feed count; results keep request order.
+    bool getNumericHistory(NumericHistoryResult results[], size_t count,
                            NumericHistoryStatus &status) const;
 
 private:
@@ -110,16 +121,20 @@ private:
                                  String &nextCursor, int &httpStatus,
                                  uint32_t &retryAfterMs);
 
-    int _numericFeed = -1;
-    NumericHistoryRequest _numericRequest;
+    int _numericFeeds[MAX_NUMERIC_HISTORY_SERIES] = {};
+    size_t _numericSeriesCount = 0;
+    NumericHistoryRequest _numericRequests[MAX_NUMERIC_HISTORY_SERIES];
     uint32_t _numericGeneration = 0;
     NumericHistoryStatus _numericStatus;
-    NumericHistoryResult _numericResult;
+    NumericHistoryResult _numericResults[MAX_NUMERIC_HISTORY_SERIES];
     uint32_t _numericLastAttempt = 0;
     bool _numericAttempted = false;
     // Only the worker accesses staging data; publish after the complete window.
     uint32_t _workGeneration = 0;
     bool _numericWorking = false;
+    size_t _numericSeriesIndex = 0;
+    int64_t _numericEndUtc = 0;
+    NumericHistoryResult _numericStaged[MAX_NUMERIC_HISTORY_SERIES];
     NumericHistoryAccumulator _numericAccumulator;
     String _numericCursor;
     size_t _numericPageCount = 0;

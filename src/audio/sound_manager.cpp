@@ -10,6 +10,7 @@ static const uint32_t SOUND_INIT_FREQUENCY_HZ = 2000;
 
 static bool initialized = false;
 static bool enabled = true;
+static bool buttonBeeps = true;
 static uint8_t volumePercent = SOUND_DEFAULT_VOLUME;
 
 static ToneStep steps[SOUND_MAX_STEPS];
@@ -97,6 +98,26 @@ bool playTone(uint16_t frequencyHz, uint16_t durationMs)
     return playToneSequence(&step, 1);
 }
 
+bool playButtonBeep()
+{
+    static const uint16_t BUTTON_BEEP_FREQUENCY_HZ = 2500;
+    static const uint16_t BUTTON_BEEP_DURATION_MS = 30;
+
+    if (!initialized || !enabled || !buttonBeeps || volumePercent == 0)
+        return false;
+
+    stopSound();
+    if (ledcWriteTone(SOUND_LEDC_CHANNEL, BUTTON_BEEP_FREQUENCY_HZ) == 0)
+    {
+        silence();
+        return false;
+    }
+    ledcWrite(SOUND_LEDC_CHANNEL, volumeDuty());
+    delay(BUTTON_BEEP_DURATION_MS);
+    silence();
+    return true;
+}
+
 bool playSound(Sound sound)
 {
     switch (sound)
@@ -133,6 +154,16 @@ void setSoundEnabled(bool isEnabled)
 bool soundEnabled()
 {
     return enabled;
+}
+
+void setButtonBeepsEnabled(bool isEnabled)
+{
+    buttonBeeps = isEnabled;
+}
+
+bool buttonBeepsEnabled()
+{
+    return buttonBeeps;
 }
 
 void setSoundVolume(uint8_t percent)

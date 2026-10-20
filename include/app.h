@@ -19,7 +19,9 @@ enum Screen
     SCREEN_DETAILS,
     SCREEN_PRECIPITATION,
     SCREEN_BAROMETER,
+    SCREEN_BAROMETER_HISTORY,
     SCREEN_WIND,
+    SCREEN_WIND_HISTORY,
     SCREEN_TEMPERATURES,
     SCREEN_TEMPERATURE_HISTORY,
     SCREEN_ASTRONOMICAL,
@@ -117,11 +119,23 @@ void enterBarometerScreen();
 void handleBarometerTouch(int x, int y);
 void refreshBarometerResults();
 
+// barometer_history_screen.cpp
+void drawBarometerHistoryScreen();
+void enterBarometerHistoryScreen();
+void handleBarometerHistoryTouch(int x, int y);
+void refreshBarometerHistoryResults();
+
 // wind_screen.cpp
 void drawWindScreen();
 void enterWindScreen();
 void handleWindTouch(int x, int y);
 void refreshWindResults();
+
+// wind_history_screen.cpp
+void drawWindHistoryScreen();
+void enterWindHistoryScreen();
+void handleWindHistoryTouch(int x, int y);
+void refreshWindHistoryResults();
 
 // temperatures_screen.cpp
 void drawTemperaturesScreen();
@@ -134,7 +148,6 @@ void drawTemperatureHistoryScreen();
 void enterTemperatureHistoryScreen();
 void handleTemperatureHistoryTouch(int x, int y);
 void refreshTemperatureHistoryResults();
-void leaveTemperatureHistoryScreen();
 
 // astronomical_screen.cpp
 void drawAstronomicalScreen();

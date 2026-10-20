@@ -253,14 +253,14 @@ bool handleTextBlockPageTouch(const TextBlockPage &page, int x, int y)
 
     if (navPressed1(x, y))
         page.backAction();
-    else if (navPressed2(x, y) && page.button2.action)
+    else if (page.button2.action && navPressed2(x, y))
         page.button2.action();
-    else if (navPressed3(x, y) && page.button3.action)
+    else if (page.button3.action && navPressed3(x, y))
         page.button3.action();
     else if (navPressed4(x, y))
         enterHomeScreen();
     else if (page.textTapAction &&
-             touchInRect(x, y, 0, HEADER_HEIGHT, SCREEN_WIDTH, NAV_Y - HEADER_HEIGHT - 1))
+             buttonPressed(x, y, 0, HEADER_HEIGHT, SCREEN_WIDTH, NAV_Y - HEADER_HEIGHT - 1))
         page.textTapAction();
     else
         return false;

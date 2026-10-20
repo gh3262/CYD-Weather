@@ -100,6 +100,7 @@ void drawBarometerScreen()
     forceBarometerRender = true;
     refreshBarometerResults();
     drawNav1("Back");
+    drawNav3("History");
     drawNav4("Home");
 }
 
@@ -113,4 +114,6 @@ void handleBarometerTouch(int x, int y)
 {
     if (navPressed1(x, y))
         enterDetailsScreen();
+    else if (navPressed3(x, y))
+        enterBarometerHistoryScreen();
 }

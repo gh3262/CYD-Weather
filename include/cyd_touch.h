@@ -7,6 +7,7 @@
 
 #include "cyd_pins.h"
 #include "cyd_theme.h"
+#include "audio/sound_manager.h"
 
 // ====================================================
 // Touch Object
@@ -222,13 +223,30 @@ inline bool touchInRect(
         touchY <= (y + h));
 }
 
+// Hit test for a tappable button; beeps when the touch lands on it. Check any
+// other "is this button active?" condition first so inactive buttons stay silent.
+inline bool buttonPressed(
+    int touchX,
+    int touchY,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    if (!touchInRect(touchX, touchY, x, y, w, h))
+        return false;
+
+    playButtonBeep();
+    return true;
+}
+
 // ====================================================
 // Navigation Buttons
 // ====================================================
 
 inline bool navPressed1(int x, int y)
 {
-    return touchInRect(
+    return buttonPressed(
         x,
         y,
         NAV_X1,
@@ -239,7 +257,7 @@ inline bool navPressed1(int x, int y)
 
 inline bool navPressed2(int x, int y)
 {
-    return touchInRect(
+    return buttonPressed(
         x,
         y,
         NAV_X2,
@@ -250,7 +268,7 @@ inline bool navPressed2(int x, int y)
 
 inline bool navPressed3(int x, int y)
 {
-    return touchInRect(
+    return buttonPressed(
         x,
         y,
         NAV_X3,
@@ -261,7 +279,7 @@ inline bool navPressed3(int x, int y)
 
 inline bool navPressed4(int x, int y)
 {
-    return touchInRect(
+    return buttonPressed(
         x,
         y,
         NAV_X4,

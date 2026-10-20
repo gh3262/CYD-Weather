@@ -170,9 +170,9 @@ bool handleTextTablePageTouch(const TextTablePage &page, int x, int y)
 
     if (navPressed1(x, y))
         page.backAction();
-    else if (navPressed2(x, y) && page.button2.action)
+    else if (page.button2.action && navPressed2(x, y))
         page.button2.action();
-    else if (navPressed3(x, y) && page.button3.action)
+    else if (page.button3.action && navPressed3(x, y))
         page.button3.action();
     else if (navPressed4(x, y))
         enterHomeScreen();
