@@ -55,16 +55,44 @@ src/
   main.cpp              Startup, WiFi connect/maintain, screen table, touch loop
   cyd_globals.cpp       Shared display and touch objects
   adafruitio/
-    adafruitio_manager.* Active-page polling and cached values
+    adafruitio_manager.* Background worker: feed polling, value cache, history
     feed_catalog.csv     Editable feed catalog
     feed_catalog.cpp     Compiled feed definitions
+    numeric_history.*    Timestamp parsing, bucketing, and aggregation
+    numeric_history_page.h  Shared JSON page parser (firmware and tests)
   audio/
     sound_manager.*     Non-blocking sound playback
-  screens/              Example screens
+  screens/
+    Shared page building blocks:
     text_table_page.*   Reusable two-column, eight-row weather page layout
     text_block_page.*   Reusable word-wrapped long-text page layout
+    history_chart_page.*  Reusable timestamped line/daily-bar history page
+    Pure logic (no display code, native-tested):
+    weather_descriptor.h  Pressure-based one-word forecast (Home)
+    wind_direction_stats.*  Speed-weighted mean, range, steadiness, wind rose
+    Weather screens:
+    home_screen.cpp     Clock, temperature, weather word, navigation
+    snapshot_screen.cpp, summary_screen.cpp, forecast_screen.cpp
+    details_screen.cpp  Hub for the detail pages below
+    temperatures_screen.cpp, temperature_history_screen.cpp
+    barometer_screen.cpp, barometer_history_screen.cpp
+    precipitation_screen.cpp, precipitation_history_screen.cpp
+    wind_screen.cpp     Wind table; Dir and Speed buttons
+    wind_direction_screen.cpp  12-hour compass dial and wind rose
+    wind_history_screen.cpp    48-hour speed/gust chart
+    astronomical_screen.cpp, alerts_screen.cpp (list, details, full text)
+    System screens:
+    system_screen.cpp, wifi_status_screen.cpp, tools_screen.cpp,
+    touch_calibration_screen.cpp
   widgets/
     thermometer_widget.* Resizable thermometer graphic
+    line_chart_widget.*  Line, multi-series, and bar charts with Y scale
+test/
+  README                Native test build/run commands
+  line_chart_widget/    Chart drawing against recording graphics stubs
+  numeric_history/      History parsing/aggregation and manager with fake HTTP
+  weather_descriptor/   Compile-time static_assert checks
+  wind_direction_stats/ Wind direction statistics
 ```
 
 `main.cpp` routes each `Screen` enum value through a screen table. To add a
@@ -160,7 +188,8 @@ if (!drawLineChartWidget(chart, points, sizeof(points) / sizeof(points[0])))
 X coordinates are `double` so Unix timestamps retain their resolution.
 Callers can instead use sample positions `0` through `count - 1`, but must not
 label these as hourly data. Timestamped retrieval and aggregation live in the
-Adafruit IO manager, outside the widget; Temperature, Barometer, and Wind History use that path.
+Adafruit IO manager, outside the widget; the Temperature, Barometer,
+Precipitation, and Wind History pages and Wind Direction use that path.
 
 To plot several lines on shared axes, pass an array of `LineChartSeries`
 (`points`, `pointCount`, `color`) to `drawLineChartSeriesWidget()`. Series are
