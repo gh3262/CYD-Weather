@@ -67,3 +67,12 @@ Successful compilation runs all checks; no hardware or executable is needed.
 From the repository root (PowerShell), using PlatformIO's installed compiler:
 
 & "$env:USERPROFILE\.platformio\packages\toolchain-xtensa-esp32\bin\xtensa-esp32-elf-g++.exe" -std=c++11 -Wall -Wextra -Werror -Isrc -c test\weather_descriptor\test_main.cpp -o "$env:TEMP\cyd-weather-descriptor-tests.o"
+
+Wind direction statistics native tests
+--------------------------------------
+wind_direction_stats/test_main.cpp covers 16-point compass sectors and edges,
+wrap-around through north, speed weighting, steadiness, calm/invalid samples,
+cancelling winds, and the smallest covering range. From the repository root:
+
+g++ -std=c++11 -Wall -Wextra -Werror -Isrc src\screens\wind_direction_stats.cpp test\wind_direction_stats\test_main.cpp -o "$env:TEMP\cyd-wind-direction-tests.exe"
+if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-wind-direction-tests.exe" }

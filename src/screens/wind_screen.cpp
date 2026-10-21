@@ -101,7 +101,8 @@ void drawWindScreen()
     forceWindRender = true;
     refreshWindResults();
     drawNav1("Back");
-    drawNav3("History");
+    drawNav2("Dir");
+    drawNav3("Speed");
     drawNav4("Home");
 }
 
@@ -115,6 +116,8 @@ void handleWindTouch(int x, int y)
 {
     if (navPressed1(x, y))
         enterDetailsScreen();
+    else if (navPressed2(x, y))
+        enterWindDirectionScreen();
     else if (navPressed3(x, y))
         enterWindHistoryScreen();
 }

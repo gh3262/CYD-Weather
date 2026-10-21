@@ -346,7 +346,8 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Precipitation History | Back | — | — | Home |
 | Barometer | Back | — | History | Home |
 | Barometer History | Back | — | — | Home |
-| Wind | Back | — | History | Home |
+| Wind | Back | Dir | Speed | Home |
+| Wind Direction | Back | — | Speed | Home |
 | Wind History | Back | — | — | Home |
 | Temperatures | Back | — | History | Home |
 | Temperature History | Back | — | — | Home |
@@ -444,7 +445,37 @@ and 24 Hours. Direction comes from the corresponding wind-direction feed;
 speed and gust are in mph. Missing values show `--`, and only changed rows
 are redrawn. Back returns to Details; Home returns to Home.
 
-Wind has a **History** button in navigation position 3. It opens
+Wind has a **Dir** button in navigation position 2. It opens
+**Wind Direction**, a compass dial plus a text panel covering a rolling 12-hour
+window. `src/screens/wind_direction_screen.cpp` requests two numeric-history
+series with 10-minute UTC buckets: `currentwinddegrees` (CircularAverage) and
+`currentwindspeed` (Average). It pairs each bucket's mean bearing with that
+bucket's mean speed and passes the pairs to the pure functions in
+`src/screens/wind_direction_stats.*`:
+
+- **12h avg** (red rim marker) is the speed-weighted vector mean: the bearing
+  of the sum of speed × unit vector. Strong winds count more than light ones.
+  It is undefined when all readings are calm or the winds cancel exactly.
+- **Steady** is the resultant vector length divided by the total speed:
+  100% means one constant direction, and near 0% means no prevailing direction.
+- **Range** (yellow arc outside the rim) is the smallest arc that covers every
+  bearing. It is found by removing the largest empty gap between bearings.
+- The blue petals form a 16-point wind rose. Each petal's length is
+  proportional to the number of buckets from that sector, relative to the
+  busiest sector.
+- Buckets with a mean speed below 1 mph count as calm and are excluded from
+  all of the above. The status line shows the calm share.
+
+The white arrow points into the wind, toward the bearing the wind comes from,
+like a weather vane. It turns gray when the current speed is calm. The current
+bearing is the newest history sample, or the latest `currentwinddegrees` value
+before the history loads. The speed comes from `currentwindspeed`. History
+refreshes every minute while the page is open, and the dial redraws only when
+displayed values change. Failures, WiFi loss, or data more than two minutes old
+show **Stale**. Back returns to Wind, **Speed** opens the speed chart, and Home
+returns Home.
+
+Wind's navigation position 3 is **Speed**. It opens
 **Last 48 Hours**, a two-line chart on the shared history page over a rolling
 48-hour window with 2-hour UTC buckets. The cyan line is the bucket average of
 `currentwindspeed`; the yellow line is the bucket maximum (peak gust) of

@@ -254,6 +254,7 @@ static const ScreenDef screens[] = {
     /* SCREEN_BAROMETER    */ { drawBarometerScreen, handleBarometerTouch, nullptr,                   refreshBarometerResults, true },
         /* SCREEN_BAROMETER_HISTORY */ { drawBarometerHistoryScreen, handleBarometerHistoryTouch, nullptr, refreshBarometerHistoryResults, true },    /* SCREEN_WIND         */ { drawWindScreen, handleWindTouch, nullptr,                             refreshWindResults, true },
     /* SCREEN_WIND_HISTORY */ { drawWindHistoryScreen, handleWindHistoryTouch, nullptr, refreshWindHistoryResults, true },
+    /* SCREEN_WIND_DIRECTION */ { drawWindDirectionScreen, handleWindDirectionTouch, nullptr, refreshWindDirectionResults, true },
     /* SCREEN_TEMPERATURES */ { drawTemperaturesScreen, handleTemperaturesTouch, nullptr,               refreshTemperaturesResults, true },
     /* SCREEN_TEMPERATURE_HISTORY */ { drawTemperatureHistoryScreen, handleTemperatureHistoryTouch, nullptr, refreshTemperatureHistoryResults, true },
     /* SCREEN_ASTRONOMICAL */ { drawAstronomicalScreen, handleAstronomicalTouch, nullptr,               refreshAstronomicalResults, true },
@@ -280,10 +281,18 @@ static bool isHistoryChartScreen(Screen screen)
         screen == SCREEN_PRECIPITATION_HISTORY;
 }
 
+// Screens whose data comes from timestamped history poll every interval too.
+static bool pollsEveryInterval(Screen screen)
+{
+    return isHistoryChartScreen(screen) || screen == SCREEN_WIND_DIRECTION;
+}
+
 void drawCurrentScreen()
 {
     if (!isHistoryChartScreen(state.currentScreen))
         leaveHistoryChartPage();
+    if (state.currentScreen != SCREEN_WIND_DIRECTION)
+        leaveWindDirectionScreen();
     screenPollPending = true;
     screens[state.currentScreen].draw();
 }
@@ -321,7 +330,7 @@ static void pollCurrentScreen()
     static uint32_t lastRevision = 0;
     const uint32_t revision = adafruitIOManager.getCacheRevision();
     if (!screenPollPending && revision == lastRevision &&
-        !isHistoryChartScreen(state.currentScreen))
+        !pollsEveryInterval(state.currentScreen))
         return;
     // Capture before polling so a concurrent cache update is checked next time.
     lastRevision = revision;

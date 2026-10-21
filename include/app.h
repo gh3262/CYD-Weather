@@ -23,6 +23,7 @@ enum Screen
     SCREEN_BAROMETER_HISTORY,
     SCREEN_WIND,
     SCREEN_WIND_HISTORY,
+    SCREEN_WIND_DIRECTION,
     SCREEN_TEMPERATURES,
     SCREEN_TEMPERATURE_HISTORY,
     SCREEN_ASTRONOMICAL,
@@ -143,6 +144,14 @@ void drawWindHistoryScreen();
 void enterWindHistoryScreen();
 void handleWindHistoryTouch(int x, int y);
 void refreshWindHistoryResults();
+
+// wind_direction_screen.cpp
+void drawWindDirectionScreen();
+void enterWindDirectionScreen();
+void handleWindDirectionTouch(int x, int y);
+void refreshWindDirectionResults();
+// Cancels its history subscription; safe to call when not active.
+void leaveWindDirectionScreen();
 
 // temperatures_screen.cpp
 void drawTemperaturesScreen();
