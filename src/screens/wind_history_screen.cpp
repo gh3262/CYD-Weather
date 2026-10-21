@@ -48,6 +48,7 @@ void refreshWindHistoryResults()
 void drawWindHistoryScreen()
 {
     drawHistoryChartPage(windHistoryPage());
+    drawNav2("Dir");
 }
 
 void enterWindHistoryScreen()
@@ -60,4 +61,6 @@ void handleWindHistoryTouch(int x, int y)
 {
     if (navPressed1(x, y))
         enterWindScreen();
+    else if (navPressed2(x, y))
+        enterWindDirectionScreen();
 }

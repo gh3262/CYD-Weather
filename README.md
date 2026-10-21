@@ -378,7 +378,7 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Barometer History | Back | — | — | Home |
 | Wind | Back | Dir | Speed | Home |
 | Wind Direction | Back | — | Speed | Home |
-| Wind History | Back | — | — | Home |
+| Wind History | Back | Dir | — | Home |
 | Temperatures | Back | — | History | Home |
 | Temperature History | Back | — | — | Home |
 | Astronomical | Back | — | — | Home |
@@ -513,8 +513,8 @@ Wind's navigation position 3 is **Speed**. It opens
 starts at 0 mph and extends 2 mph above the highest value. The summary line
 shows a colored legend with each series' min-max range. Both feeds are fetched
 one after the other, so loading takes about twice as long as a single-feed
-chart. The chart appears only after both series load. Back returns to Wind;
-Home returns Home.
+chart. The chart appears only after both series load. Back returns to Wind,
+**Dir** opens Wind Direction, and Home returns Home.
 
 Temperatures uses the text-table layout for `feed-avg`, `wapi.feels-like`,
 `currenttemperatureapparent`, `currenttemperaturedewpoint`,
