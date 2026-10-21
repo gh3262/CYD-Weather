@@ -12,6 +12,13 @@ its own screens and behavior without rebuilding the device layer.
 
 - **Display and navigation:** shared CYD initialization, theme, title bar,
   navigation buttons, touch mapping, and button hit-testing.
+- **Backlight timeout:** GPIO 21 starts HIGH (backlight on). After five
+  minutes without a touch, it goes LOW to turn only the backlight off.
+  Touch anywhere to wake it and restart the timer; the wake press does not
+  activate buttons or beep, and must be released before another action.
+  The timer starts after startup finishes, and a held touch keeps the light on.
+  The processor, WiFi, feed polling, and screen updates continue normally;
+  this is not processor sleep or display-controller power-down.
 - **WiFi connection:** loads configured networks from `credentials.h`, scans
   for them during connection/retry, and connects to the strongest known
   network. WiFi status is available on the status screen.

@@ -9,6 +9,10 @@ AppState state = {SCREEN_HOME, PING_NOT_RUN, PING_NOT_RUN};
 AdafruitIOManager adafruitIOManager;
 bool headerAlertActive = false;
 
+static const unsigned long BACKLIGHT_IDLE_TIMEOUT_MS = 5UL * 60UL * 1000UL;
+static unsigned long lastTouchActivityMs = 0;
+static bool backlightSleeping = false;
+
 // Connection
 bool connectWiFi();
 
@@ -47,6 +51,7 @@ void setup()
     // while (true);
 
     drawCurrentScreen();
+    lastTouchActivityMs = millis();
 }
 
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 15000;
@@ -385,9 +390,17 @@ void loop()
     if (getTouch(x, y))
     {
         lastTouchMs = millis();
+        lastTouchActivityMs = lastTouchMs;
 
+        if (backlightSleeping)
+        {
+            backlightOn();
+            backlightSleeping = false;
+            // Consume the entire wake press, including a held finger.
+            touchArmed = false;
+        }
         // Act once per press; ignore the finger while it stays down
-        if (touchArmed)
+        else if (touchArmed)
         {
             touchArmed = false;
 
@@ -399,8 +412,17 @@ void loop()
             handleTouch(x, y);
         }
     }
-    else if (!touchArmed && millis() - lastTouchMs > TOUCH_RELEASE_MS)
+    else
     {
-        touchArmed = true;
+        const unsigned long now = millis();
+        if (!touchArmed && now - lastTouchMs > TOUCH_RELEASE_MS)
+            touchArmed = true;
+
+        if (!backlightSleeping &&
+            now - lastTouchActivityMs >= BACKLIGHT_IDLE_TIMEOUT_MS)
+        {
+            backlightOff();
+            backlightSleeping = true;
+        }
     }
 }
