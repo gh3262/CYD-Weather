@@ -17,7 +17,7 @@ constexpr const char *weatherDescriptor(float pressure, float forecastPressure)
         : forecastPressure - pressure > 3.0f ? "Improving"
         : forecastPressure - pressure < -3.0f ? "Unsettled"
         : pressure > 1025.0f ? "Fair"
-        : "Good";
+        : "Nice";
 }
 
 #endif

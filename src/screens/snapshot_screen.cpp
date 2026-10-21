@@ -18,9 +18,13 @@ static const char *const SNAPSHOT_FEED_KEYS[] = {
     "currentwindspeed",
     "currentwindgust",
     "m5precipitationchance",
+    "hours1precipitationchance",
+    "hours2precipitationchance",
+    "hours6precipitationchance",
+    "hours12precipitationchance",
 };
 
-static const int SNAPSHOT_VALUE_COLUMN_X = 150;
+static const int SNAPSHOT_VALUE_COLUMN_X = 140;
 static const size_t SNAPSHOT_ROW_COUNT = 8;
 
 static const char *const SNAPSHOT_LABELS[SNAPSHOT_ROW_COUNT] = {
@@ -86,6 +90,68 @@ static String readSnapshotPressure()
     return String(pressure, 1);
 }
 
+static String readSnapshotRainChance()
+{
+    static const char *const feedKeys[] = {
+        "m5precipitationchance",
+        "hours1precipitationchance",
+        "hours2precipitationchance",
+        "hours6precipitationchance",
+        "hours12precipitationchance",
+    };
+    static const char *const timeFrames[] = {
+        "Now",
+        "Soon",
+        "Soon",
+        "Later",
+        "Today",
+    };
+    static const size_t feedCount = sizeof(feedKeys) / sizeof(feedKeys[0]);
+    String values[feedCount];
+    float chances[feedCount];
+
+    size_t earliestNonzero = feedCount;
+    for (size_t i = 0; i < feedCount; ++i)
+    {
+        values[i] = readSnapshotFeed(feedKeys[i]);
+        if (!parseSnapshotNumber(values[i], chances[i]))
+            return "--";
+        if (earliestNonzero == feedCount && chances[i] > 0.0f)
+            earliestNonzero = i;
+    }
+
+    if (earliestNonzero == feedCount)
+        return "0%";
+
+    String result = values[earliestNonzero];
+    if (!values[earliestNonzero].endsWith("%"))
+        result += "%";
+    result += " ";
+    result += timeFrames[earliestNonzero];
+
+    size_t laterMaximum = feedCount;
+    for (size_t i = earliestNonzero + 1; i < feedCount; ++i)
+    {
+        if (chances[i] > chances[earliestNonzero] &&
+            (laterMaximum == feedCount || chances[i] > chances[laterMaximum]))
+        {
+            laterMaximum = i;
+        }
+    }
+
+    if (laterMaximum != feedCount)
+    {
+        result += "-";
+        result += values[laterMaximum];
+        if (!values[laterMaximum].endsWith("%"))
+            result += "%";
+        result += " ";
+        result += timeFrames[laterMaximum];
+    }
+
+    return result;
+}
+
 static bool updateSnapshotRows(bool redrawPage)
 {
     snapshotValues[0] = readSnapshotFeed("currentconditioncode");
@@ -117,9 +183,7 @@ static bool updateSnapshotRows(bool redrawPage)
     if (windSpeed != "--" || windGust != "--")
         snapshotValues[6] += " mph";
 
-    snapshotValues[7] = readSnapshotFeed("m5precipitationchance");
-    if (snapshotValues[7] != "--")
-        snapshotValues[7] += " %";
+    snapshotValues[7] = readSnapshotRainChance();
 
     bool changed = forceSnapshotRender;
     for (size_t i = 0; i < SNAPSHOT_ROW_COUNT; ++i)

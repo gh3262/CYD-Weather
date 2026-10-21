@@ -191,18 +191,20 @@ Library and platform versions are pinned in `platformio.ini`.
 
 ## Adafruit IO feeds
 
-`src/adafruitio/feed_catalog.csv` is an editable export of the feed catalog.
-The firmware currently compiles definitions from `feed_catalog.cpp`; CSV edits
-must also be applied there to affect the build. `src/adafruitio/adafruitio_manager.*`
-handles active-page polling. Use `adafruitIOManager` to call
+`src/adafruitio/feed_catalog.csv` is the editable feed catalog. Its
+`refresh_policy` column is `periodic` or `on_demand`; periodic feeds specify
+their cadence in `refresh_interval_minutes`, while on-demand feeds leave that
+field blank. Keep the compiled definitions in `feed_catalog.cpp` synchronized
+with catalog edits. `src/adafruitio/adafruitio_manager.*` handles active-page
+polling. Use `adafruitIOManager` to call
 `setActiveFeeds()` when a page is entered, then read cached values with
 `getFeedValue()` and update times with `getFeedUpdatedAt()`. Values are fetched
 over the HTTPS API and kept as `String`s so long alert text is not truncated.
 Each catalog entry also indicates whether its value may exceed 45 characters,
 so page layouts can plan for wrapping or scrolling. The polling task runs
-independently of the display loop. `Periodic` feeds are refreshed every minute
-even when their page is not active; `OnDemand` feeds are fetched when selected
-and retain their cached value until selected again.
+independently of the display loop. Periodic feeds are refreshed at their
+catalog interval even when their page is not active; on-demand feeds are
+fetched when selected and retain their cached value until selected again.
 
 For feeds with separate entries, `setFeedHistoryCount()` requests the latest
 1-1000 entries and `getFeedValues()` reads them in newest-first order. History

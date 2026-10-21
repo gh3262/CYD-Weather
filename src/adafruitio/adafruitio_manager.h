@@ -38,6 +38,24 @@ struct AdafruitIOFeedDefinition
     const char *unit;
     bool mayExceed45Chars;
     AdafruitIORefreshPolicy refreshPolicy;
+    uint16_t refreshIntervalMinutes;
+
+    AdafruitIOFeedDefinition(
+        const char *feedKey, const char *feedName, const char *feedCategory,
+        AdafruitIOValueType valueType, const char *feedUnit,
+        bool longValue, AdafruitIORefreshPolicy policy,
+        uint16_t intervalMinutes = 1)
+        : key(feedKey),
+          name(feedName),
+          category(feedCategory),
+          type(valueType),
+          unit(feedUnit),
+          mayExceed45Chars(longValue),
+          refreshPolicy(policy),
+          refreshIntervalMinutes(
+              policy == AdafruitIORefreshPolicy::Periodic ? intervalMinutes : 0)
+    {
+    }
 };
 
 extern const AdafruitIOFeedDefinition AIO_FEEDS[];

@@ -9,7 +9,8 @@
 
 #include "credentials.h"
 
-static const uint32_t FEED_POLL_INTERVAL_MS = 60000;
+static const uint32_t MILLISECONDS_PER_MINUTE = 60000;
+static const uint32_t NUMERIC_HISTORY_POLL_INTERVAL_MS = 60000;
 static const uint32_t FAILED_FEED_RETRY_MS = 30000;
 static const uint32_t DEFAULT_THROTTLE_PAUSE_MS = 60000;
 static const uint32_t MAX_THROTTLE_PAUSE_MS = 600000;
@@ -411,9 +412,12 @@ void AdafruitIOManager::runWorker()
                 AIO_FEEDS[i].refreshPolicy == AdafruitIORefreshPolicy::Periodic;
             const bool shouldFetch = periodic || feed.active;
             const uint32_t elapsed = now - feed.lastAttempt;
+            const uint32_t refreshIntervalMs =
+                static_cast<uint32_t>(AIO_FEEDS[i].refreshIntervalMinutes) *
+                MILLISECONDS_PER_MINUTE;
             const bool due = !feed.attempted ||
                 (feed.failed && elapsed >= FAILED_FEED_RETRY_MS) ||
-                (periodic && elapsed >= FEED_POLL_INTERVAL_MS);
+                (periodic && elapsed >= refreshIntervalMs);
             if (shouldFetch && due)
             {
                 selectedFeed = static_cast<int>(i);
@@ -501,7 +505,7 @@ void AdafruitIOManager::processNumericHistory()
     const bool due =
         !_numericAttempted ||
         elapsed >= (_numericStatus.state == NumericHistoryState::Failed ? FAILED_FEED_RETRY_MS
-                                                                        : FEED_POLL_INTERVAL_MS);
+                                    : NUMERIC_HISTORY_POLL_INTERVAL_MS);
     xSemaphoreGive(_mutex);
 
     if (_workGeneration != generation || seriesCount == 0)
