@@ -10,8 +10,7 @@ static size_t summaryFirstLine = 0;
 static size_t summaryLineCount = 0;
 static bool summaryScrollable = false;
 
-static void scrollSummaryUp();
-static void scrollSummaryDown();
+static void toggleSummaryPage();
 
 static TextBlockPage summaryPage()
 {
@@ -23,12 +22,11 @@ static TextBlockPage summaryPage()
         summaryFirstLine,
         enterSnapshotScreen,
         {nullptr, nullptr},
-        {nullptr, nullptr},
+        {"Forecast", enterForecastScreen},
     };
     if (summaryScrollable)
     {
-        page.button2 = {"Up", scrollSummaryUp};
-        page.button3 = {"Down", scrollSummaryDown};
+        page.button2 = {summaryFirstLine > 0 ? "Up" : "More", toggleSummaryPage};
     }
     return page;
 }
@@ -54,27 +52,14 @@ static void drawSummaryPage()
     }
 }
 
-static void scrollSummaryTo(size_t firstLine)
+static void toggleSummaryPage()
 {
-    if (firstLine == summaryFirstLine)
-        return;
-    summaryFirstLine = firstLine;
-    refreshTextBlockPageText(summaryPage(), &summaryLineCount);
-}
-
-static void scrollSummaryUp()
-{
-    const size_t step = TEXT_BLOCK_VISIBLE_LINES - 1;
-    scrollSummaryTo(summaryFirstLine > step ? summaryFirstLine - step : 0);
-}
-
-static void scrollSummaryDown()
-{
-    const size_t step = TEXT_BLOCK_VISIBLE_LINES - 1;
     const size_t lastStart = summaryLineCount > TEXT_BLOCK_VISIBLE_LINES
         ? summaryLineCount - TEXT_BLOCK_VISIBLE_LINES
         : 0;
-    scrollSummaryTo(min(summaryFirstLine + step, lastStart));
+    summaryFirstLine = summaryFirstLine > 0 ? 0 : lastStart;
+    refreshTextBlockPageText(summaryPage(), &summaryLineCount);
+    drawNav2(summaryFirstLine > 0 ? "Up" : "More");
 }
 
 void drawSummaryScreen()

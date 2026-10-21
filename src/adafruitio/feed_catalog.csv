@@ -77,7 +77,7 @@ hours6pressure,Hour 6 Barometric Pressure,Barometer,float,hPa,FALSE,on_demand
 hours6pressuretrend,Hour 6 Barometric Trend,Barometer,text,,FALSE,on_demand
 hours12pressure,Hour 12 Barometric Pressure,Barometer,float,hPa,FALSE,on_demand
 hours12pressuretrend,Hour 12 Barometric Trend,Barometer,text,,FALSE,on_demand
-hours24pressure,Hour 24 Barometric Pressure,Barometer,float,hPa,FALSE,on_demand
+hours24pressure,Hour 24 Barometric Pressure,Barometer,float,hPa,FALSE,periodic
 hours24pressuretrend,Hour 24 Barometric Trend,Barometer,text,,FALSE,on_demand
 hours1winddirection,Hour 1 Wind Direction,Wind,Text,,FALSE,on_demand
 hours1windspeed,Hour 1 Wind Speed,Wind,integer,mph,FALSE,on_demand

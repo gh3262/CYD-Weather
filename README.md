@@ -279,6 +279,24 @@ zero and is hidden (header color) when the count is zero or not yet loaded.
 While alerts are active, Home also shows a red "Active Alert" button between
 the temperature and the navigation bar that opens the Alerts page.
 
+Without an active alert, Home uses that area for a single pressure-based
+weather word. The trend is the 24-hour forecast (`hours24pressure`) minus
+current pressure (`currentpressure`), both in hPa. Rules are checked in order:
+
+| Condition | Word |
+|---|---|
+| Pressure < 995 and trend < -2 | Stormy |
+| Pressure < 1005 and trend > +2 | Clearing |
+| Trend > +3 | Improving |
+| Trend < -3 | Unsettled |
+| Pressure > 1025 | Fair |
+| Otherwise | Stable |
+
+Both pressure feeds refresh every minute. Missing, nonnumeric, nonfinite,
+or nonpositive pressure shows `--`; invalid values are logged. This is a
+simple pressure outlook, not a description of current rain or cloud cover.
+Active alerts always replace the word with the existing tappable alert button.
+
 Alerts shows the latest `headline-alert` paragraph followed by the active count
 (for example, " - 2 Alerts"). Details fetches the newest `nbr-alerts` entries
 from `weather-alerts`, one per page, newest first. Back and Next wrap through
@@ -309,7 +327,7 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Temperature History | Back | — | — | Home |
 | Astronomical | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
-| Summary | Back | Up* | Down* | Home |
+| Summary | Back | More/Up* | Forecast | Home |
 | Forecast | Back | Next | Today | Home |
 | Alerts | Back | Details | Full Alert | Home |
 | Alert Details | Back | Next | Alerts | Home |
@@ -319,8 +337,10 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Tools | Back | NTP | Cali TS | Home |
 
 Buttons keep a consistent position across screens. Summary shows the
-`om-current` feed; its Up/Down buttons (*) appear only when the text needs
-more than eight lines. Forecast cycles through `nws.00`–`nws.13`: Next and
+`om-current` feed; its More button (*) appears only when the text needs
+more than eight lines. More shows the second page and changes to Up, which
+returns to the top. Summary's Forecast button opens the same 14 forecast
+pages as Home's Forecast button. Forecast cycles through `nws.00`–`nws.13`: Next and
 Back move forward and backward, wrapping at either end, and Today jumps back
 to `nws.00`. Nighttime forecasts (first two words contain "night", any case,
 such as "Tonight" or "Tuesday Night") use a

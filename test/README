@@ -49,3 +49,12 @@ to exercise complete-only publication, query/cursor construction, shared
 request accounting, retry timing, stale-result retention, successful empty
 windows, mid-page failure, cancellation during HTTP, throttling, cursor loops,
 and the unchanged latest-value/alert-history response paths.
+
+Weather descriptor compile-time tests
+-------------------------------------
+weather_descriptor/test_main.cpp checks all six weather words, rule precedence,
+strict threshold boundaries, and invalid pressure inputs using static_assert.
+Successful compilation runs all checks; no hardware or executable is needed.
+From the repository root (PowerShell), using PlatformIO's installed compiler:
+
+& "$env:USERPROFILE\.platformio\packages\toolchain-xtensa-esp32\bin\xtensa-esp32-elf-g++.exe" -std=c++11 -Wall -Wextra -Werror -Isrc -c test\weather_descriptor\test_main.cpp -o "$env:TEMP\cyd-weather-descriptor-tests.o"

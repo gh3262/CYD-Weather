@@ -1,14 +1,18 @@
 #include "app.h"
 #include "adafruitio/adafruitio_manager.h"
+#include "screens/weather_descriptor.h"
 
+#include <Fonts/FreeSans18pt7b.h>
+#include <ctype.h>
 #include <math.h>
+#include <stdlib.h>
 
 static const int HOME_TIME_TOP = HEADER_HEIGHT;
 static const int HOME_TIME_BOTTOM = 108;
 static const int HOME_TEMPERATURE_TOP = 108;
 static const int HOME_TEMPERATURE_BOTTOM = 150;
 
-// Alert button sits in the open space between temperature and the nav bar.
+// Alerts take precedence over the weather word in this shared area.
 static const int HOME_ALERT_AREA_TOP = HOME_TEMPERATURE_BOTTOM;
 static const int HOME_ALERT_AREA_BOTTOM = NAV_Y - 2;
 static const int HOME_ALERT_BUTTON_W = 200;
@@ -18,7 +22,9 @@ static const int HOME_ALERT_BUTTON_Y =
     (HOME_ALERT_AREA_TOP + HOME_ALERT_AREA_BOTTOM - HOME_ALERT_BUTTON_H) / 2;
 
 static String lastRenderedTemperature;
+static String lastRenderedWeather;
 static long renderedAlertCount = -1;
+static bool invalidPressureLogged = false;
 
 void refreshHomeTime()
 {
@@ -96,12 +102,47 @@ static long readAlertCount()
     return count > 0 ? count : 0;
 }
 
-static void refreshHomeAlertButton()
+static bool readHomePressure(const char *feedKey, float &pressure)
+{
+    String value;
+    if (!adafruitIOManager.getFeedValue(feedKey, value))
+        return false;
+
+    char *end = nullptr;
+    pressure = strtof(value.c_str(), &end);
+    const bool parsed = end != value.c_str();
+    while (*end && isspace(static_cast<unsigned char>(*end)))
+        ++end;
+    if (!parsed || *end || !validWeatherPressure(pressure))
+    {
+        if (!invalidPressureLogged)
+            Serial.printf("Home: invalid pressure in feed '%s'; weather unavailable.\n", feedKey);
+        invalidPressureLogged = true;
+        return false;
+    }
+    return true;
+}
+
+static const char *readHomeWeather()
+{
+    float pressure;
+    float forecastPressure;
+    if (!readHomePressure("currentpressure", pressure) ||
+        !readHomePressure("hours24pressure", forecastPressure))
+        return "--";
+
+    invalidPressureLogged = false;
+    return weatherDescriptor(pressure, forecastPressure);
+}
+
+static void refreshHomeWeather()
 {
     const long count = readAlertCount();
-    if (count == renderedAlertCount)
+    const String weather = count > 0 ? "" : readHomeWeather();
+    if (count == renderedAlertCount && weather == lastRenderedWeather)
         return;
     renderedAlertCount = count;
+    lastRenderedWeather = weather;
 
     gfx->fillRect(
         0,
@@ -124,6 +165,19 @@ static void refreshHomeAlertButton()
             CYD_RED,
             CYD_WHITE);
     }
+    else
+    {
+        gfx->setFont(FONT_SANS_LARGE);
+        gfx->setTextSize(1);
+        gfx->setTextColor(CYD_CYAN);
+        int16_t x1, y1;
+        uint16_t width, height;
+        gfx->getTextBounds(weather.c_str(), 0, 0, &x1, &y1, &width, &height);
+        gfx->setCursor(
+            (SCREEN_WIDTH - width) / 2 - x1,
+            (HOME_ALERT_AREA_TOP + HOME_ALERT_AREA_BOTTOM - height) / 2 - y1);
+        gfx->print(weather);
+    }
 
     setDefaultFont();
     gfx->setTextSize(2);
@@ -132,26 +186,30 @@ static void refreshHomeAlertButton()
 void refreshHomeScreen()
 {
     refreshHomeTemperature();
-    refreshHomeAlertButton();
+    refreshHomeWeather();
 }
 
 void drawHomeScreen()
 {
     clearScreen(COLOR_BACKGROUND);
     lastRenderedTemperature = "";
+    lastRenderedWeather = "";
     renderedAlertCount = -1;
+    invalidPressureLogged = false;
 
     titleBar(
         "HOME",
         COLOR_HEADER_BG,
         COLOR_HEADER_TEXT);
 
-    const char *activeFeeds[] = {"feed-avg"};
-    adafruitIOManager.setActiveFeeds(activeFeeds, 1);
+    const char *activeFeeds[] = {"feed-avg", "currentpressure", "hours24pressure"};
+    if (!adafruitIOManager.setActiveFeeds(
+            activeFeeds, sizeof(activeFeeds) / sizeof(activeFeeds[0])))
+        Serial.println("Home: could not activate its Adafruit IO feeds.");
 
     refreshHomeTemperature();
     refreshHomeTime();
-    refreshHomeAlertButton();
+    refreshHomeWeather();
 
     drawNav1("Now");
     drawNav2("Forecast");

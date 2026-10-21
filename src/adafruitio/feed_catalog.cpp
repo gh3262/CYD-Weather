@@ -79,7 +79,7 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"hours6pressuretrend", "Hour 6 Barometric Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
     {"hours12pressure", "Hour 12 Barometric Pressure", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::OnDemand},
     {"hours12pressuretrend", "Hour 12 Barometric Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
-    {"hours24pressure", "Hour 24 Barometric Pressure", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::OnDemand},
+    {"hours24pressure", "Hour 24 Barometric Pressure", "Barometer", AdafruitIOValueType::Float, "hPa", false, AdafruitIORefreshPolicy::Periodic},
     {"hours24pressuretrend", "Hour 24 Barometric Trend", "Barometer", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
     {"hours1winddirection", "Hour 1 Wind Direction", "Wind", AdafruitIOValueType::Text, "", false, AdafruitIORefreshPolicy::OnDemand},
     {"hours1windspeed", "Hour 1 Wind Speed", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
