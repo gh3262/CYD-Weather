@@ -15,11 +15,18 @@ enum class HistoryAggregation
     CircularAverage
 };
 
+enum class HistoryWindow
+{
+    Rolling,
+    CompletedUtcDays
+};
+
 struct NumericHistoryRequest
 {
     uint32_t windowSeconds = 86400;
     uint32_t bucketSeconds = 3600;
     HistoryAggregation aggregation = HistoryAggregation::Average;
+    HistoryWindow window = HistoryWindow::Rolling;
 };
 
 struct NumericHistoryBucket
@@ -51,6 +58,8 @@ struct NumericHistoryResult
 };
 
 bool validNumericHistoryRequest(const NumericHistoryRequest &request);
+// Local today's calendar date encoded as UTC midnight, for date-only feeds.
+bool completedHistoryEndUtc(int64_t nowUtc, int64_t &endUtc);
 // ISO 8601 UTC, including optional fractional seconds. Never uses local TZ.
 bool parseHistoryTimestamp(const char *text, int64_t &milliseconds);
 // Extract only the opaque before cursor; never follow an arbitrary header URL.

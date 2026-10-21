@@ -221,6 +221,98 @@ int main()
     check(!accumulator.add("over-limit", sameTime.c_str(), "10"),
           "frontier storage limit is an explicit failure");
 
+    request = {};
+    request.window = HistoryWindow::CompletedUtcDays;
+    request.windowSeconds = 14U * 86400U;
+    request.bucketSeconds = 86400;
+    request.aggregation = HistoryAggregation::Maximum;
+    check(validNumericHistoryRequest(request), "completed daily request accepted");
+    NumericHistoryRequest badDaily = request;
+    badDaily.windowSeconds -= 1;
+    check(!validNumericHistoryRequest(badDaily), "completed days require whole dates");
+    badDaily = request;
+    badDaily.bucketSeconds = 3600;
+    check(!validNumericHistoryRequest(badDaily), "completed days require daily buckets");
+    badDaily = request;
+    badDaily.window = static_cast<HistoryWindow>(99);
+    check(!validNumericHistoryRequest(badDaily), "unknown window mode rejected");
+
+    const int64_t dailyEnd = seconds("2026-10-20T00:00:00Z");
+    check(accumulator.begin(request, seconds("2026-10-20T18:30:00Z")),
+          "daily history ends at midnight, not current time");
+    check(accumulator.result().startUtc == seconds("2026-10-06T00:00:00Z") &&
+          accumulator.result().endUtc == dailyEnd &&
+          accumulator.result().buckets.size() == 14, "exactly 14 completed UTC dates");
+    check(accumulator.add("today", timestamp(dailyEnd).c_str(), "999"),
+          "exclude today's total");
+    // Counts and amounts from the export's October 6-19 dates.
+    const int dailyCounts[] = {11, 11, 11, 11, 11, 10, 11, 11, 11, 11, 11, 11, 7, 3};
+    size_t dailySamples = 0;
+    for (int day = 13; day >= 0; --day)
+    {
+        const std::string created = timestamp(dailyEnd - (14 - day) * 86400);
+        for (int i = 0; i < dailyCounts[day]; ++i)
+        {
+            const std::string id = std::to_string(day) + "-" + std::to_string(i);
+            const char *amount = day == 4 ? "0.047" : "0.0";
+            check(accumulator.add(id.c_str(), created.c_str(), amount),
+                  "repeated daily totals accumulated");
+            ++dailySamples;
+        }
+    }
+    check(dailySamples == 141 && accumulator.result().sampleCount == 141,
+          "all 141 records retained rather than capped at 140");
+    double dailyTotal = 0.0;
+    for (size_t day = 0; day < 14; ++day)
+    {
+        const NumericHistoryBucket &bucket = accumulator.result().buckets[day];
+        const double expected = day == 4 ? 0.047 : 0.0;
+        check(bucket.count == static_cast<uint32_t>(dailyCounts[day]) &&
+              bucket.value(request.aggregation) == expected, "export daily maximum");
+        dailyTotal += bucket.value(request.aggregation);
+    }
+    check(dailyTotal == 0.047, "duplicate daily totals are never summed");
+    check(accumulator.add("older", "2026-10-05T23:59:59Z", "999") &&
+          accumulator.result().sampleCount == 141, "exclude before first date");
+
+    check(accumulator.begin(request, dailyEnd), "restart daily disagreement fixture");
+    check(accumulator.add("one", "2026-10-19T23:59:59Z", "0.02") &&
+          accumulator.add("two", "2026-10-19T00:00:00Z", "0.25") &&
+          accumulator.add("three", "2026-10-19T00:00:00Z", "0.047") &&
+          accumulator.add("two", "2026-10-19T00:00:00Z", "0.25"),
+          "different totals and overlapping records for one UTC date");
+    check(accumulator.result().buckets.back().value(request.aggregation) == 0.25 &&
+          accumulator.result().sampleCount == 3, "pick largest, not latest or sum");
+    check(accumulator.result().buckets.front().count == 0,
+          "missing dates remain distinguishable for the presentation layer");
+    check(accumulator.begin(request, seconds("2026-11-03T12:00:00Z")) &&
+          accumulator.result().buckets.size() == 14 &&
+          accumulator.result().endUtc - accumulator.result().startUtc == 14 * 86400,
+          "UTC daily windows do not shift at local DST boundary");
+
+#ifdef _WIN32
+    _putenv_s("TZ", "CST6CDT");
+    _tzset();
+#else
+    setenv("TZ", "CST6CDT,M3.2.0,M11.1.0", 1);
+    tzset();
+#endif
+    int64_t calendarEnd = 0;
+    check(completedHistoryEndUtc(seconds("2026-10-21T01:52:00Z"), calendarEnd) &&
+          calendarEnd == seconds("2026-10-20T00:00:00Z"),
+          "UTC tomorrow still ends chart at local yesterday");
+    check(accumulator.begin(request, calendarEnd) &&
+          accumulator.result().buckets.back().startUtc ==
+              seconds("2026-10-19T00:00:00Z"),
+          "October 20 local evening last bar is October 19");
+    check(completedHistoryEndUtc(seconds("2026-10-21T07:00:00Z"), calendarEnd) &&
+          calendarEnd == seconds("2026-10-21T00:00:00Z"),
+          "window advances after local midnight");
+    check(completedHistoryEndUtc(seconds("2026-11-02T05:30:00Z"), calendarEnd) &&
+          calendarEnd == seconds("2026-11-01T00:00:00Z"),
+          "local calendar endpoint follows standard time after DST");
+    check(!completedHistoryEndUtc(0, calendarEnd), "unset calendar clock rejected");
+
     std::printf("PASS: %zu numeric history checks\n", checks);
     return 0;
 }

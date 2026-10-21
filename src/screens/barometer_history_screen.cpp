@@ -34,6 +34,7 @@ static HistoryChartPage pressureHistoryPage()
         2.0,
         false,
         pressureHistoryScale,
+        HistoryChartStyle::Line,
     };
 }
 

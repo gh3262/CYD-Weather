@@ -7,6 +7,7 @@
 #include <cstring>
 #include <cctype>
 #include <limits>
+#include <ctime>
 
 static const double PI = 3.14159265358979323846;
 static const size_t MAX_BUCKETS = 512;
@@ -42,7 +43,10 @@ bool validNumericHistoryRequest(const NumericHistoryRequest &request)
         request.aggregation == HistoryAggregation::Maximum ||
         request.aggregation == HistoryAggregation::Latest ||
         request.aggregation == HistoryAggregation::CircularAverage;
-    return validMode && request.windowSeconds > 0 &&
+    const bool validWindow = request.window == HistoryWindow::Rolling ||
+        (request.window == HistoryWindow::CompletedUtcDays &&
+         request.windowSeconds % 86400U == 0 && request.bucketSeconds == 86400U);
+    return validMode && validWindow && request.windowSeconds > 0 &&
         request.windowSeconds <= 31U * 86400U && request.bucketSeconds > 0 &&
         request.windowSeconds / request.bucketSeconds +
             (request.windowSeconds % request.bucketSeconds != 0 ? 1U : 0U) + 1U
@@ -148,9 +152,34 @@ bool historyNextCursor(const char *link, std::string &cursor)
     return true;
 }
 
+bool completedHistoryEndUtc(int64_t nowUtc, int64_t &endUtc)
+{
+    if (nowUtc < 1577836800 || nowUtc > 253402300799LL)
+        return false;
+    const time_t now = static_cast<time_t>(nowUtc);
+    struct tm local;
+#ifdef _WIN32
+    if (localtime_s(&local, &now) != 0)
+        return false;
+#else
+    if (!localtime_r(&now, &local))
+        return false;
+#endif
+    char date[32];
+    if (!std::strftime(date, sizeof(date), "%Y-%m-%dT00:00:00Z", &local))
+        return false;
+    int64_t milliseconds;
+    if (!parseHistoryTimestamp(date, milliseconds))
+        return false;
+    endUtc = milliseconds / 1000;
+    return true;
+}
+
 bool NumericHistoryAccumulator::begin(const NumericHistoryRequest &request,
                                        int64_t endUtc)
 {
+    if (request.window == HistoryWindow::CompletedUtcDays)
+        endUtc = endUtc / 86400 * 86400;
     if (!validNumericHistoryRequest(request) ||
         endUtc <= request.windowSeconds || endUtc > 253402300799LL)
         return false;

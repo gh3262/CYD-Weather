@@ -250,6 +250,7 @@ static const ScreenDef screens[] = {
     /* SCREEN_FORECAST    */ { drawForecastScreen,   handleForecastTouch,   nullptr,                  refreshForecastResults, true  },
     /* SCREEN_DETAILS     */ { drawDetailsScreen,    handleDetailsTouch,    nullptr,                  refreshDetailsResults,  true  },
     /* SCREEN_PRECIPITATION */ { drawPrecipitationScreen, handlePrecipitationTouch, nullptr,           refreshPrecipitationResults, true },
+    /* SCREEN_PRECIPITATION_HISTORY */ { drawPrecipitationHistoryScreen, handlePrecipitationHistoryTouch, nullptr, refreshPrecipitationHistoryResults, true },
     /* SCREEN_BAROMETER    */ { drawBarometerScreen, handleBarometerTouch, nullptr,                   refreshBarometerResults, true },
         /* SCREEN_BAROMETER_HISTORY */ { drawBarometerHistoryScreen, handleBarometerHistoryTouch, nullptr, refreshBarometerHistoryResults, true },    /* SCREEN_WIND         */ { drawWindScreen, handleWindTouch, nullptr,                             refreshWindResults, true },
     /* SCREEN_WIND_HISTORY */ { drawWindHistoryScreen, handleWindHistoryTouch, nullptr, refreshWindHistoryResults, true },
@@ -275,7 +276,8 @@ static bool isHistoryChartScreen(Screen screen)
 {
     return screen == SCREEN_TEMPERATURE_HISTORY ||
         screen == SCREEN_BAROMETER_HISTORY ||
-        screen == SCREEN_WIND_HISTORY;
+        screen == SCREEN_WIND_HISTORY ||
+        screen == SCREEN_PRECIPITATION_HISTORY;
 }
 
 void drawCurrentScreen()

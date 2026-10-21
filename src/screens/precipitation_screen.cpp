@@ -122,6 +122,7 @@ static void updatePrecipitationTable(bool redrawPage)
         clearScreen(COLOR_BACKGROUND);
         titleBar("Precipitation");
         drawNav1("Back");
+        drawNav3("History");
         drawNav4("Home");
     }
     drawPrecipitationTable();
@@ -158,6 +159,8 @@ void handlePrecipitationTouch(int x, int y)
 {
     if (navPressed1(x, y))
         enterDetailsScreen();
+    else if (navPressed3(x, y))
+        enterPrecipitationHistoryScreen();
 }
 
 void refreshPrecipitationResults()

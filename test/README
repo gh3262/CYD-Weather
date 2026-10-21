@@ -18,6 +18,10 @@ clipping edges, gaps, uneven sample spacing, timestamps, markers, empty/single
 readings, 100 samples, and invalid-input logging without partial drawing.
 Y-scale tests cover signed and fractional labels, custom intervals, label
 gutters, text bounds, tick counts, text-state reset, and invalid/dense scales.
+Bar-chart checks cover zero baselines, proportional widths/heights, clipping,
+tiny positive amounts, dry/missing dates, 3-pixel zero markers and bar gaps,
+fractional-inch labels, and
+invalid-input logging without partial drawing.
 
 From the repository root, using an installed C++11 compiler (PowerShell):
 
@@ -49,6 +53,11 @@ to exercise complete-only publication, query/cursor construction, shared
 request accounting, retry timing, stale-result retention, successful empty
 windows, mid-page failure, cancellation during HTTP, throttling, cursor loops,
 and the unchanged latest-value/alert-history response paths.
+Daily-history checks cover 14 completed UTC dates, midnight boundaries, local
+DST independence, the export's 141-record daily-max fixture, conflicting totals,
+154 records across pages, and alignment-mode changes/validation.
+Local-calendar endpoint checks cover UTC advancing before local midnight,
+advancement after local midnight, and standard time after the DST transition.
 
 Weather descriptor compile-time tests
 -------------------------------------

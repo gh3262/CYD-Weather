@@ -36,6 +36,7 @@ static HistoryChartPage windHistoryPage()
         2.0,
         true,
         windHistoryScale,
+        HistoryChartStyle::Line,
     };
 }
 

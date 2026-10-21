@@ -94,3 +94,4 @@ hours12windgust,Hour 12 Wind Gust,Wind,integer,mph,FALSE,on_demand
 hours24winddirection,Hour 24 Wind Direction,Wind,Text,,FALSE,on_demand
 hours24windspeed,Hour 24 Wind Speed,Wind,integer,mph,FALSE,on_demand
 hours24windgust,Hour 24 Wind Gust,Wind,integer,mph,FALSE,on_demand
+omp-totprec,daily Total Precipitation amount,precipitation,float,in,FALSE,on-demand

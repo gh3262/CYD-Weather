@@ -168,6 +168,13 @@ drawn in array order, each in its own color. If any series is invalid, the
 call is rejected before anything is drawn. `drawLineChartWidget()` is the
 single-series form and uses `options.lineColor`.
 
+`drawBarChartWidget()` shares the same options and axes, using each point's X
+as a bar center and a caller-supplied width in X units. The Y axis must start
+at zero; values must be nonnegative (NaN omits a bar). Bars are clipped to the
+plot, zero-height bars stay empty by default, and positive amounts smaller than
+one pixel are drawn one pixel high. An optional `zeroBarHeight` draws zero values
+as fixed-height markers in `zeroBarColor`, without changing their numeric values.
+
 ## Setup
 
 1. Install [PlatformIO](https://platformio.org/).
@@ -216,6 +223,13 @@ It also supports Minimum, Maximum, Latest, and CircularAverage (numeric bearings
 in degrees, such as `currentwinddegrees`). Circular averages with cancelling
 directions are undefined rather than an invented bearing.
 
+Set `request.window` to `HistoryWindow::CompletedUtcDays` for whole recorded
+dates ending at the device's local today's date encoded as UTC midnight,
+excluding the local current date. This mode requires
+86,400-second buckets and a whole number of days; the default remains Rolling.
+Date-only totals stamped at midnight retain their recorded date rather than
+being shifted into the previous date by local-time conversion.
+
 `getNumericHistory(result, status)` returns the last complete result and a
 Loading/Ready/Failed/Idle status. A successful empty window is different from a
 failed retrieval. Refresh failures preserve the last complete result; partial
@@ -224,7 +238,7 @@ and releases the completed cache; an in-flight response is discarded.
 
 `requestNumericHistory(feedKeys, requests, count)` subscribes to up to
 `MAX_NUMERIC_HISTORY_SERIES` (2) numeric feeds at once. All requests must use
-the same window and bucket size, but each can have its own aggregation. Series
+the same window, alignment mode, and bucket size, but each can have its own aggregation. Series
 are fetched one after another against the same fixed UTC window, and the
 results are published together only after every series completes. A failure
 keeps every previous result. `getNumericHistory(results, count, status)` reads
@@ -326,6 +340,8 @@ produces a logged error and an explanatory Details message, not a truncated list
 |---|---|---|---|---|
 | Home | Now | Forecast | Details | System |
 | Details | Back | — | — | Home |
+| Precipitation | Back | — | History | Home |
+| Precipitation History | Back | — | — | Home |
 | Barometer | Back | — | History | Home |
 | Barometer History | Back | — | — | Home |
 | Wind | Back | — | History | Home |
@@ -384,6 +400,32 @@ and **Trend** headers. Its rows show Current, 1 Hour, 2 Hours, 6 Hours, 12 Hours
 and 24 Hours using the corresponding pressure/trend feeds. Pressure is in hPa;
 unavailable values show `--`. Only changed rows are redrawn as feeds arrive.
 Back returns to Details.
+
+Precipitation has a **History** button in navigation position 3. It opens
+**Precip - 14 Days**, a cyan daily bar chart of `omp-totprec` in inches.
+The window covers the previous 14 completed calendar dates according to the
+device's local clock, excluding local today. Records still keep their original
+UTC date labels; only the choice of the last displayed date uses local time.
+Each record's `created_at` date identifies the day: duplicate daily
+totals are **not summed or averaged**; the largest valid amount for each date
+is plotted. Dates without records are shown as zero. Dry dates (including missing
+dates) have a yellow 3-pixel bar so all 14 days can be counted; precipitation
+bars remain cyan. Bars occupy 75% of each daily slot, leaving a small gap.
+These visual zero markers do not contribute to the total or peak.
+The Y axis starts at zero,
+uses an automatic fractional-inch scale, and keeps small positive amounts
+visible. The summary shows the sum of the 14 daily maxima and the largest daily
+amount, to three decimal places. Bottom labels show the first and last recorded
+dates without local-time conversion.
+
+Retrieval uses the full date range in 100-record pages, not a fixed record cap.
+The supplied export's last 14 dates contain 141 records (3-11 per date), so
+140 records would not reliably cover the window. Pagination completes before
+displaying any result. A successfully empty window draws an all-zero chart;
+loading and failed requests remain distinct. Refresh failures or WiFi loss mark
+retained data **Stale**; crossing local midnight also marks yesterday's window
+stale until the new window loads. Back returns to Precipitation; Home returns
+Home. Leaving cancels the history subscription.
 
 Barometer has a **History** button in navigation position 3. It opens
 **Last 72 Hours**, a `currentpressure` chart that uses the same shared history
@@ -449,8 +491,8 @@ displayed as hours and minutes (for example, `11:03`), dropping partial minutes;
 missing or unparseable timestamps show `--`. Blank rows separate Daylight
 from Moonrise and Moonset from Moon Phase.
 
-- **Weather outlook:** derives a simple weather descriptor from
+**Weather outlook:** derives a simple weather descriptor from
   current and forecast pressure. Depending on pressure and pressure
   trend, Home displays Stormy, Clearing, Improving, Unsettled,
-  Fair, or Stable. Active weather alerts override the descriptor
+  Fair, or Good. Active weather alerts override the descriptor
   with the existing alert button.

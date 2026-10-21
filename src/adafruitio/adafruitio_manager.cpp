@@ -134,6 +134,7 @@ bool AdafruitIOManager::requestNumericHistory(
         valid = feeds[i] >= 0 && validNumericHistoryRequest(requests[i]) &&
             requests[i].windowSeconds == requests[0].windowSeconds &&
             requests[i].bucketSeconds == requests[0].bucketSeconds &&
+            requests[i].window == requests[0].window &&
             (AIO_FEEDS[feeds[i]].type == AdafruitIOValueType::Float ||
              AIO_FEEDS[feeds[i]].type == AdafruitIOValueType::Integer);
     }
@@ -149,6 +150,7 @@ bool AdafruitIOManager::requestNumericHistory(
         same = _numericFeeds[i] == feeds[i] &&
             _numericRequests[i].windowSeconds == requests[i].windowSeconds &&
             _numericRequests[i].bucketSeconds == requests[i].bucketSeconds &&
+            _numericRequests[i].window == requests[i].window &&
             _numericRequests[i].aggregation == requests[i].aggregation;
     }
     _numericSeriesCount = count;
@@ -521,7 +523,10 @@ void AdafruitIOManager::processNumericHistory()
         _numericSeriesIndex = 0;
         // Refuse a fabricated time window when the system clock is unset.
         succeeded =
-            now >= 1577836800 && _numericAccumulator.begin(requests[0], _numericEndUtc);
+            now >= 1577836800 &&
+            (requests[0].window != HistoryWindow::CompletedUtcDays ||
+             completedHistoryEndUtc(now, _numericEndUtc)) &&
+            _numericAccumulator.begin(requests[0], _numericEndUtc);
         if (!succeeded)
             Serial.println("Adafruit IO: numeric history requires a valid synchronized clock.");
         _numericPageCount = 0;

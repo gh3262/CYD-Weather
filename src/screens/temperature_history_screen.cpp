@@ -24,6 +24,7 @@ static HistoryChartPage temperatureHistoryPage()
         10.0,
         false,
         temperatureHistoryScale,
+        HistoryChartStyle::Line,
     };
 }
 

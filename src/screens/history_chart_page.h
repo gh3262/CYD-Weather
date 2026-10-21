@@ -20,6 +20,12 @@ struct HistoryChartSeries
     const char *label;
 };
 
+enum class HistoryChartStyle
+{
+    Line,
+    DailyBars
+};
+
 struct HistoryChartPage
 {
     const char *title;
@@ -38,6 +44,7 @@ struct HistoryChartPage
     bool zeroBasedY;
     // Returns Y tick/label spacing for the padded chart range.
     HistoryChartScale (*scale)(double minimumY, double maximumY);
+    HistoryChartStyle style;
 };
 
 // Only one history chart can be active; drawing a page replaces the previous one.

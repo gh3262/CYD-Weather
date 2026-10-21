@@ -32,6 +32,7 @@ struct LineChartWidgetOptions
     uint16_t axisColor;
     uint16_t gridColor;
     uint16_t labelColor;
+    uint16_t zeroBarColor;
 
     LineChartWidgetOptions();
 };
@@ -54,5 +55,12 @@ bool drawLineChartWidget(const LineChartWidgetOptions &options,
 // Every series is validated before anything is drawn.
 bool drawLineChartSeriesWidget(const LineChartWidgetOptions &options,
                          const LineChartSeries *series, size_t seriesCount);
+
+// Shares the line chart's axes/scale. X is each bar's center; width is in X units.
+// Y must be nonnegative (or NaN to omit a bar), and minimumY must be zero.
+// Optional zero markers use zeroBarColor and a pixel height clipped to the plot.
+bool drawBarChartWidget(const LineChartWidgetOptions &options,
+                        const LineChartPoint *points, size_t pointCount,
+                        double barWidth, int zeroBarHeight = 0);
 
 #endif

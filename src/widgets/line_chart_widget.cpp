@@ -25,7 +25,8 @@ LineChartWidgetOptions::LineChartWidgetOptions()
       lineColor(CYD_CYAN),
       axisColor(COLOR_TEXT),
       gridColor(CYD_DARK_GRAY),
-      labelColor(COLOR_TEXT)
+      labelColor(COLOR_TEXT),
+      zeroBarColor(CYD_DARK_GRAY)
 {
 }
 
@@ -186,8 +187,34 @@ static void drawSeries(const LineChartWidgetOptions &options,
     }
 }
 
-bool drawLineChartSeriesWidget(const LineChartWidgetOptions &options,
-                               const LineChartSeries *series, size_t seriesCount)
+static void drawBars(const LineChartWidgetOptions &options,
+                     const LineChartSeries &series, double barWidth,
+                     int zeroBarHeight,
+                     double rangeX, double rangeY,
+                     int left, int top, int right, int bottom)
+{
+    const double halfWidth = barWidth / rangeX / 2.0;
+    for (size_t i = 0; i < series.pointCount; ++i)
+    {
+        const LineChartPoint &point = series.points[i];
+        if (isnan(point.y) || (point.y == 0.0 && zeroBarHeight == 0))
+            continue;
+        const double center = (point.x - options.minimumX) / rangeX;
+        if (center + halfWidth < 0.0 || center - halfWidth > 1.0)
+            continue;
+        const int x0 = chartPixel(center - halfWidth, left, right);
+        const int x1 = chartPixel(center + halfWidth, left, right);
+        const int y = point.y == 0.0
+            ? bottom - min(zeroBarHeight, bottom - top)
+            : min(bottom - 1, chartPixel(1.0 - point.y / rangeY, top, bottom));
+        gfx->fillRect(x0, y, x1 - x0 + 1, bottom - y,
+                      point.y == 0.0 ? options.zeroBarColor : series.color);
+    }
+}
+
+static bool drawChartWidget(const LineChartWidgetOptions &options,
+                             const LineChartSeries *series, size_t seriesCount,
+                             double barWidth, int zeroBarHeight)
 {
     const double rangeX = options.maximumX - options.minimumX;
     const double rangeY = options.maximumY - options.minimumY;
@@ -218,6 +245,14 @@ bool drawLineChartSeriesWidget(const LineChartWidgetOptions &options,
         {
             Serial.println("Line chart widget: invalid or unordered data point.");
             return false;
+        }
+        for (size_t i = 0; barWidth > 0.0 && i < series[s].pointCount; ++i)
+        {
+            if (series[s].points[i].y < 0.0)
+            {
+                Serial.println("Bar chart widget: negative bar value.");
+                return false;
+            }
         }
     }
 
@@ -310,6 +345,33 @@ bool drawLineChartSeriesWidget(const LineChartWidgetOptions &options,
     }
 
     for (size_t s = 0; s < seriesCount; ++s)
-        drawSeries(options, series[s], rangeX, rangeY, left, top, right, bottom);
+    {
+        if (barWidth > 0.0)
+            drawBars(options, series[s], barWidth, zeroBarHeight, rangeX, rangeY,
+                     left, top, right, bottom);
+        else
+            drawSeries(options, series[s], rangeX, rangeY, left, top, right, bottom);
+    }
     return true;
+}
+
+bool drawLineChartSeriesWidget(const LineChartWidgetOptions &options,
+                               const LineChartSeries *series, size_t seriesCount)
+{
+    return drawChartWidget(options, series, seriesCount, 0.0, 0);
+}
+
+bool drawBarChartWidget(const LineChartWidgetOptions &options,
+                        const LineChartPoint *points, size_t pointCount,
+                        double barWidth, int zeroBarHeight)
+{
+    if (!isfinite(barWidth) || barWidth <= 0.0 || zeroBarHeight < 0 ||
+        options.minimumY != 0.0 ||
+        !isfinite(barWidth / (options.maximumX - options.minimumX)))
+    {
+        Serial.println("Bar chart widget: invalid bar width, zero marker, or baseline.");
+        return false;
+    }
+    const LineChartSeries series = {points, pointCount, options.lineColor};
+    return drawChartWidget(options, &series, 1, barWidth, zeroBarHeight);
 }

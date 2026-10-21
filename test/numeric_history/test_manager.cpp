@@ -239,6 +239,58 @@ int main()
           windResults[0].maximum == 12 && windResults[1].maximum == 25,
           "later series failure keeps every previous series result");
     check(!manager._numericWorking, "failed multi-series staging released");
+    NumericHistoryRequest daily;
+    daily.windowSeconds = 14U * 86400U;
+    daily.bucketSeconds = 86400;
+    daily.aggregation = HistoryAggregation::Maximum;
+    daily.window = HistoryWindow::CompletedUtcDays;
+    check(manager.requestNumericHistory("omp-totprec", daily),
+          "precipitation feed supports completed daily history");
+    int64_t midnight = 0;
+    check(completedHistoryEndUtc(now, midnight), "local calendar window endpoint");
+    const size_t dailyUrl = testUrls.size();
+    for (int page = 0; page < 2; ++page)
+    {
+        std::string json = "[";
+        const int first = page * 100;
+        const int last = page == 0 ? 100 : 154;
+        for (int i = first; i < last; ++i)
+        {
+            if (i > first)
+                json += ",";
+            const std::string id = std::to_string(i);
+            json += record(id.c_str(), midnight - (i / 11 + 1) * 86400,
+                           i == 109 ? "0.3" : "0.01");
+        }
+        json += "]";
+        testResponses.push_back({200, json,
+            {{"Link", page == 0
+                ? "<https://io.adafruit.com/data?before=daily2>;rel=\"next\""
+                : "<https://io.adafruit.com/data>"}}});
+    }
+    manager.processNumericHistory();
+    check(!manager.getNumericHistory(result, status),
+          "do not publish incomplete daily history");
+    manager.processNumericHistory();
+    check(manager.getNumericHistory(result, status) &&
+          status.state == NumericHistoryState::Ready &&
+          result.startUtc == midnight - 14 * 86400 && result.endUtc == midnight &&
+          result.sampleCount == 154 && result.buckets.size() == 14,
+          "paginate whole daily date range beyond 140 records");
+    check(result.buckets[4].value(HistoryAggregation::Maximum) == 0.3 &&
+          result.buckets.front().count == 11 && result.buckets.back().count == 11,
+          "largest same-date amount survives page boundary");
+    check(testUrls[dailyUrl].find("T00%3A00%3A00Z") != std::string::npos &&
+          testUrls[dailyUrl + 1].find("&before=daily2") != std::string::npos,
+          "daily requests use UTC midnight end and pagination");
+    NumericHistoryRequest rollingDaily = daily;
+    rollingDaily.window = HistoryWindow::Rolling;
+    check(manager.requestNumericHistory("omp-totprec", rollingDaily) &&
+          !manager.getNumericHistory(result, status),
+          "changing calendar alignment resets the previous result");
+    NumericHistoryRequest mixedWindows[2] = {daily, rollingDaily};
+    check(!manager.requestNumericHistory(windFeeds, mixedWindows, 2),
+          "reject series with different calendar alignments");
     check(testResponses.empty(), "all HTTP fixtures consumed");
     std::printf("PASS: %zu history manager checks\n", checks);
     return 0;

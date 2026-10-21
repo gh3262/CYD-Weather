@@ -21,17 +21,21 @@ static void drawHistoryMessage(const char *message)
     gfx->setTextSize(2);
 }
 
-static void drawHistoryTimes(const NumericHistoryResult &history)
+static void drawHistoryTimes(const NumericHistoryResult &history, bool dailyBars)
 {
     const time_t first = static_cast<time_t>(history.startUtc);
-    const time_t last = static_cast<time_t>(history.endUtc);
+    const time_t last = static_cast<time_t>(
+        dailyBars ? history.endUtc - 86400 : history.endUtc);
     struct tm local;
     char label[24];
+    const char *format = dailyBars ? "%m/%d" : "%m/%d %H:%M";
     gfx->setCursor(4, NAV_Y - 11);
-    if (localtime_r(&first, &local) && strftime(label, sizeof(label), "%m/%d %H:%M", &local))
+    if ((dailyBars ? gmtime_r(&first, &local) : localtime_r(&first, &local)) &&
+        strftime(label, sizeof(label), format, &local))
         gfx->print(label);
-    gfx->setCursor(SCREEN_WIDTH - 76, NAV_Y - 11);
-    if (localtime_r(&last, &local) && strftime(label, sizeof(label), "%m/%d %H:%M", &local))
+    gfx->setCursor(SCREEN_WIDTH - (dailyBars ? 34 : 76), NAV_Y - 11);
+    if ((dailyBars ? gmtime_r(&last, &local) : localtime_r(&last, &local)) &&
+        strftime(label, sizeof(label), format, &local))
         gfx->print(label);
 }
 
@@ -39,6 +43,22 @@ static void drawHistorySummary(const HistoryChartPage &page,
                                const NumericHistoryResult *histories)
 {
     gfx->setCursor(4, HEADER_HEIGHT + 3);
+    if (page.style == HistoryChartStyle::DailyBars)
+    {
+        double total = 0.0;
+        double peak = 0.0;
+        for (const NumericHistoryBucket &bucket : histories[0].buckets)
+        {
+            const double value = bucket.count ? bucket.value(histories[0].aggregation) : 0.0;
+            total += value;
+            peak = max(peak, value);
+        }
+        gfx->setTextColor(COLOR_TEXT);
+        gfx->print("Total " + String(total, page.valueDecimals) +
+                   page.unitSuffix + "  Peak " +
+                   String(peak, page.valueDecimals) + page.unitSuffix);
+        return;
+    }
     if (page.seriesCount == 1)
     {
         gfx->setTextColor(COLOR_TEXT);
@@ -73,9 +93,14 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
     const bool hasData =
         adafruitIOManager.getNumericHistory(histories, page.seriesCount, status);
     const NumericHistoryResult &window = histories[0];
+    const bool dailyBars = page.style == HistoryChartStyle::DailyBars;
+    const int64_t now = static_cast<int64_t>(time(nullptr));
+    int64_t dailyEnd = 0;
+    const bool validDailyEnd = !dailyBars || completedHistoryEndUtc(now, dailyEnd);
     const bool stale = status.state == NumericHistoryState::Failed ||
         WiFi.status() != WL_CONNECTED ||
-        (hasData && static_cast<int64_t>(time(nullptr)) > window.endUtc + 120);
+        (hasData && (dailyBars ? !validDailyEnd || dailyEnd > window.endUtc
+                              : now > window.endUtc + 120));
     if (status.revision == renderedRevision && stale == renderedStale &&
         hasData == renderedHasData)
         return;
@@ -100,7 +125,7 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
             ? "History failed - retrying" : stale
                 ? "Offline - waiting for WiFi" : "Loading history...");
     }
-    else if (sampleCount == 0)
+    else if (sampleCount == 0 && (!dailyBars || invalidCount > 0))
     {
         const String message = stale ? String("No readings (stale history)") :
             String(invalidCount ? "No valid readings in last " :
@@ -109,6 +134,14 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
     }
     else
     {
+        if (dailyBars)
+        {
+            minimum = 0.0;
+            maximum = 0.0;
+            for (const NumericHistoryBucket &bucket : window.buckets)
+                if (bucket.count)
+                    maximum = max(maximum, bucket.value(window.aggregation));
+        }
         std::vector<LineChartPoint> points[MAX_NUMERIC_HISTORY_SERIES];
         LineChartSeries series[MAX_NUMERIC_HISTORY_SERIES];
         for (size_t s = 0; s < page.seriesCount; ++s)
@@ -122,7 +155,8 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
                     bucket.startUtc + history.bucketSeconds, history.endUtc);
                 points[s].push_back({
                     start + (end - start) / 2.0,
-                    bucket.value(history.aggregation),
+                    dailyBars && bucket.count == 0 ? 0.0 :
+                        bucket.value(history.aggregation),
                 });
             }
             series[s] = {points[s].data(), points[s].size(), page.series[s].color};
@@ -138,7 +172,14 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
         chart.showYScale = true;
         chart.yTickInterval = scale.tickInterval;
         chart.yLabelInterval = scale.labelInterval;
-        if (!drawLineChartSeriesWidget(chart, series, page.seriesCount))
+        chart.yLabelDecimalPlaces = dailyBars ? 2 : 0;
+        chart.lineColor = page.series[0].color;
+        chart.zeroBarColor = CYD_YELLOW;
+        const bool drawn = dailyBars
+            ? drawBarChartWidget(chart, points[0].data(), points[0].size(),
+                                 window.bucketSeconds * 0.75, 3)
+            : drawLineChartSeriesWidget(chart, series, page.seriesCount);
+        if (!drawn)
         {
             drawHistoryMessage("Could not draw history");
             return;
@@ -155,8 +196,9 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
             gfx->print("Stale");
         }
         gfx->setTextColor(COLOR_TEXT);
-        drawHistoryTimes(window);
-        const String count = String(sampleCount) + " pts";
+        drawHistoryTimes(window, dailyBars);
+        const String count = dailyBars ? String(window.buckets.size()) + " days"
+                                      : String(sampleCount) + " pts";
         centerText(count.c_str(), NAV_Y - 11, COLOR_TEXT, 1);
         gfx->setTextSize(2);
     }
@@ -171,14 +213,19 @@ void drawHistoryChartPage(const HistoryChartPage &page)
     renderedRevision = UINT32_MAX;
     const char *feeds[MAX_NUMERIC_HISTORY_SERIES];
     NumericHistoryRequest requests[MAX_NUMERIC_HISTORY_SERIES];
+    const bool dailyBars = page.style == HistoryChartStyle::DailyBars;
     const bool validPage = page.series && page.seriesCount > 0 &&
-        page.seriesCount <= MAX_NUMERIC_HISTORY_SERIES;
+        page.seriesCount <= MAX_NUMERIC_HISTORY_SERIES &&
+        (!dailyBars || (page.seriesCount == 1 && page.zeroBasedY &&
+                       page.series[0].aggregation == HistoryAggregation::Maximum));
     for (size_t i = 0; validPage && i < page.seriesCount; ++i)
     {
         feeds[i] = page.series[i].feedKey;
         requests[i].windowSeconds = page.windowSeconds;
         requests[i].bucketSeconds = page.bucketSeconds;
         requests[i].aggregation = page.series[i].aggregation;
+        requests[i].window = dailyBars ? HistoryWindow::CompletedUtcDays
+                                      : HistoryWindow::Rolling;
     }
     const bool requested = validPage &&
         adafruitIOManager.requestNumericHistory(feeds, requests, page.seriesCount);

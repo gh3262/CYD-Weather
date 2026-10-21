@@ -311,6 +311,117 @@ int main()
           graphics.rectangles.size() == 1 && graphics.lines.empty(),
           "zero series draws an empty chart");
 
+    options = testOptions();
+    const LineChartPoint bars[] = {{1, 2}, {3, 5}, {5, 0}, {7, NAN}, {9, 0.00001}};
+    graphics.reset();
+    check(drawBarChartWidget(options, bars, 5, 1.0), "draw daily bars");
+    check(graphics.rectangles.size() == 4 && graphics.lines.empty() &&
+          graphics.pixels.empty(), "three positive bars, no line or invented zero bar");
+    check(graphics.rectangles[1].x == 17 && graphics.rectangles[1].width == 11 &&
+          graphics.rectangles[1].y == 122 && graphics.rectangles[1].height == 20,
+          "bar width uses X units and height uses zero baseline");
+    check(graphics.rectangles[2].y == 92 && graphics.rectangles[2].height == 50 &&
+          graphics.rectangles[3].height == 1,
+          "bar heights proportional, tiny positive precipitation remains visible");
+    const LineChartPoint clippedBars[] = {{0, 20}, {10, 5}};
+    graphics.reset();
+    check(drawBarChartWidget(options, clippedBars, 2, 2.0), "clip bars at plot edges");
+    for (size_t i = 1; i < graphics.rectangles.size(); ++i)
+    {
+        const RecordedRect &bar = graphics.rectangles[i];
+        check(bar.x >= 12 && bar.x + bar.width <= 113 &&
+              bar.y >= 42 && bar.y + bar.height <= 142,
+              "bar rectangles stay inside plot without covering baseline");
+    }
+    const LineChartPoint negativeBar[] = {{1, -0.1}};
+    graphics.reset();
+    previousErrors = Serial.errors;
+    check(!drawBarChartWidget(options, negativeBar, 1, 1.0) &&
+          Serial.errors == previousErrors + 1 && graphics.rectangles.empty(),
+          "negative precipitation logged without partial drawing");
+    for (double width : {0.0, -1.0, std::numeric_limits<double>::infinity(),
+                         std::numeric_limits<double>::quiet_NaN()})
+    {
+        graphics.reset();
+        previousErrors = Serial.errors;
+        check(!drawBarChartWidget(options, bars, 5, width) &&
+              Serial.errors == previousErrors + 1 && graphics.rectangles.empty(),
+              "invalid bar width logged without partial drawing");
+    }
+    options.minimumY = -1;
+    graphics.reset();
+    check(!drawBarChartWidget(options, bars, 5, 1.0) && graphics.rectangles.empty(),
+          "bar chart requires zero baseline");
+    options = testOptions();
+    options.x = 0;
+    options.width = SCREEN_WIDTH;
+    options.maximumX = 14;
+    options.maximumY = 0.06;
+    options.showYScale = true;
+    options.yTickInterval = 0.02;
+    options.yLabelInterval = 0.02;
+    options.yLabelDecimalPlaces = 2;
+    options.zeroBarColor = CYD_YELLOW;
+    LineChartPoint dailyBars[14];
+    for (int day = 0; day < 14; ++day)
+        dailyBars[day] = {day + 0.5, day == 4 ? 0.047 : 0.0};
+    graphics.reset();
+    check(drawBarChartWidget(options, dailyBars, 14, 0.75) &&
+          graphics.rectangles.size() == 2 && graphics.texts.size() == 4,
+          "14-day export amounts draw one rain bar with fractional inch labels");
+    graphics.reset();
+    check(drawBarChartWidget(options, dailyBars, 14, 0.75, 3) &&
+          graphics.rectangles.size() == 15,
+          "each of 14 dates has a bar including zero markers");
+    for (size_t day = 0; day < 14; ++day)
+    {
+        const RecordedRect &bar = graphics.rectangles[day + 1];
+        check(bar.width > 0, "daily bars have positive width");
+        if (day != 4)
+            check(bar.height == 3 && bar.color == CYD_YELLOW &&
+                  bar.color != options.gridColor,
+                  "zero precipitation draws exactly 3 yellow pixels distinct from grid");
+        else
+            check(bar.height > 3 && bar.color == options.lineColor,
+                  "rain bar keeps proportional height and rain color");
+        if (day > 0)
+        {
+            const RecordedRect &previous = graphics.rectangles[day];
+            check(bar.x > previous.x + previous.width,
+                  "visible gap separates every adjacent daily bar");
+        }
+    }
+    graphics.reset();
+    check(drawBarChartWidget(options, bars, 5, 0.75, 3) &&
+          graphics.rectangles.size() == 5,
+          "zero markers do not turn NaN into a dry day");
+    graphics.reset();
+    previousErrors = Serial.errors;
+    check(!drawBarChartWidget(options, dailyBars, 14, 0.75, -1) &&
+          Serial.errors == previousErrors + 1 && graphics.rectangles.empty(),
+          "negative zero marker height rejected before drawing");
+    for (LineChartPoint &bar : dailyBars)
+        bar.y = 0.0;
+    graphics.reset();
+    check(drawBarChartWidget(options, dailyBars, 14, 0.75) &&
+          graphics.rectangles.size() == 1 && !graphics.texts.empty(),
+          "all dry or missing dates draw zero-height bars and valid axes");
+    graphics.reset();
+    check(drawBarChartWidget(options, dailyBars, 14, 0.75, 3) &&
+          graphics.rectangles.size() == 15,
+          "all dry dates remain countable");
+    for (size_t i = 1; i < graphics.rectangles.size(); ++i)
+        check(graphics.rectangles[i].height == 3 &&
+              graphics.rectangles[i].color == CYD_YELLOW,
+              "all-dry chart uses 3-pixel yellow markers");
+    graphics.reset();
+    check(drawBarChartWidget(options, dailyBars, 14, 0.75, 1000),
+          "oversized zero markers clipped to plot");
+    for (size_t i = 1; i < graphics.rectangles.size(); ++i)
+        check(graphics.rectangles[i].y == options.y + 4 &&
+              graphics.rectangles[i].height == options.height - 9,
+              "zero markers cannot extend outside plot");
+
     std::printf("PASS: %zu line-chart checks\n", checks);
     return 0;
 }
