@@ -448,3 +448,9 @@ It is an estimate when the events fall on different days. The duration is
 displayed as hours and minutes (for example, `11:03`), dropping partial minutes;
 missing or unparseable timestamps show `--`. Blank rows separate Daylight
 from Moonrise and Moonset from Moon Phase.
+
+- **Weather outlook:** derives a simple weather descriptor from
+  current and forecast pressure. Depending on pressure and pressure
+  trend, Home displays Stormy, Clearing, Improving, Unsettled,
+  Fair, or Stable. Active weather alerts override the descriptor
+  with the existing alert button.
