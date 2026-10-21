@@ -342,9 +342,10 @@ current pressure (`currentpressure`), both in hPa. Rules are checked in order:
 | Trend > +3 | Improving |
 | Trend < -3 | Unsettled |
 | Pressure > 1025 | Fair |
-| Otherwise | Stable |
+| Otherwise | Nice |
 
-Both pressure feeds refresh every minute. Missing, nonnumeric, nonfinite,
+Current pressure refreshes every minute and the 24-hour forecast every 30
+minutes. Missing, nonnumeric, nonfinite,
 or nonpositive pressure shows `--`; invalid values are logged. This is a
 simple pressure outlook, not a description of current rain or cloud cover.
 Active alerts always replace the word with the existing tappable alert button.
@@ -556,5 +557,5 @@ from Moonrise and Moonset from Moon Phase.
 **Weather outlook:** derives a simple weather descriptor from
   current and forecast pressure. Depending on pressure and pressure
   trend, Home displays Stormy, Clearing, Improving, Unsettled,
-  Fair, or Good. Active weather alerts override the descriptor
+  Fair, or Nice. Active weather alerts override the descriptor
   with the existing alert button.
