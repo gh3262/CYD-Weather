@@ -112,6 +112,21 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
         WiFi.status() != WL_CONNECTED ||
         (hasData && (daily ? !validDailyEnd || dailyEnd > window.endUtc
                               : now > window.endUtc + 120));
+    status.hasData = hasData;
+    refreshHistoryChartData(page, histories, status, stale);
+}
+
+void refreshHistoryChartData(const HistoryChartPage &page,
+                            const NumericHistoryResult histories[],
+                            const NumericHistoryStatus &status, bool stale)
+{
+    if (!historyActive)
+        return;
+    const bool hasData = status.hasData;
+    const NumericHistoryResult &window = histories[0];
+    const bool dailyBars = page.style == HistoryChartStyle::DailyBars;
+    const bool floatingBars = page.style == HistoryChartStyle::DailyFloatingBars;
+    const bool daily = dailyBars || floatingBars;
     if (status.revision == renderedRevision && stale == renderedStale &&
         hasData == renderedHasData)
         return;
@@ -273,10 +288,20 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
     renderedHasData = hasData;
 }
 
-void drawHistoryChartPage(const HistoryChartPage &page)
+void drawHistoryChartFrame(const HistoryChartPage &page)
 {
     historyActive = true;
     renderedRevision = UINT32_MAX;
+    clearScreen(COLOR_BACKGROUND);
+    titleBar(page.title);
+    drawNav1("Back");
+    drawNav4("Home");
+    drawHistoryMessage("Loading history...");
+}
+
+void drawHistoryChartPage(const HistoryChartPage &page)
+{
+    drawHistoryChartFrame(page);
     const char *feeds[MAX_NUMERIC_HISTORY_SERIES];
     NumericHistoryRequest requests[MAX_NUMERIC_HISTORY_SERIES];
     const bool dailyBars = page.style == HistoryChartStyle::DailyBars;
@@ -301,10 +326,6 @@ void drawHistoryChartPage(const HistoryChartPage &page)
         adafruitIOManager.requestNumericHistory(feeds, requests, page.seriesCount);
     const bool activated = validPage &&
         adafruitIOManager.setActiveFeeds(feeds, page.seriesCount);
-    clearScreen(COLOR_BACKGROUND);
-    titleBar(page.title);
-    drawNav1("Back");
-    drawNav4("Home");
     if (!requested || !activated)
     {
         Serial.printf("%s: could not request Adafruit IO history.\n", page.title);
@@ -313,7 +334,6 @@ void drawHistoryChartPage(const HistoryChartPage &page)
         drawHistoryMessage("History unavailable");
         return;
     }
-    drawHistoryMessage("Loading history...");
     refreshHistoryChartPage(page);
 }
 

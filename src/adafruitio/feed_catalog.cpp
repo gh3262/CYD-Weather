@@ -103,6 +103,7 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"omp-daylighthours", "Daily hours between sunrise and sunset", "Light", AdafruitIOValueType::Float, "Hrs", false, AdafruitIORefreshPolicy::OnDemand},
     {"pages.p01-temp", "Temperature Page Values", "Temperature", AdafruitIOValueType::LongText, "F", true, AdafruitIORefreshPolicy::Periodic},
     {"pages.p02-precipitation", "Precipitation Page Values", "Precipitation", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::Periodic},
+    {"pages.temp-line", "Hourly Temperature History", "Temperature", AdafruitIOValueType::LongText, "F", true, AdafruitIORefreshPolicy::Periodic},
 };
 
 const size_t AIO_FEED_COUNT = sizeof(AIO_FEEDS) / sizeof(AIO_FEEDS[0]);

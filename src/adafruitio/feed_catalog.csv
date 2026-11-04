@@ -101,3 +101,4 @@ omp-sunshinehrs,Daily hours sunshine,Light,float,Hrs,FALSE,on_demand,
 omp-daylighthours,Daily hours between sunrise and sunset,Light,float,Hrs,FALSE,on_demand,
 pages.p01-temp,Temperature Page Values,Temperature,long_text,F,TRUE,periodic,1
 pages.p02-precipitation,Precipitation Page Values,Precipitation,long_text,,TRUE,periodic,1
+pages.temp-line,Hourly Temperature History,Temperature,long_text,F,TRUE,periodic,1

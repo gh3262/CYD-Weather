@@ -50,6 +50,11 @@ struct HistoryChartPage
 
 // Only one history chart can be active; drawing a page replaces the previous one.
 void drawHistoryChartPage(const HistoryChartPage &page);
+// For pages supplied by a snapshot rather than a numeric-history subscription.
+void drawHistoryChartFrame(const HistoryChartPage &page);
+void refreshHistoryChartData(const HistoryChartPage &page,
+                            const NumericHistoryResult histories[],
+                            const NumericHistoryStatus &status, bool stale);
 // Redraws only when history status, data presence, or staleness changes.
 void refreshHistoryChartPage(const HistoryChartPage &page);
 void leaveHistoryChartPage();

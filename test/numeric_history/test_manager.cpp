@@ -345,6 +345,28 @@ int main()
           "latest-value API preserves the entire JSON array string");
     check(testUrls.back().find("/feeds/pages.p01-temp/data/last") != std::string::npos,
           "temperature snapshot uses the single new feed endpoint");
+    const char *hourlyFeeds[] = {"pages.temp-line"};
+    const int hourlyFeed = manager.findFeed(hourlyFeeds[0]);
+    check(hourlyFeed >= 0 && manager.setActiveFeeds(hourlyFeeds, 1),
+          "hourly temperature snapshot feed is registered and activates");
+    for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+        check(manager._feedCache[i].active == (static_cast<int>(i) == hourlyFeed),
+              "hourly temperature subscription activates only pages.temp-line");
+    check(AIO_FEEDS[hourlyFeed].type == AdafruitIOValueType::LongText &&
+          AIO_FEEDS[hourlyFeed].mayExceed45Chars &&
+          AIO_FEEDS[hourlyFeed].refreshPolicy == AdafruitIORefreshPolicy::Periodic &&
+          AIO_FEEDS[hourlyFeed].refreshIntervalMinutes == 1,
+          "hourly snapshot supports long JSON and refreshes once per minute");
+    const char *hourlySnapshot = "[{\"ts\":\"2026110410\",\"ftemp\":63.6}]";
+    values.clear();
+    testResponses.push_back({200,
+        "{\"value\":\"[{\\\"ts\\\":\\\"2026110410\\\",\\\"ftemp\\\":63.6}]\"}", {}});
+    check(manager.fetchLatestValues(static_cast<size_t>(hourlyFeed), 1, values,
+                                    httpStatus, retryAfterMs) &&
+          values.size() == 1 && values[0] == String(hourlySnapshot),
+          "latest-value API preserves escaped hourly objects as complete JSON");
+    check(testUrls.back().find("/feeds/pages.temp-line/data/last") != std::string::npos,
+          "hourly history fetches only the latest snapshot endpoint");
     check(testResponses.empty(), "all HTTP fixtures consumed");
     std::printf("PASS: %zu history manager checks\n", checks);
     return 0;

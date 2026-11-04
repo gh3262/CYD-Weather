@@ -106,3 +106,16 @@ repository root after the normal PlatformIO build has restored dependencies:
 
 g++ -std=c++11 -Wall -Wextra -Werror -Isrc "-I.pio\libdeps\esp32dev\ArduinoJson\src" test\precipitation_page_values\test_main.cpp -o "$env:TEMP\cyd-precipitation-page-tests.exe"
 if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-precipitation-page-tests.exe" }
+
+Hourly temperature snapshot native tests
+----------------------------------------
+temperature_hourly_history/test_main.cpp covers the supplied 112-hour snapshot,
+exact 72-hour trimming and visible extrema, local calendar validation, DST
+transitions, unordered input, missing hours, negative/zero/single values,
+malformed and empty snapshots, atomic rejection, and recovery. It also compiles
+the production temperature-history screen against the fake manager and renderer
+to check exclusive feed activation, cancellation of raw history, retained stale
+data, unchanged-payload caching, and separate Temps/Temps2 navigation.
+
+g++ -std=c++11 -Wall -Wextra -Werror -Itest\temperature_hourly_history\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\temperature_history_screen.cpp test\temperature_hourly_history\test_main.cpp -o "$env:TEMP\cyd-temperature-hourly-tests.exe"
+if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-temperature-hourly-tests.exe" }

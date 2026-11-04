@@ -382,6 +382,7 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Temperatures | Back | — | History | Home |
 | Temps 2 (page feed) | Back | Daily | History | Home |
 | Temperature History | Back | — | — | Home |
+| Temps 2 History (72 hours) | Back | Daily | — | Home |
 | Astronomical | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
 | Summary | Back | More/Up* | Forecast | Home |
@@ -551,8 +552,25 @@ Dew Point, Heat Index, and Wind Chill, for example:
 All six values come from the same snapshot. Missing data shows `-- F`;
 malformed snapshots are logged and show `-- F` for every row rather than mixing
 partial values. The original Temps page continues using its six separate feeds.
-Back returns to Details. Daily and History open the existing charts, whose Back
-buttons still return to the original Temperatures page.
+Back returns to Details. Daily opens the existing daily chart, whose Back button
+returns to the original Temperatures page.
+
+Temps 2's **History** button opens **Last 72 Hours**, using only the latest value
+of `pages.temp-line` rather than downloading raw `feed-avg` history. This feed
+contains a JSON array of hourly averages, for example
+`[{"ts":"2026110409","ftemp":62.6},{"ts":"2026110410","ftemp":63.6}]`.
+`ts` is a local date/hour (`YYYYMMDDHH`) in the display's `TZ_STRING` timezone;
+`ftemp` is that hour's average Fahrenheit temperature. The graph shows 72 elapsed
+hours ending just after the newest supplied hour, with one point per available
+hour and gaps for missing hours. Older entries are discarded. Points use the
+same scale, min/max summary, and local endpoint labels as the original chart.
+The feed refreshes once per minute while active. Invalid snapshots are logged;
+any last valid graph is retained and marked **Stale**. WiFi loss, a cache over two
+minutes old, or a newest hour over two hours old also marks the graph stale.
+Empty arrays show an empty-window message. Local timestamps cannot distinguish
+the two fall-back hours, so an ambiguous hour uses standard time; nonexistent
+spring-forward hours and duplicate timestamps are rejected. Back returns to
+Temps 2; Daily opens the existing daily chart; Home returns Home.
 
 Temperatures has a **History** button in navigation position 3. It opens
 **Last 24 Hours**, a page-wide `feed-avg` chart covering a timestamp-verified

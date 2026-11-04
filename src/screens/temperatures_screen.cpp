@@ -65,7 +65,8 @@ static TextTablePage temperaturesPage(const TextTableRow *rows)
         rows ? TEMPERATURE_ROW_COUNT : 0,
         enterDetailsScreen,
         {"Daily", enterTemperatureDailyScreen},
-        {"History", enterTemperatureHistoryScreen},
+        {"History", usesTemperaturePageFeed()
+            ? enterTemperaturePageHistoryScreen : enterTemperatureHistoryScreen},
     };
 }
 
