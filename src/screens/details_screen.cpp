@@ -26,7 +26,7 @@ static const TextTableButton DETAIL_BUTTONS[GRID_COLUMNS * GRID_ROWS] = {
     {"Precip", enterPrecipitationScreen},
     {nullptr, nullptr},
     {"Astro", enterAstronomicalScreen},
-    {nullptr, nullptr},
+    {"Temps 2", enterTemperaturePageScreen},
 };
 
 static String renderedTemperature;

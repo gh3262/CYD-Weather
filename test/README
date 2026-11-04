@@ -64,6 +64,9 @@ advancement after local midnight, and standard time after the DST transition.
 Daily-temperature checks cover synchronized 14-day low/high publication,
 minimum/maximum aggregation of duplicate records, negative lows, and missing
 or unpaired dates.
+Page-feed checks verify that `pages.p01-temp` is the only active subscription,
+polls once per minute, and preserves the full JSON array in the latest-value
+response.
 
 Weather descriptor compile-time tests
 -------------------------------------
@@ -82,3 +85,14 @@ cancelling winds, and the smallest covering range. From the repository root:
 
 g++ -std=c++11 -Wall -Wextra -Werror -Isrc src\screens\wind_direction_stats.cpp test\wind_direction_stats\test_main.cpp -o "$env:TEMP\cyd-wind-direction-tests.exe"
 if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-wind-direction-tests.exe" }
+
+Temperature page snapshot native tests
+--------------------------------------
+temperature_page_values/test_main.cpp tests the production JSON parser using
+the firmware's ArduinoJson dependency. It covers the supplied feed payload, row
+ordering, negative/zero/integer values, precision, malformed JSON, incorrect
+array lengths and types, non-finite values, atomic rejection, and recovery.
+From the repository root, using g++, clang++, or "zig c++":
+
+g++ -std=c++11 -Wall -Wextra -Werror -Isrc "-I.pio\libdeps\esp32dev\ArduinoJson\src" test\temperature_page_values\test_main.cpp -o "$env:TEMP\cyd-temperature-page-tests.exe"
+if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-temperature-page-tests.exe" }

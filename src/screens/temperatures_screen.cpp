@@ -2,6 +2,9 @@
 
 #include "adafruitio/adafruitio_manager.h"
 #include "screens/text_table_page.h"
+#include "screens/temperature_page_values.h"
+
+static const char *const TEMPERATURE_PAGE_FEED_KEYS[] = {"pages.p01-temp"};
 
 static const char *const TEMPERATURE_FEED_KEYS[] = {
     "feed-avg",
@@ -36,6 +39,12 @@ static const TextTableColor TEMPERATURE_LABEL_COLORS[TEMPERATURE_ROW_COUNT] = {
 static String temperatureValues[TEMPERATURE_ROW_COUNT];
 static String renderedTemperatureValues[TEMPERATURE_ROW_COUNT];
 static bool forceTemperatureRender = true;
+static String lastTemperaturePagePayload;
+
+static bool usesTemperaturePageFeed()
+{
+    return state.currentScreen == SCREEN_TEMPERATURES_PAGE;
+}
 
 static String readTemperatureValue(const char *feedKey)
 {
@@ -49,7 +58,7 @@ static String readTemperatureValue(const char *feedKey)
 static TextTablePage temperaturesPage(const TextTableRow *rows)
 {
     return {
-        "Temperatures",
+        usesTemperaturePageFeed() ? "Temps - Page Feed" : "Temperatures",
         CYD_NAVY,
         130,
         rows,
@@ -63,9 +72,25 @@ static TextTablePage temperaturesPage(const TextTableRow *rows)
 static void updateTemperatureRows(bool redrawPage)
 {
     bool changed = forceTemperatureRender;
+    TemperaturePageValues pageValues;
+    bool hasPageValues = false;
+    if (usesTemperaturePageFeed())
+    {
+        String payload;
+        if (adafruitIOManager.getFeedValue(TEMPERATURE_PAGE_FEED_KEYS[0], payload))
+        {
+            const char *error = parseTemperaturePageValues(payload.c_str(), pageValues);
+            hasPageValues = !error;
+            if (error && (forceTemperatureRender || payload != lastTemperaturePagePayload))
+                Serial.printf("Temps page feed: invalid pages.p01-temp: %s.\n", error);
+            lastTemperaturePagePayload = payload;
+        }
+    }
     for (size_t i = 0; i < TEMPERATURE_ROW_COUNT; ++i)
     {
-        temperatureValues[i] = readTemperatureValue(TEMPERATURE_FEED_KEYS[i]);
+        temperatureValues[i] = usesTemperaturePageFeed()
+            ? (hasPageValues ? formatTemperatureValue(pageValues[i], 1) : String("-- F"))
+            : readTemperatureValue(TEMPERATURE_FEED_KEYS[i]);
         changed = changed || temperatureValues[i] != renderedTemperatureValues[i];
     }
     if (!changed)
@@ -96,9 +121,13 @@ static void updateTemperatureRows(bool redrawPage)
 
 void drawTemperaturesScreen()
 {
-    if (!adafruitIOManager.setActiveFeeds(TEMPERATURE_FEED_KEYS, TEMPERATURE_ROW_COUNT))
+    const bool pageFeed = usesTemperaturePageFeed();
+    if (!adafruitIOManager.setActiveFeeds(
+            pageFeed ? TEMPERATURE_PAGE_FEED_KEYS : TEMPERATURE_FEED_KEYS,
+            pageFeed ? 1 : TEMPERATURE_ROW_COUNT))
     {
-        Serial.println("Temperatures: could not activate its Adafruit IO feeds.");
+        Serial.println(pageFeed ? "Temps page feed: could not activate pages.p01-temp."
+                                : "Temperatures: could not activate its Adafruit IO feeds.");
     }
     forceTemperatureRender = true;
     updateTemperatureRows(true);
@@ -107,6 +136,12 @@ void drawTemperaturesScreen()
 void enterTemperaturesScreen()
 {
     state.currentScreen = SCREEN_TEMPERATURES;
+    drawCurrentScreen();
+}
+
+void enterTemperaturePageScreen()
+{
+    state.currentScreen = SCREEN_TEMPERATURES_PAGE;
     drawCurrentScreen();
 }
 

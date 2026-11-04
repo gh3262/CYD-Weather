@@ -380,6 +380,7 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Wind Direction | Back | — | Speed | Home |
 | Wind History | Back | Dir | — | Home |
 | Temperatures | Back | — | History | Home |
+| Temps 2 (page feed) | Back | Daily | History | Home |
 | Temperature History | Back | — | — | Home |
 | Astronomical | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
@@ -420,7 +421,8 @@ is opened or its Refresh button is pressed; they do not poll the network.
 Details provides a two-column, four-row button grid in the left two-thirds
 of the content area. The left column contains **Temps**, **Baro**, **Precip**,
 and **Astro**, opening Temperatures, Barometer, Precipitation, and Astronomical,
-respectively. The top-right **Wind** button opens Wind. The remaining three slots
+respectively. The top-right **Wind** button opens Wind. The bottom-right
+**Temps 2** button opens the single-feed temperature page. The remaining two slots
 are inactive placeholders. The right third shows the
 thermometer using `feed-avg` in red and `currenttemperatureapparent` in cyan,
 on a 10 to 100 F scale. The tube is centered in its panel, with Fahrenheit
@@ -539,6 +541,18 @@ are cyan. Its columns are shifted left with values starting at x 130.
 Values display one decimal place, such as `61.0 F (16.1 C)`; Snapshot retains
 whole degrees. Missing values show `-- F`. Back returns to Details. Both pages poll the feed cache
 and redraw only when their displayed data changes.
+
+**Temps 2** duplicates the Temperatures layout, colors, Fahrenheit/Celsius
+formatting, and Daily/History navigation, but subscribes only to `pages.p01-temp`.
+This feed is refreshed once per minute while active and contains one JSON array
+of exactly six finite numbers, ordered Temperature, Feels Like, Apparent,
+Dew Point, Heat Index, and Wind Chill, for example:
+`[71.775, 70.75, 68.4, 63.349999999999994, 78.1, 75.5]`.
+All six values come from the same snapshot. Missing data shows `-- F`;
+malformed snapshots are logged and show `-- F` for every row rather than mixing
+partial values. The original Temps page continues using its six separate feeds.
+Back returns to Details. Daily and History open the existing charts, whose Back
+buttons still return to the original Temperatures page.
 
 Temperatures has a **History** button in navigation position 3. It opens
 **Last 24 Hours**, a page-wide `feed-avg` chart covering a timestamp-verified

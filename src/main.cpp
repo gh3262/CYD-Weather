@@ -256,6 +256,7 @@ static const ScreenDef screens[] = {
     /* SCREEN_WIND_HISTORY */ { drawWindHistoryScreen, handleWindHistoryTouch, nullptr, refreshWindHistoryResults, true },
     /* SCREEN_WIND_DIRECTION */ { drawWindDirectionScreen, handleWindDirectionTouch, nullptr, refreshWindDirectionResults, true },
     /* SCREEN_TEMPERATURES */ { drawTemperaturesScreen, handleTemperaturesTouch, nullptr,               refreshTemperaturesResults, true },
+    /* SCREEN_TEMPERATURES_PAGE */ { drawTemperaturesScreen, handleTemperaturesTouch, nullptr, refreshTemperaturesResults, true },
     /* SCREEN_TEMPERATURE_HISTORY */ { drawTemperatureHistoryScreen, handleTemperatureHistoryTouch, nullptr, refreshTemperatureHistoryResults, true },
     /* SCREEN_TEMPERATURE_DAILY */ { drawTemperatureDailyScreen, handleTemperatureDailyTouch, nullptr, refreshTemperatureDailyResults, true },
     /* SCREEN_ASTRONOMICAL */ { drawAstronomicalScreen, handleAstronomicalTouch, nullptr,               refreshAstronomicalResults, true },

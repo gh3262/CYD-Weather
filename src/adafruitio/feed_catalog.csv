@@ -99,3 +99,4 @@ omp-maxtemp,Daily High Temp,Temperature,float,F,FALSE,on_demand,
 omp-mintemp,Daily Low Temp,Temperature,float,F,FALSE,on_demand,
 omp-sunshinehrs,Daily hours sunshine,Light,float,Hrs,FALSE,on_demand,
 omp-daylighthours,Daily hours between sunrise and sunset,Light,float,Hrs,FALSE,on_demand,
+pages.p01-temp,Temperature Page Values,Temperature,long_text,F,TRUE,periodic,1

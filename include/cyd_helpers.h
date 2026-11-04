@@ -138,10 +138,9 @@ inline bool parseTemperatureFeedValue(const String &value, float &temperature)
     return end != trimmed.c_str() && *end == '\0' && isfinite(temperature);
 }
 
-inline String formatTemperatureFeedValue(const String &value, unsigned int decimalPlaces = 0)
+inline String formatTemperatureValue(float temperature, unsigned int decimalPlaces = 0)
 {
-    float temperature;
-    if (!parseTemperatureFeedValue(value, temperature))
+    if (!isfinite(temperature))
         return "-- F";
 
     const float celsius = (temperature - 32.0f) * 5.0f / 9.0f;
@@ -151,6 +150,14 @@ inline String formatTemperatureFeedValue(const String &value, unsigned int decim
 
     return String(static_cast<long>(lroundf(temperature))) + " F (" +
            String(static_cast<long>(lroundf(celsius))) + " C)";
+}
+
+inline String formatTemperatureFeedValue(const String &value, unsigned int decimalPlaces = 0)
+{
+    float temperature;
+    if (!parseTemperatureFeedValue(value, temperature))
+        return "-- F";
+    return formatTemperatureValue(temperature, decimalPlaces);
 }
 
 // ====================================================

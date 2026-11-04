@@ -325,6 +325,26 @@ int main()
           temperatureResults[1].buckets[11].count == 0 &&
           temperatureResults[0].buckets[0].count == 0,
           "unpaired and missing dates stay missing rather than becoming zero");
+    const char *pageFeeds[] = {"pages.p01-temp"};
+    const int pageFeed = manager.findFeed(pageFeeds[0]);
+    check(pageFeed >= 0 && manager.setActiveFeeds(pageFeeds, 1),
+          "single temperature-page feed is registered and can be activated");
+    for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+        check(manager._feedCache[i].active == (static_cast<int>(i) == pageFeed),
+              "temperature-page subscription activates only its bundled feed");
+    check(AIO_FEEDS[pageFeed].refreshPolicy == AdafruitIORefreshPolicy::Periodic &&
+          AIO_FEEDS[pageFeed].refreshIntervalMinutes == 1 &&
+          AIO_FEEDS[pageFeed].mayExceed45Chars,
+          "temperature snapshot polls every minute and supports long values");
+    const char *snapshot = "[71.775, 70.75, 68.4, 63.349999999999994, 78.1, 75.5]";
+    values.clear();
+    testResponses.push_back({200, std::string("{\"value\":\"") + snapshot + "\"}", {}});
+    check(manager.fetchLatestValues(static_cast<size_t>(pageFeed), 1, values,
+                                    httpStatus, retryAfterMs) &&
+          values.size() == 1 && values[0] == String(snapshot),
+          "latest-value API preserves the entire JSON array string");
+    check(testUrls.back().find("/feeds/pages.p01-temp/data/last") != std::string::npos,
+          "temperature snapshot uses the single new feed endpoint");
     check(testResponses.empty(), "all HTTP fixtures consumed");
     std::printf("PASS: %zu history manager checks\n", checks);
     return 0;
