@@ -214,7 +214,8 @@ static void drawBars(const LineChartWidgetOptions &options,
 
 static bool drawChartWidget(const LineChartWidgetOptions &options,
                              const LineChartSeries *series, size_t seriesCount,
-                             double barWidth, int zeroBarHeight)
+                             double barWidth, int zeroBarHeight,
+                             bool floatingBars = false)
 {
     const double rangeX = options.maximumX - options.minimumX;
     const double rangeY = options.maximumY - options.minimumY;
@@ -246,11 +247,26 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
             Serial.println("Line chart widget: invalid or unordered data point.");
             return false;
         }
-        for (size_t i = 0; barWidth > 0.0 && i < series[s].pointCount; ++i)
+        for (size_t i = 0; barWidth > 0.0 && !floatingBars &&
+             i < series[s].pointCount; ++i)
         {
             if (series[s].points[i].y < 0.0)
             {
                 Serial.println("Bar chart widget: negative bar value.");
+                return false;
+            }
+        }
+    }
+
+    if (floatingBars)
+    {
+        for (size_t i = 0; i < series[0].pointCount; ++i)
+        {
+            const LineChartPoint &lower = series[0].points[i];
+            const LineChartPoint &upper = series[1].points[i];
+            if (lower.x != upper.x || lower.y > upper.y)
+            {
+                Serial.println("Floating bar chart widget: mismatched X or inverted range.");
                 return false;
             }
         }
@@ -344,6 +360,29 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
         gfx->setTextSize(2);
     }
 
+    if (floatingBars)
+    {
+        const double halfWidth = barWidth / rangeX / 2.0;
+        for (size_t i = 0; i < series[0].pointCount; ++i)
+        {
+            const LineChartPoint &lower = series[0].points[i];
+            const LineChartPoint &upper = series[1].points[i];
+            if (isnan(lower.y) || isnan(upper.y) ||
+                upper.y < options.minimumY || lower.y > options.maximumY)
+                continue;
+            const double center = (lower.x - options.minimumX) / rangeX;
+            if (center + halfWidth < 0.0 || center - halfWidth > 1.0)
+                continue;
+            const int x0 = chartPixel(center - halfWidth, left, right);
+            const int x1 = chartPixel(center + halfWidth, left, right);
+            const int y0 = chartPixel((options.maximumY - upper.y) / rangeY,
+                                     top, bottom);
+            const int y1 = chartPixel((options.maximumY - lower.y) / rangeY,
+                                     top, bottom);
+            gfx->fillRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1, options.lineColor);
+        }
+        return true;
+    }
     for (size_t s = 0; s < seriesCount; ++s)
     {
         if (barWidth > 0.0)
@@ -374,4 +413,22 @@ bool drawBarChartWidget(const LineChartWidgetOptions &options,
     }
     const LineChartSeries series = {points, pointCount, options.lineColor};
     return drawChartWidget(options, &series, 1, barWidth, zeroBarHeight);
+}
+
+bool drawFloatingBarChartWidget(const LineChartWidgetOptions &options,
+                                const LineChartPoint *lower,
+                                const LineChartPoint *upper, size_t pointCount,
+                                double barWidth)
+{
+    if (!isfinite(barWidth) || barWidth <= 0.0 ||
+        !isfinite(barWidth / (options.maximumX - options.minimumX)))
+    {
+        Serial.println("Floating bar chart widget: invalid bar width.");
+        return false;
+    }
+    const LineChartSeries series[] = {
+        {lower, pointCount, options.lineColor},
+        {upper, pointCount, options.lineColor},
+    };
+    return drawChartWidget(options, series, 2, barWidth, 0, true);
 }

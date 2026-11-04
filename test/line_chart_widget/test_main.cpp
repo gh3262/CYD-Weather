@@ -422,6 +422,98 @@ int main()
               graphics.rectangles[i].height == options.height - 9,
               "zero markers cannot extend outside plot");
 
+    options = testOptions();
+    options.minimumY = -10;
+    const LineChartPoint lows[] = {{1, -5}, {3, -8}, {5, 4}, {7, NAN}, {9, 0}};
+    const LineChartPoint highs[] = {{1, 5}, {3, -2}, {5, 4}, {7, 6}, {9, NAN}};
+    graphics.reset();
+    check(drawFloatingBarChartWidget(options, lows, highs, 5, 1.0),
+          "floating bars accept negative temperatures and missing pairs");
+    check(graphics.rectangles.size() == 4 && graphics.lines.empty() &&
+          graphics.pixels.empty(), "only three paired dates draw floating bars");
+    check(graphics.rectangles[1].x == 17 && graphics.rectangles[1].width == 11 &&
+          graphics.rectangles[1].y == 67 && graphics.rectangles[1].height == 51,
+          "floating bar spans exact daily low to high, not a zero baseline");
+    check(graphics.rectangles[2].y == 102 && graphics.rectangles[2].height == 31,
+          "entirely negative daily range remains floating");
+    check(graphics.rectangles[3].y == 72 && graphics.rectangles[3].height == 1,
+          "equal daily high and low remain visible");
+    const LineChartPoint edgeLows[] = {{-2, 0}, {0, -20}, {5, 12}, {10, -5}, {12, 0}};
+    const LineChartPoint edgeHighs[] = {{-2, 4}, {0, 20}, {5, 15}, {10, 15}, {12, 4}};
+    graphics.reset();
+    check(drawFloatingBarChartWidget(options, edgeLows, edgeHighs, 5, 2.0) &&
+          graphics.rectangles.size() == 3, "floating bars clip or omit offscreen ranges");
+    for (size_t i = 1; i < graphics.rectangles.size(); ++i)
+    {
+        const RecordedRect &bar = graphics.rectangles[i];
+        check(bar.x >= 12 && bar.x + bar.width <= 113 &&
+              bar.y >= 42 && bar.y + bar.height <= 143,
+              "floating rectangles stay within the plot");
+    }
+    const LineChartPoint badLower[] = {{1, 8}};
+    const LineChartPoint badUpper[] = {{1, 2}};
+    graphics.reset();
+    previousErrors = Serial.errors;
+    check(!drawFloatingBarChartWidget(options, badLower, badUpper, 1, 1.0) &&
+          Serial.errors == previousErrors + 1 && graphics.rectangles.empty(),
+          "inverted temperature range logged before drawing");
+    const LineChartPoint wrongDate[] = {{2, 9}};
+    graphics.reset();
+    previousErrors = Serial.errors;
+    check(!drawFloatingBarChartWidget(options, badLower, wrongDate, 1, 1.0) &&
+          Serial.errors == previousErrors + 1 && graphics.rectangles.empty(),
+          "mismatched daily dates rejected before drawing");
+    graphics.reset();
+    check(drawFloatingBarChartWidget(options, nullptr, nullptr, 0, 1.0) &&
+          graphics.rectangles.size() == 1, "empty floating chart has no invented bars");
+    graphics.reset();
+    previousErrors = Serial.errors;
+    check(!drawFloatingBarChartWidget(options, nullptr, highs, 5, 1.0) &&
+          Serial.errors == previousErrors + 1 && graphics.rectangles.empty(),
+          "missing floating endpoint buffer rejected before drawing");
+    for (double width : {0.0, -1.0, std::numeric_limits<double>::infinity(),
+                         std::numeric_limits<double>::quiet_NaN()})
+    {
+        graphics.reset();
+        previousErrors = Serial.errors;
+        check(!drawFloatingBarChartWidget(options, lows, highs, 5, width) &&
+              Serial.errors == previousErrors + 1 && graphics.rectangles.empty(),
+              "invalid floating bar width rejected before drawing");
+    }
+    options = testOptions();
+    options.x = 0;
+    options.width = SCREEN_WIDTH;
+    options.maximumX = 14;
+    options.minimumY = -20;
+    options.maximumY = 80;
+    options.showYScale = true;
+    options.yTickInterval = 5;
+    options.yLabelInterval = 10;
+    LineChartPoint dailyLows[14];
+    LineChartPoint dailyHighs[14];
+    for (size_t day = 0; day < 14; ++day)
+    {
+        dailyLows[day] = {day + 0.5, -10.0 + day};
+        dailyHighs[day] = {day + 0.5, 50.0 + day};
+    }
+    graphics.reset();
+    check(drawFloatingBarChartWidget(options, dailyLows, dailyHighs, 14, 0.75) &&
+          graphics.rectangles.size() == 15 && !graphics.texts.empty(),
+          "14 paired dates draw 14 floating bars with a signed Fahrenheit scale");
+    for (size_t day = 1; day < 14; ++day)
+    {
+        const RecordedRect &previous = graphics.rectangles[day];
+        const RecordedRect &bar = graphics.rectangles[day + 1];
+        check(bar.x > previous.x + previous.width,
+              "75-percent daily width leaves a gap between floating bars");
+    }
+    for (LineChartPoint &low : dailyLows)
+        low.y = NAN;
+    graphics.reset();
+    check(drawFloatingBarChartWidget(options, dailyLows, dailyHighs, 14, 0.75) &&
+          graphics.rectangles.size() == 1,
+          "all unpaired daily highs draw no invented ranges");
+
     std::printf("PASS: %zu line-chart checks\n", checks);
     return 0;
 }

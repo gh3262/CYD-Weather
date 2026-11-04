@@ -22,6 +22,9 @@ Bar-chart checks cover zero baselines, proportional widths/heights, clipping,
 tiny positive amounts, dry/missing dates, 3-pixel zero markers and bar gaps,
 fractional-inch labels, and
 invalid-input logging without partial drawing.
+Floating-bar checks cover exact low/high endpoints, negative and equal ranges,
+missing pairs, clipping, mismatched dates, inverted ranges, and invalid buffers
+or widths without partial drawing.
 
 From the repository root, using an installed C++11 compiler (PowerShell):
 
@@ -58,6 +61,9 @@ DST independence, the export's 141-record daily-max fixture, conflicting totals,
 154 records across pages, and alignment-mode changes/validation.
 Local-calendar endpoint checks cover UTC advancing before local midnight,
 advancement after local midnight, and standard time after the DST transition.
+Daily-temperature checks cover synchronized 14-day low/high publication,
+minimum/maximum aggregation of duplicate records, negative lows, and missing
+or unpaired dates.
 
 Weather descriptor compile-time tests
 -------------------------------------

@@ -26,6 +26,7 @@ enum Screen
     SCREEN_WIND_DIRECTION,
     SCREEN_TEMPERATURES,
     SCREEN_TEMPERATURE_HISTORY,
+    SCREEN_TEMPERATURE_DAILY,
     SCREEN_ASTRONOMICAL,
     SCREEN_ALERTS,
     SCREEN_ALERT_DETAILS,
@@ -164,6 +165,12 @@ void drawTemperatureHistoryScreen();
 void enterTemperatureHistoryScreen();
 void handleTemperatureHistoryTouch(int x, int y);
 void refreshTemperatureHistoryResults();
+
+// temperature_daily_screen.cpp
+void drawTemperatureDailyScreen();
+void enterTemperatureDailyScreen();
+void handleTemperatureDailyTouch(int x, int y);
+void refreshTemperatureDailyResults();
 
 // astronomical_screen.cpp
 void drawAstronomicalScreen();

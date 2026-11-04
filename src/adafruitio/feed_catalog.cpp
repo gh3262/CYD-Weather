@@ -97,6 +97,10 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"hours24windspeed", "Hour 24 Wind Speed", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
     {"hours24windgust", "Hour 24 Wind Gust", "Wind", AdafruitIOValueType::Integer, "mph", false, AdafruitIORefreshPolicy::OnDemand},
     {"omp-totprec", "daily Total Precipitation amount", "precipitation", AdafruitIOValueType::Float, "in", false, AdafruitIORefreshPolicy::OnDemand},
+    {"omp-maxtemp", "Daily High Temp", "Temperature", AdafruitIOValueType::Float, "F", false, AdafruitIORefreshPolicy::OnDemand},
+    {"omp-mintemp", "Daily Low Temp", "Temperature", AdafruitIOValueType::Float, "F", false, AdafruitIORefreshPolicy::OnDemand},
+    {"omp-sunshinehrs", "Daily hours sunshine", "Light", AdafruitIOValueType::Float, "Hrs", false, AdafruitIORefreshPolicy::OnDemand},
+    {"omp-daylighthours", "Daily hours between sunrise and sunset", "Light", AdafruitIOValueType::Float, "Hrs", false, AdafruitIORefreshPolicy::OnDemand},
 };
 
 const size_t AIO_FEED_COUNT = sizeof(AIO_FEEDS) / sizeof(AIO_FEEDS[0]);

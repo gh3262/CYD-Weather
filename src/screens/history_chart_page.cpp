@@ -40,9 +40,18 @@ static void drawHistoryTimes(const NumericHistoryResult &history, bool dailyBars
 }
 
 static void drawHistorySummary(const HistoryChartPage &page,
-                               const NumericHistoryResult *histories)
+                               const NumericHistoryResult *histories,
+                               double minimum, double maximum)
 {
     gfx->setCursor(4, HEADER_HEIGHT + 3);
+    if (page.style == HistoryChartStyle::DailyFloatingBars)
+    {
+        gfx->setTextColor(COLOR_TEXT);
+        gfx->print("Low " + String(minimum, page.valueDecimals) +
+                   page.unitSuffix + "  High " +
+                   String(maximum, page.valueDecimals) + page.unitSuffix);
+        return;
+    }
     if (page.style == HistoryChartStyle::DailyBars)
     {
         double total = 0.0;
@@ -94,12 +103,14 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
         adafruitIOManager.getNumericHistory(histories, page.seriesCount, status);
     const NumericHistoryResult &window = histories[0];
     const bool dailyBars = page.style == HistoryChartStyle::DailyBars;
+    const bool floatingBars = page.style == HistoryChartStyle::DailyFloatingBars;
+    const bool daily = dailyBars || floatingBars;
     const int64_t now = static_cast<int64_t>(time(nullptr));
     int64_t dailyEnd = 0;
-    const bool validDailyEnd = !dailyBars || completedHistoryEndUtc(now, dailyEnd);
+    const bool validDailyEnd = !daily || completedHistoryEndUtc(now, dailyEnd);
     const bool stale = status.state == NumericHistoryState::Failed ||
         WiFi.status() != WL_CONNECTED ||
-        (hasData && (dailyBars ? !validDailyEnd || dailyEnd > window.endUtc
+        (hasData && (daily ? !validDailyEnd || dailyEnd > window.endUtc
                               : now > window.endUtc + 120));
     if (status.revision == renderedRevision && stale == renderedStale &&
         hasData == renderedHasData)
@@ -119,11 +130,52 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
         maximum = max(maximum, histories[i].maximum);
     }
 
+    size_t pairedDays = 0;
+    if (hasData && floatingBars)
+    {
+        minimum = INFINITY;
+        maximum = -INFINITY;
+        if (histories[0].buckets.size() != histories[1].buckets.size())
+        {
+            Serial.println("Daily temperature history: mismatched bucket counts.");
+            drawHistoryMessage("History dates do not match");
+            return;
+        }
+        for (size_t i = 0; i < window.buckets.size(); ++i)
+        {
+            const NumericHistoryBucket &low = histories[0].buckets[i];
+            const NumericHistoryBucket &high = histories[1].buckets[i];
+            if (low.startUtc != high.startUtc)
+            {
+                Serial.println("Daily temperature history: mismatched bucket dates.");
+                drawHistoryMessage("History dates do not match");
+                return;
+            }
+            if (!low.count || !high.count)
+                continue;
+            const double lowValue = low.value(histories[0].aggregation);
+            const double highValue = high.value(histories[1].aggregation);
+            if (lowValue > highValue)
+            {
+                Serial.println("Daily temperature history: daily low exceeds high; omitting date.");
+                continue;
+            }
+            ++pairedDays;
+            minimum = min(minimum, lowValue);
+            maximum = max(maximum, highValue);
+        }
+    }
+
     if (!hasData)
     {
         drawHistoryMessage(status.state == NumericHistoryState::Failed
             ? "History failed - retrying" : stale
                 ? "Offline - waiting for WiFi" : "Loading history...");
+    }
+    else if (floatingBars && pairedDays == 0)
+    {
+        drawHistoryMessage(stale ? "No paired daily readings (stale)" :
+                                  "No paired daily readings");
     }
     else if (sampleCount == 0 && (!dailyBars || invalidCount > 0))
     {
@@ -161,6 +213,15 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
             }
             series[s] = {points[s].data(), points[s].size(), page.series[s].color};
         }
+        if (floatingBars)
+        {
+            for (size_t i = 0; i < points[0].size(); ++i)
+            {
+                if (isnan(points[0][i].y) || isnan(points[1][i].y) ||
+                    points[0][i].y > points[1][i].y)
+                    points[0][i].y = points[1][i].y = NAN;
+            }
+        }
         LineChartWidgetOptions chart;
         chart.y = HEADER_HEIGHT + 16;
         chart.height = NAV_Y - chart.y - 14;
@@ -175,7 +236,10 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
         chart.yLabelDecimalPlaces = dailyBars ? 2 : 0;
         chart.lineColor = page.series[0].color;
         chart.zeroBarColor = CYD_YELLOW;
-        const bool drawn = dailyBars
+        const bool drawn = floatingBars
+            ? drawFloatingBarChartWidget(chart, points[0].data(), points[1].data(),
+                                         points[0].size(), window.bucketSeconds * 0.75)
+            : dailyBars
             ? drawBarChartWidget(chart, points[0].data(), points[0].size(),
                                  window.bucketSeconds * 0.75, 3)
             : drawLineChartSeriesWidget(chart, series, page.seriesCount);
@@ -188,7 +252,7 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
         gfx->fillRect(0, NAV_Y - 14, SCREEN_WIDTH, 14, COLOR_BACKGROUND);
         setDefaultFont();
         gfx->setTextSize(1);
-        drawHistorySummary(page, histories);
+        drawHistorySummary(page, histories, minimum, maximum);
         if (stale)
         {
             gfx->setTextColor(COLOR_WARNING);
@@ -196,9 +260,11 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
             gfx->print("Stale");
         }
         gfx->setTextColor(COLOR_TEXT);
-        drawHistoryTimes(window, dailyBars);
-        const String count = dailyBars ? String(window.buckets.size()) + " days"
-                                      : String(sampleCount) + " pts";
+        drawHistoryTimes(window, daily);
+        const String count = floatingBars ? String(pairedDays) + "/" +
+                String(window.buckets.size()) + " days" :
+            dailyBars ? String(window.buckets.size()) + " days" :
+                        String(sampleCount) + " pts";
         centerText(count.c_str(), NAV_Y - 11, COLOR_TEXT, 1);
         gfx->setTextSize(2);
     }
@@ -214,18 +280,22 @@ void drawHistoryChartPage(const HistoryChartPage &page)
     const char *feeds[MAX_NUMERIC_HISTORY_SERIES];
     NumericHistoryRequest requests[MAX_NUMERIC_HISTORY_SERIES];
     const bool dailyBars = page.style == HistoryChartStyle::DailyBars;
+    const bool floatingBars = page.style == HistoryChartStyle::DailyFloatingBars;
     const bool validPage = page.series && page.seriesCount > 0 &&
         page.seriesCount <= MAX_NUMERIC_HISTORY_SERIES &&
         (!dailyBars || (page.seriesCount == 1 && page.zeroBasedY &&
-                       page.series[0].aggregation == HistoryAggregation::Maximum));
+                       page.series[0].aggregation == HistoryAggregation::Maximum)) &&
+        (!floatingBars || (page.seriesCount == 2 && !page.zeroBasedY &&
+                          page.series[0].aggregation == HistoryAggregation::Minimum &&
+                          page.series[1].aggregation == HistoryAggregation::Maximum));
     for (size_t i = 0; validPage && i < page.seriesCount; ++i)
     {
         feeds[i] = page.series[i].feedKey;
         requests[i].windowSeconds = page.windowSeconds;
         requests[i].bucketSeconds = page.bucketSeconds;
         requests[i].aggregation = page.series[i].aggregation;
-        requests[i].window = dailyBars ? HistoryWindow::CompletedUtcDays
-                                      : HistoryWindow::Rolling;
+        requests[i].window = dailyBars || floatingBars
+            ? HistoryWindow::CompletedUtcDays : HistoryWindow::Rolling;
     }
     const bool requested = validPage &&
         adafruitIOManager.requestNumericHistory(feeds, requests, page.seriesCount);

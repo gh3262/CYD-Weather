@@ -55,7 +55,7 @@ static TextTablePage temperaturesPage(const TextTableRow *rows)
         rows,
         rows ? TEMPERATURE_ROW_COUNT : 0,
         enterDetailsScreen,
-        {nullptr, nullptr},
+        {"Daily", enterTemperatureDailyScreen},
         {"History", enterTemperatureHistoryScreen},
     };
 }

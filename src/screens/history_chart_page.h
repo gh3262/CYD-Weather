@@ -23,7 +23,8 @@ struct HistoryChartSeries
 enum class HistoryChartStyle
 {
     Line,
-    DailyBars
+    DailyBars,
+    DailyFloatingBars
 };
 
 struct HistoryChartPage

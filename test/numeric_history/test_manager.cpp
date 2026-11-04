@@ -291,6 +291,40 @@ int main()
     NumericHistoryRequest mixedWindows[2] = {daily, rollingDaily};
     check(!manager.requestNumericHistory(windFeeds, mixedWindows, 2),
           "reject series with different calendar alignments");
+
+    const char *temperatureFeeds[] = {"omp-mintemp", "omp-maxtemp"};
+    NumericHistoryRequest temperatureRequests[] = {daily, daily};
+    temperatureRequests[0].aggregation = HistoryAggregation::Minimum;
+    check(manager.requestNumericHistory(temperatureFeeds, temperatureRequests, 2),
+          "daily temperature low/high feeds support a shared completed-day window");
+    testMillis += 60001;
+    testResponses.push_back({200, "[" + record("lo1", midnight - 86400, "-5") + "," +
+        record("lo2", midnight - 86400, "-8") + "," +
+        record("lo3", midnight - 3 * 86400, "40") + "]",
+        {{"Link", "<https://io.adafruit.com/data>"}}});
+    testResponses.push_back({200, "[" + record("hi1", midnight - 86400, "10") + "," +
+        record("hi2", midnight - 86400, "12") + "," +
+        record("hi3", midnight - 2 * 86400, "50") + "]",
+        {{"Link", "<https://io.adafruit.com/data>"}}});
+    manager.processNumericHistory();
+    NumericHistoryResult temperatureResults[2];
+    check(!manager.getNumericHistory(temperatureResults, 2, status),
+          "daily temperatures do not publish low without high");
+    manager.processNumericHistory();
+    check(manager.getNumericHistory(temperatureResults, 2, status) &&
+          status.state == NumericHistoryState::Ready &&
+          temperatureResults[0].startUtc == midnight - 14 * 86400 &&
+          temperatureResults[0].endUtc == temperatureResults[1].endUtc &&
+          temperatureResults[0].buckets.size() == 14 &&
+          temperatureResults[1].buckets.size() == 14,
+          "daily low/high histories publish together on matching date boundaries");
+    check(temperatureResults[0].buckets[13].value(HistoryAggregation::Minimum) == -8 &&
+          temperatureResults[1].buckets[13].value(HistoryAggregation::Maximum) == 12,
+          "duplicate daily records use lowest low and highest high, not averages");
+    check(temperatureResults[0].buckets[12].count == 0 &&
+          temperatureResults[1].buckets[11].count == 0 &&
+          temperatureResults[0].buckets[0].count == 0,
+          "unpaired and missing dates stay missing rather than becoming zero");
     check(testResponses.empty(), "all HTTP fixtures consumed");
     std::printf("PASS: %zu history manager checks\n", checks);
     return 0;

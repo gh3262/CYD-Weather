@@ -63,4 +63,12 @@ bool drawBarChartWidget(const LineChartWidgetOptions &options,
                         const LineChartPoint *points, size_t pointCount,
                         double barWidth, int zeroBarHeight = 0);
 
+// Paired points must share X; each bar spans lower.y to upper.y, including
+// negative values. NaN at either endpoint omits that day; equal values draw
+// a one-pixel bar. Uses options.lineColor.
+bool drawFloatingBarChartWidget(const LineChartWidgetOptions &options,
+                                const LineChartPoint *lower,
+                                const LineChartPoint *upper, size_t pointCount,
+                                double barWidth);
+
 #endif

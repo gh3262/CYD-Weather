@@ -74,7 +74,7 @@ src/
     home_screen.cpp     Clock, temperature, weather word, navigation
     snapshot_screen.cpp, summary_screen.cpp, forecast_screen.cpp
     details_screen.cpp  Hub for the detail pages below
-    temperatures_screen.cpp, temperature_history_screen.cpp
+    temperatures_screen.cpp, temperature_history_screen.cpp, temperature_daily_screen.cpp
     barometer_screen.cpp, barometer_history_screen.cpp
     precipitation_screen.cpp, precipitation_history_screen.cpp
     wind_screen.cpp     Wind table; Dir and Speed buttons
@@ -459,6 +459,21 @@ loading and failed requests remain distinct. Refresh failures or WiFi loss mark
 retained data **Stale**; crossing local midnight also marks yesterday's window
 stale until the new window loads. Back returns to Precipitation; Home returns
 Home. Leaving cancels the history subscription.
+
+Temperatures has a **Daily** button in navigation position 2, alongside the
+existing **History** button in position 3. Daily opens **Daily Temps - 14 Days**,
+a floating cyan bar chart using `omp-mintemp` and `omp-maxtemp` in Fahrenheit.
+It uses the same 14 completed calendar dates and date-only timestamp rules as
+Precipitation History. Each bar spans the lowest daily minimum to the highest
+daily maximum, with 75% slot width and a gap between dates. Negative temperatures
+are supported; equal high/low values draw a one-pixel bar. Dates missing either
+endpoint are left blank, not treated as zero; inverted low/high pairs are logged
+and omitted. The summary shows the lowest low and highest high among paired
+dates, and the footer counts paired dates. Both feeds finish loading before
+publication, with the shared loading, empty, stale, and cancellation behavior.
+Back returns to Temperatures, Home returns Home, and **History** in position 3
+opens Temperature History. Temperature History has **Daily** in position 2
+to switch back. Sunshine and daylight feeds are not used by this page.
 
 Barometer has a **History** button in navigation position 3. It opens
 **Last 72 Hours**, a `currentpressure` chart that uses the same shared history

@@ -36,6 +36,7 @@ void refreshTemperatureHistoryResults()
 void drawTemperatureHistoryScreen()
 {
     drawHistoryChartPage(temperatureHistoryPage());
+    drawNav2("Daily");
 }
 
 void enterTemperatureHistoryScreen()
@@ -48,4 +49,6 @@ void handleTemperatureHistoryTouch(int x, int y)
 {
     if (navPressed1(x, y))
         enterTemperaturesScreen();
+    else if (navPressed2(x, y))
+        enterTemperatureDailyScreen();
 }
