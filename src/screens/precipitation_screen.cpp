@@ -3,6 +3,7 @@
 #include <Fonts/FreeMono9pt7b.h>
 
 #include "adafruitio/adafruitio_manager.h"
+#include "screens/precipitation_page_values.h"
 
 static const size_t PRECIPITATION_ROW_COUNT = 7;
 static const size_t PRECIPITATION_VALUE_COUNT = 3;
@@ -37,10 +38,19 @@ static const char *const PRECIPITATION_FEED_KEYS[] = {
     "days2precipitationchance", "days2precipitationtype", "days2precipitationamount",
     "days5precipitationchance", "days5precipitationtype", "days5precipitationamount",
 };
+static const char *const PRECIPITATION_PAGE_FEED_KEYS[] = {
+    "pages.p02-precipitation",
+};
 
 static String precipitationValues[PRECIPITATION_ROW_COUNT][PRECIPITATION_VALUE_COUNT];
 static String renderedPrecipitationValues[PRECIPITATION_ROW_COUNT][PRECIPITATION_VALUE_COUNT];
 static bool forcePrecipitationRender = true;
+static String lastPrecipitationPagePayload;
+
+static bool usesPrecipitationPageFeed()
+{
+    return state.currentScreen == SCREEN_PRECIPITATION_PAGE;
+}
 
 static String readPrecipitationValue(const char *feedKey, size_t column)
 {
@@ -58,6 +68,21 @@ static String readPrecipitationValue(const char *feedKey, size_t column)
     if (column == 1 && value.length() > 6)
         value = value.substring(0, 6);
 
+    return value;
+}
+
+static String formatPrecipitationPageValue(
+    const PrecipitationPageValues &values, size_t row, size_t column)
+{
+    String value(values[row * PRECIPITATION_VALUE_COUNT + column].data());
+    value.trim();
+    if (value.isEmpty())
+        return "--";
+
+    if (column == 0 && !value.endsWith("%"))
+        value += "%";
+    if (column == 1 && value.length() > 6)
+        value = value.substring(0, 6);
     return value;
 }
 
@@ -98,14 +123,43 @@ static void drawPrecipitationTable()
 static void updatePrecipitationTable(bool redrawPage)
 {
     bool changed = forcePrecipitationRender;
+    PrecipitationPageValues pageValues;
+    bool hasPageValues = false;
+    if (usesPrecipitationPageFeed())
+    {
+        String payload;
+        if (adafruitIOManager.getFeedValue(
+                PRECIPITATION_PAGE_FEED_KEYS[0], payload))
+        {
+            const char *error =
+                parsePrecipitationPageValues(payload.c_str(), pageValues);
+            hasPageValues = !error;
+            if (error &&
+                (forcePrecipitationRender ||
+                 payload != lastPrecipitationPagePayload))
+            {
+                Serial.printf(
+                    "Precip page feed: invalid pages.p02-precipitation: %s.\n",
+                    error);
+            }
+            lastPrecipitationPagePayload = payload;
+        }
+    }
+
     for (size_t row = 0; row < PRECIPITATION_ROW_COUNT; ++row)
     {
-        precipitationValues[row][0] =
-            readPrecipitationValue(PRECIPITATION_ROWS[row].chanceFeed, 0);
-        precipitationValues[row][1] =
-            readPrecipitationValue(PRECIPITATION_ROWS[row].typeFeed, 1);
-        precipitationValues[row][2] =
-            readPrecipitationValue(PRECIPITATION_ROWS[row].amountFeed, 2);
+        for (size_t column = 0; column < PRECIPITATION_VALUE_COUNT; ++column)
+        {
+            precipitationValues[row][column] = usesPrecipitationPageFeed()
+                ? (hasPageValues
+                       ? formatPrecipitationPageValue(pageValues, row, column)
+                       : String("--"))
+                : readPrecipitationValue(
+                      column == 0 ? PRECIPITATION_ROWS[row].chanceFeed
+                                  : column == 1 ? PRECIPITATION_ROWS[row].typeFeed
+                                                : PRECIPITATION_ROWS[row].amountFeed,
+                      column);
+        }
         for (size_t column = 0; column < PRECIPITATION_VALUE_COUNT; ++column)
         {
             changed = changed ||
@@ -120,7 +174,9 @@ static void updatePrecipitationTable(bool redrawPage)
     if (redrawPage)
     {
         clearScreen(COLOR_BACKGROUND);
-        titleBar("Precipitation");
+        titleBar(usesPrecipitationPageFeed()
+                     ? "Precip - Page Feed"
+                     : "Precipitation");
         drawNav1("Back");
         drawNav3("History");
         drawNav4("Home");
@@ -138,11 +194,18 @@ static void updatePrecipitationTable(bool redrawPage)
 
 void drawPrecipitationScreen()
 {
+    const bool pageFeed = usesPrecipitationPageFeed();
     if (!adafruitIOManager.setActiveFeeds(
-            PRECIPITATION_FEED_KEYS,
-            sizeof(PRECIPITATION_FEED_KEYS) / sizeof(PRECIPITATION_FEED_KEYS[0])))
+            pageFeed ? PRECIPITATION_PAGE_FEED_KEYS : PRECIPITATION_FEED_KEYS,
+            pageFeed
+                ? sizeof(PRECIPITATION_PAGE_FEED_KEYS) /
+                      sizeof(PRECIPITATION_PAGE_FEED_KEYS[0])
+                : sizeof(PRECIPITATION_FEED_KEYS) /
+                      sizeof(PRECIPITATION_FEED_KEYS[0])))
     {
-        Serial.println("Precipitation: could not activate its Adafruit IO feeds.");
+        Serial.println(pageFeed
+                           ? "Precip page feed: could not activate pages.p02-precipitation."
+                           : "Precipitation: could not activate its Adafruit IO feeds.");
     }
 
     forcePrecipitationRender = true;
@@ -152,6 +215,12 @@ void drawPrecipitationScreen()
 void enterPrecipitationScreen()
 {
     state.currentScreen = SCREEN_PRECIPITATION;
+    drawCurrentScreen();
+}
+
+void enterPrecipitationPageScreen()
+{
+    state.currentScreen = SCREEN_PRECIPITATION_PAGE;
     drawCurrentScreen();
 }
 

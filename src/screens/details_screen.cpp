@@ -24,7 +24,7 @@ static const TextTableButton DETAIL_BUTTONS[GRID_COLUMNS * GRID_ROWS] = {
     {"Baro", enterBarometerScreen},
     {nullptr, nullptr},
     {"Precip", enterPrecipitationScreen},
-    {nullptr, nullptr},
+    {"Precip 2", enterPrecipitationPageScreen},
     {"Astro", enterAstronomicalScreen},
     {"Temps 2", enterTemperaturePageScreen},
 };

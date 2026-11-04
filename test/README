@@ -96,3 +96,13 @@ From the repository root, using g++, clang++, or "zig c++":
 
 g++ -std=c++11 -Wall -Wextra -Werror -Isrc "-I.pio\libdeps\esp32dev\ArduinoJson\src" test\temperature_page_values\test_main.cpp -o "$env:TEMP\cyd-temperature-page-tests.exe"
 if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-temperature-page-tests.exe" }
+
+Precipitation page snapshot native tests
+----------------------------------------
+precipitation_page_values/test_main.cpp tests the production JSON parser for
+the 21 row-major chance/type/amount values, malformed payloads, strict value
+types, non-finite numbers, atomic rejection, and recovery. Build from the
+repository root after the normal PlatformIO build has restored dependencies:
+
+g++ -std=c++11 -Wall -Wextra -Werror -Isrc "-I.pio\libdeps\esp32dev\ArduinoJson\src" test\precipitation_page_values\test_main.cpp -o "$env:TEMP\cyd-precipitation-page-tests.exe"
+if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-precipitation-page-tests.exe" }
