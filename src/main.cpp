@@ -250,16 +250,13 @@ static const ScreenDef screens[] = {
     /* SCREEN_FORECAST    */ { drawForecastScreen,   handleForecastTouch,   nullptr,                  refreshForecastResults, true  },
     /* SCREEN_DETAILS     */ { drawDetailsScreen,    handleDetailsTouch,    nullptr,                  refreshDetailsResults,  true  },
     /* SCREEN_PRECIPITATION */ { drawPrecipitationScreen, handlePrecipitationTouch, nullptr,           refreshPrecipitationResults, true },
-    /* SCREEN_PRECIPITATION_PAGE */ { drawPrecipitationScreen, handlePrecipitationTouch, nullptr, refreshPrecipitationResults, true },
     /* SCREEN_PRECIPITATION_HISTORY */ { drawPrecipitationHistoryScreen, handlePrecipitationHistoryTouch, nullptr, refreshPrecipitationHistoryResults, true },
     /* SCREEN_BAROMETER    */ { drawBarometerScreen, handleBarometerTouch, nullptr,                   refreshBarometerResults, true },
         /* SCREEN_BAROMETER_HISTORY */ { drawBarometerHistoryScreen, handleBarometerHistoryTouch, nullptr, refreshBarometerHistoryResults, true },    /* SCREEN_WIND         */ { drawWindScreen, handleWindTouch, nullptr,                             refreshWindResults, true },
     /* SCREEN_WIND_HISTORY */ { drawWindHistoryScreen, handleWindHistoryTouch, nullptr, refreshWindHistoryResults, true },
     /* SCREEN_WIND_DIRECTION */ { drawWindDirectionScreen, handleWindDirectionTouch, nullptr, refreshWindDirectionResults, true },
     /* SCREEN_TEMPERATURES */ { drawTemperaturesScreen, handleTemperaturesTouch, nullptr,               refreshTemperaturesResults, true },
-    /* SCREEN_TEMPERATURES_PAGE */ { drawTemperaturesScreen, handleTemperaturesTouch, nullptr, refreshTemperaturesResults, true },
     /* SCREEN_TEMPERATURE_HISTORY */ { drawTemperatureHistoryScreen, handleTemperatureHistoryTouch, nullptr, refreshTemperatureHistoryResults, true },
-    /* SCREEN_TEMPERATURE_PAGE_HISTORY */ { drawTemperatureHistoryScreen, handleTemperatureHistoryTouch, nullptr, refreshTemperatureHistoryResults, true },
     /* SCREEN_TEMPERATURE_DAILY */ { drawTemperatureDailyScreen, handleTemperatureDailyTouch, nullptr, refreshTemperatureDailyResults, true },
     /* SCREEN_ASTRONOMICAL */ { drawAstronomicalScreen, handleAstronomicalTouch, nullptr,               refreshAstronomicalResults, true },
     /* SCREEN_ALERTS      */ { drawAlertsScreen,     handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
@@ -280,7 +277,6 @@ static bool screenPollPending = true;
 static bool isHistoryChartScreen(Screen screen)
 {
     return screen == SCREEN_TEMPERATURE_HISTORY ||
-        screen == SCREEN_TEMPERATURE_PAGE_HISTORY ||
         screen == SCREEN_TEMPERATURE_DAILY ||
         screen == SCREEN_BAROMETER_HISTORY ||
         screen == SCREEN_WIND_HISTORY ||

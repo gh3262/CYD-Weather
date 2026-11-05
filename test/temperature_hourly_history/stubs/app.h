@@ -7,9 +7,7 @@
 enum Screen
 {
     SCREEN_TEMPERATURES,
-    SCREEN_TEMPERATURES_PAGE,
     SCREEN_TEMPERATURE_HISTORY,
-    SCREEN_TEMPERATURE_PAGE_HISTORY,
     SCREEN_TEMPERATURE_DAILY
 };
 
@@ -26,10 +24,8 @@ void drawNav2(const char *);
 bool navPressed1(int x, int y);
 bool navPressed2(int x, int y);
 void enterTemperaturesScreen();
-void enterTemperaturePageScreen();
 void enterTemperatureDailyScreen();
 void enterTemperatureHistoryScreen();
-void enterTemperaturePageHistoryScreen();
 void drawTemperatureHistoryScreen();
 void refreshTemperatureHistoryResults();
 void handleTemperatureHistoryTouch(int x, int y);

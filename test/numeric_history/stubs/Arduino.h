@@ -23,6 +23,23 @@ public:
     String(Number number) : _text(std::to_string(number)) {}
     const char *c_str() const { return _text.c_str(); }
     bool isEmpty() const { return _text.empty(); }
+    size_t length() const { return _text.length(); }
+    void trim()
+    {
+        const size_t first = _text.find_first_not_of(" \t\r\n");
+        _text = first == std::string::npos ? "" :
+            _text.substr(first, _text.find_last_not_of(" \t\r\n") - first + 1);
+    }
+    bool endsWith(const char *suffix) const
+    {
+        const size_t length = std::strlen(suffix);
+        return _text.size() >= length &&
+            _text.compare(_text.size() - length, length, suffix) == 0;
+    }
+    String substring(size_t first, size_t last) const
+    {
+        return String(_text.substr(first, last - first));
+    }
     long toInt() const { return std::strtol(c_str(), nullptr, 10); }
     String &operator+=(const String &other) { _text += other._text; return *this; }
     friend String operator+(const String &a, const String &b)

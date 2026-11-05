@@ -104,6 +104,12 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"pages.p01-temp", "Temperature Page Values", "Temperature", AdafruitIOValueType::LongText, "F", true, AdafruitIORefreshPolicy::Periodic},
     {"pages.p02-precipitation", "Precipitation Page Values", "Precipitation", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::Periodic},
     {"pages.temp-line", "Hourly Temperature History", "Temperature", AdafruitIOValueType::LongText, "F", true, AdafruitIORefreshPolicy::Periodic},
+    {"pages.p03-wind", "Wind Page Values", "Wind", AdafruitIOValueType::LongText, "mph", true, AdafruitIORefreshPolicy::Periodic},
+    {"pages.p04-baro", "Barometer Page Values", "Barometer", AdafruitIOValueType::LongText, "hPa", true, AdafruitIORefreshPolicy::Periodic},
+    {"pages.p05astro", "Astronomical Page Values", "Light", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::Periodic},
+    {"pages.wind-line", "Hourly Wind History", "Wind", AdafruitIOValueType::LongText, "mph", true, AdafruitIORefreshPolicy::Periodic},
+    {"pages.baro-line", "Hourly Barometer History", "Barometer", AdafruitIOValueType::LongText, "hPa", true, AdafruitIORefreshPolicy::Periodic},
+    {"pages.prcp-line", "Daily Precipitation History", "Precipitation", AdafruitIOValueType::LongText, "in", true, AdafruitIORefreshPolicy::Periodic},
 };
 
 const size_t AIO_FEED_COUNT = sizeof(AIO_FEEDS) / sizeof(AIO_FEEDS[0]);

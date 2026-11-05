@@ -18,7 +18,6 @@ enum Screen
     SCREEN_FORECAST,
     SCREEN_DETAILS,
     SCREEN_PRECIPITATION,
-    SCREEN_PRECIPITATION_PAGE,
     SCREEN_PRECIPITATION_HISTORY,
     SCREEN_BAROMETER,
     SCREEN_BAROMETER_HISTORY,
@@ -26,9 +25,7 @@ enum Screen
     SCREEN_WIND_HISTORY,
     SCREEN_WIND_DIRECTION,
     SCREEN_TEMPERATURES,
-    SCREEN_TEMPERATURES_PAGE,
     SCREEN_TEMPERATURE_HISTORY,
-    SCREEN_TEMPERATURE_PAGE_HISTORY,
     SCREEN_TEMPERATURE_DAILY,
     SCREEN_ASTRONOMICAL,
     SCREEN_ALERTS,
@@ -116,7 +113,6 @@ void refreshDetailsResults();
 // precipitation_screen.cpp
 void drawPrecipitationScreen();
 void enterPrecipitationScreen();
-void enterPrecipitationPageScreen();
 void handlePrecipitationTouch(int x, int y);
 void refreshPrecipitationResults();
 
@@ -161,14 +157,12 @@ void leaveWindDirectionScreen();
 // temperatures_screen.cpp
 void drawTemperaturesScreen();
 void enterTemperaturesScreen();
-void enterTemperaturePageScreen();
 void handleTemperaturesTouch(int x, int y);
 void refreshTemperaturesResults();
 
 // temperature_history_screen.cpp
 void drawTemperatureHistoryScreen();
 void enterTemperatureHistoryScreen();
-void enterTemperaturePageHistoryScreen();
 void handleTemperatureHistoryTouch(int x, int y);
 void refreshTemperatureHistoryResults();
 

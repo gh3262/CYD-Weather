@@ -1,5 +1,5 @@
 #include "app.h"
-#include "screens/history_chart_page.h"
+#include "screens/snapshot_history_page.h"
 
 #include <math.h>
 
@@ -14,18 +14,21 @@ static HistoryChartScale precipitationHistoryScale(double, double maximumY)
 }
 
 static const HistoryChartSeries PRECIPITATION_HISTORY_SERIES[] = {
-    {"omp-totprec", HistoryAggregation::Maximum, CYD_CYAN, nullptr},
+    {"pages.prcp-line", HistoryAggregation::Maximum, CYD_CYAN, nullptr},
+};
+static const SnapshotHistoryField PRECIPITATION_HISTORY_FIELDS[] = {
+    {"prcp", HistoryAggregation::Maximum, false},
 };
 
 static HistoryChartPage precipitationHistoryPage()
 {
     return {
-        "Precip - 14 Days",
+        "Precip - 30 Days",
         PRECIPITATION_HISTORY_SERIES,
         1,
-        14U * 86400U,
+        30U * 86400U,
         86400,
-        "14 days",
+        "30 days",
         " in",
         3,
         0.01,
@@ -37,12 +40,13 @@ static HistoryChartPage precipitationHistoryPage()
 
 void refreshPrecipitationHistoryResults()
 {
-    refreshHistoryChartPage(precipitationHistoryPage());
+    refreshSnapshotHistoryPage(precipitationHistoryPage());
 }
 
 void drawPrecipitationHistoryScreen()
 {
-    drawHistoryChartPage(precipitationHistoryPage());
+    drawSnapshotHistoryPage(precipitationHistoryPage(), "pages.prcp-line",
+                            PRECIPITATION_HISTORY_FIELDS);
 }
 
 void enterPrecipitationHistoryScreen()

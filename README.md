@@ -79,7 +79,8 @@ src/
     precipitation_screen.cpp, precipitation_history_screen.cpp
     wind_screen.cpp     Wind table; Dir and Speed buttons
     wind_direction_screen.cpp  12-hour compass dial and wind rose
-    wind_history_screen.cpp    48-hour speed/gust chart
+    wind_history_screen.cpp    72-hour speed/gust chart
+    snapshot_history_page.*   Shared combined-feed history loading/refresh
     astronomical_screen.cpp, alerts_screen.cpp (list, details, full text)
     System screens:
     system_screen.cpp, wifi_status_screen.cpp, tools_screen.cpp,
@@ -379,10 +380,9 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Wind | Back | Dir | Speed | Home |
 | Wind Direction | Back | — | Speed | Home |
 | Wind History | Back | Dir | — | Home |
-| Temperatures | Back | — | History | Home |
-| Temps 2 (page feed) | Back | Daily | History | Home |
-| Temperature History | Back | — | — | Home |
-| Temps 2 History (72 hours) | Back | Daily | — | Home |
+| Temperatures | Back | Daily | History | Home |
+| Temperature History (72 hours) | Back | Daily | — | Home |
+| Daily Temperatures (14 days) | Back | — | History | Home |
 | Astronomical | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
 | Summary | Back | More/Up* | Forecast | Home |
@@ -422,8 +422,7 @@ is opened or its Refresh button is pressed; they do not poll the network.
 Details provides a two-column, four-row button grid in the left two-thirds
 of the content area. The left column contains **Temps**, **Baro**, **Precip**,
 and **Astro**, opening Temperatures, Barometer, Precipitation, and Astronomical,
-respectively. The top-right **Wind** button opens Wind. The bottom-right
-**Temps 2** button opens the single-feed temperature page. The remaining two slots
+respectively. The top-right **Wind** button opens Wind. The remaining three slots
 are inactive placeholders. The right third shows the
 thermometer using `feed-avg` in red and `currenttemperatureapparent` in cyan,
 on a 10 to 100 F scale. The tube is centered in its panel, with Fahrenheit
@@ -433,41 +432,47 @@ instead of a default reading.
 
 Barometer uses a monospaced three-column table with cyan **Time**, **Pressure**,
 and **Trend** headers. Its rows show Current, 1 Hour, 2 Hours, 6 Hours, 12 Hours,
-and 24 Hours using the corresponding pressure/trend feeds. Pressure is in hPa;
+and 24 Hours using `pages.p04-baro`: six pressure/trend pairs in that order.
+Pressure is in hPa;
 unavailable values show `--`. Only changed rows are redrawn as feeds arrive.
 Back returns to Details.
 
+Precipitation uses only `pages.p02-precipitation`: 21 row-major chance/type/amount
+values for 1 hour, 2 hours, 6 hours, 12 hours, 1 day, 2 days, and 5 days.
+The former Precip 2 test page is now the main page; its duplicate button and
+route have been removed. Chance retains its percent suffix, type its six-character
+display limit, and amount its inches formatting. Malformed snapshots are logged
+and show `--` across the table.
+
 Precipitation has a **History** button in navigation position 3. It opens
-**Precip - 14 Days**, a cyan daily bar chart of `omp-totprec` in inches.
-The window covers the previous 14 completed calendar dates according to the
-device's local clock, excluding local today. Records still keep their original
-UTC date labels; only the choice of the last displayed date uses local time.
-Each record's `created_at` date identifies the day: duplicate daily
-totals are **not summed or averaged**; the largest valid amount for each date
-is plotted. Dates without records are shown as zero. Dry dates (including missing
-dates) have a yellow 3-pixel bar so all 14 days can be counted; precipitation
+**Precip - 30 Days**, a cyan daily bar chart of `pages.prcp-line` in inches.
+The feed contains `[{"ts":"20261104","prcp":0.12}, ...]`, with local calendar
+dates (`YYYYMMDD`) and one daily total per date. The window covers 30 calendar
+dates ending at the newest supplied date (normally yesterday), without converting
+date labels through the local timezone. Older entries are discarded.
+Dates without records are shown as zero. Dry dates (including missing
+dates) have a yellow 3-pixel bar so all 30 days can be counted; precipitation
 bars remain cyan. Bars occupy 75% of each daily slot, leaving a small gap.
 These visual zero markers do not contribute to the total or peak.
 The Y axis starts at zero,
 uses an automatic fractional-inch scale, and keeps small positive amounts
-visible. The summary shows the sum of the 14 daily maxima and the largest daily
+visible. The summary shows the sum of the 30 daily totals and the largest daily
 amount, to three decimal places. Bottom labels show the first and last recorded
 dates without local-time conversion.
 
-Retrieval uses the full date range in 100-record pages, not a fixed record cap.
-The supplied export's last 14 dates contain 141 records (3-11 per date), so
-140 records would not reliably cover the window. Pagination completes before
-displaying any result. A successfully empty window draws an all-zero chart;
+Retrieval uses only the latest combined snapshot, not raw-record pagination.
+The full snapshot is validated before displaying any result. A successfully empty
+array draws an all-zero chart for the 30 completed local dates;
 loading and failed requests remain distinct. Refresh failures or WiFi loss mark
 retained data **Stale**; crossing local midnight also marks yesterday's window
 stale until the new window loads. Back returns to Precipitation; Home returns
-Home. Leaving cancels the history subscription.
+Home. Leaving deactivates snapshot polling when the next page selects its feeds.
 
 Temperatures has a **Daily** button in navigation position 2, alongside the
 existing **History** button in position 3. Daily opens **Daily Temps - 14 Days**,
 a floating cyan bar chart using `omp-mintemp` and `omp-maxtemp` in Fahrenheit.
-It uses the same 14 completed calendar dates and date-only timestamp rules as
-Precipitation History. Each bar spans the lowest daily minimum to the highest
+It covers 14 completed local calendar dates, with date-only labels encoded as UTC
+midnight. Its existing individual feeds are unchanged. Each bar spans the lowest daily minimum to the highest
 daily maximum, with 75% slot width and a gap between dates. Negative temperatures
 are supported; equal high/low values draw a one-pixel bar. Dates missing either
 endpoint are left blank, not treated as zero; inverted low/high pairs are logged
@@ -479,17 +484,20 @@ opens Temperature History. Temperature History has **Daily** in position 2
 to switch back. Sunshine and daylight feeds are not used by this page.
 
 Barometer has a **History** button in navigation position 3. It opens
-**Last 72 Hours**, a `currentpressure` chart that uses the same shared history
+**Last 72 Hours**, a `pages.baro-line` chart that uses the same shared history
 page as Temperature History (`screens/history_chart_page`), with the same
-loading, empty, stale, and cancellation behavior. Readings are averaged into
-2-hour UTC buckets over a rolling 72-hour window. The Y range is the observed
+loading, empty, stale, and cancellation behavior. The snapshot contains
+`[{"ts":"2026110513","baro":1013.09}, ...]`: local calendar hours and hourly
+average hPa. It shows the newest 72 elapsed hours with hourly buckets and
+gaps for missing hours. The Y range is the observed
 minimum minus 2 hPa through the observed maximum plus 2 hPa; label spacing
 (1, 2, 5, 10, 20, or 50 hPa) is the finest that gives at most eight labels.
 Back returns to Barometer; Home returns Home.
 
 Wind uses the same monospaced layout with cyan **Time**, **Dir**, **Speed**,
 and **Gust** headers. Rows show Current, 1 Hour, 2 Hours, 6 Hours, 12 Hours,
-and 24 Hours. Direction comes from the corresponding wind-direction feed;
+and 24 Hours. `pages.p03-wind` supplies six direction/speed/gust triples in
+that order;
 speed and gust are in mph. Missing values show `--`, and only changed rows
 are redrawn. Back returns to Details; Home returns to Home.
 
@@ -524,38 +532,39 @@ show **Stale**. Back returns to Wind, **Speed** opens the speed chart, and Home
 returns Home.
 
 Wind's navigation position 3 is **Speed**. It opens
-**Last 48 Hours**, a two-line chart on the shared history page over a rolling
-48-hour window with 2-hour UTC buckets. The cyan line is the bucket average of
-`currentwindspeed`; the yellow line is the bucket maximum (peak gust) of
-`currentwindgust`. Both series use the same window and shared axes. The Y axis
+**Last 72 Hours**, a two-line chart using only `pages.wind-line`, for example
+`[{"ts":"2026110513","speed":4.0,"gust":7.0}, ...]`. Local calendar hours
+identify hourly average speed (cyan) and maximum gust (yellow), both in mph.
+Both series use the newest 72 elapsed hours, hourly buckets, and shared axes.
+Missing hours remain gaps; explicit `null` gusts leave gust gaps without
+discarding the corresponding speed. The Y axis
 starts at 0 mph and extends 2 mph above the highest value. The summary line
-shows a colored legend with each series' min-max range. Both feeds are fetched
-one after the other, so loading takes about twice as long as a single-feed
-chart. The chart appears only after both series load. Back returns to Wind,
+shows a colored legend with each series' min-max range. Both series are
+validated and published together from one latest-value request. Back returns to Wind,
 **Dir** opens Wind Direction, and Home returns Home.
 
-Temperatures uses the text-table layout for `feed-avg`, `wapi.feels-like`,
-`currenttemperatureapparent`, `currenttemperaturedewpoint`,
-`wapi.heat-index`, and `wapi.wind-chill`, in that order. Feels Like and Apparent
+Temperatures uses the text-table layout for Temperature, Feels Like,
+Apparent, Dew Point, Heat Index, and Wind Chill, in that order, from
+`pages.p01-temp`. Feels Like and Apparent
 labels are yellow, Heat Index and Wind Chill are pink, and the other labels
 are cyan. Its columns are shifted left with values starting at x 130.
 Values display one decimal place, such as `61.0 F (16.1 C)`; Snapshot retains
 whole degrees. Missing values show `-- F`. Back returns to Details. Both pages poll the feed cache
 and redraw only when their displayed data changes.
 
-**Temps 2** duplicates the Temperatures layout, colors, Fahrenheit/Celsius
-formatting, and Daily/History navigation, but subscribes only to `pages.p01-temp`.
+The former Temps 2 test page is now the main Temperatures page; the duplicate
+Details button and route have been removed. It subscribes only to `pages.p01-temp`.
 This feed is refreshed once per minute while active and contains one JSON array
 of exactly six finite numbers, ordered Temperature, Feels Like, Apparent,
 Dew Point, Heat Index, and Wind Chill, for example:
 `[71.775, 70.75, 68.4, 63.349999999999994, 78.1, 75.5]`.
 All six values come from the same snapshot. Missing data shows `-- F`;
 malformed snapshots are logged and show `-- F` for every row rather than mixing
-partial values. The original Temps page continues using its six separate feeds.
+partial values.
 Back returns to Details. Daily opens the existing daily chart, whose Back button
-returns to the original Temperatures page.
+returns to Temperatures.
 
-Temps 2's **History** button opens **Last 72 Hours**, using only the latest value
+Temperatures' **History** button opens **Last 72 Hours**, using only the latest value
 of `pages.temp-line` rather than downloading raw `feed-avg` history. This feed
 contains a JSON array of hourly averages, for example
 `[{"ts":"2026110409","ftemp":62.6},{"ts":"2026110410","ftemp":63.6}]`.
@@ -563,42 +572,35 @@ contains a JSON array of hourly averages, for example
 `ftemp` is that hour's average Fahrenheit temperature. The graph shows 72 elapsed
 hours ending just after the newest supplied hour, with one point per available
 hour and gaps for missing hours. Older entries are discarded. Points use the
-same scale, min/max summary, and local endpoint labels as the original chart.
+same scale, min/max summary, and local endpoint labels as the previous chart.
 The feed refreshes once per minute while active. Invalid snapshots are logged;
 any last valid graph is retained and marked **Stale**. WiFi loss, a cache over two
 minutes old, or a newest hour over two hours old also marks the graph stale.
 Empty arrays show an empty-window message. Local timestamps cannot distinguish
 the two fall-back hours, so an ambiguous hour uses standard time; nonexistent
 spring-forward hours and duplicate timestamps are rejected. Back returns to
-Temps 2; Daily opens the existing daily chart; Home returns Home.
+Temperatures; Daily opens the existing daily chart; Home returns Home.
 
-Temperatures has a **History** button in navigation position 3. It opens
-**Last 24 Hours**, a page-wide `feed-avg` chart covering a timestamp-verified
-rolling 24-hour window. Available samples are averaged by UTC hour, including
-partial first/current hours, and plotted at the midpoint of each bucket's
-visible interval. Empty hours are gaps; data is not carried forward or
-interpolated. The Y range is the raw valid minimum minus 10 F through the raw
-valid maximum plus 10 F. The actual observed minimum and maximum temperatures
-are displayed above the chart, with Y labels every 10 F and ticks every 5 F.
-The bottom labels show the window's local date/time endpoints and valid sample
-count. Local labels use `TZ_STRING`; UTC spacing remains correct across DST.
-Loading, failed, and successfully empty windows have distinct messages.
-Failures, WiFi loss, or a window over two minutes old mark retained chart data
-**Stale** rather than erase it. Back returns to Temperatures; Home returns Home.
-Leaving the page cancels chart retrieval without changing latest-value polling.
+All four combined history feeds refresh once per minute while active. They
+cancel any raw-history job on entry, validate the entire snapshot atomically,
+cache unchanged payloads, and retain the last valid graph as **Stale** after
+malformed updates, WiFi loss, or a cache older than two minutes. Hourly graphs
+also become stale when the newest supplied hour is over two hours old;
+precipitation becomes stale when the snapshot no longer reaches local yesterday.
+Duplicate timestamps and invalid values are logged and rejected.
 
 Astronomical shows Sunrise, Sunset, Daylight, Moonrise, Moonset, and Moon Phase using
-the five `days1sun*`/`days1moon*` feeds. UTC timestamps are displayed in local
-US Central time (including daylight saving time) as `03:21 PM`; moon phase
-values use readable names such as `Waxing Crescent`. Missing values show
+`pages.p05astro`, an array of five strings in sunrise, sunset, moonrise,
+moonset, moon phase order. Times are already local clock strings such as
+`6:23 AM`; moon phase is already a readable name such as `Waning Crescent`.
+Missing values show
 `--`. Sun labels are yellow and moon labels are cyan. Feeds are activated
 when the page opens and the table redraws when displayed values change.
 Back returns to Details; Home returns directly to Home.
-Daylight is the difference between the sunrise and sunset Central-time clock
-values, ignoring their dates because the feeds describe the next events.
-It is an estimate when the events fall on different days. The duration is
-displayed as hours and minutes (for example, `11:03`), dropping partial minutes;
-missing or unparseable timestamps show `--`. Blank rows separate Daylight
+Daylight is calculated from the sunrise and sunset clock values and displayed
+as hours and minutes (`10:38` for `6:23 AM` to `5:01 PM`). Invalid sunrise/sunset
+strings reject the snapshot with a logged error and show `--`.
+Blank rows separate Daylight
 from Moonrise and Moonset from Moon Phase.
 
 **Weather outlook:** derives a simple weather descriptor from

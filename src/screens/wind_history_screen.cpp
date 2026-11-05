@@ -1,10 +1,14 @@
 #include "app.h"
-#include "screens/history_chart_page.h"
+#include "screens/snapshot_history_page.h"
 
 // Speed is drawn first so the gust line stays visible where they meet.
 static const HistoryChartSeries WIND_HISTORY_SERIES[] = {
-    {"currentwindspeed", HistoryAggregation::Average, CYD_CYAN, "Speed"},
-    {"currentwindgust", HistoryAggregation::Maximum, CYD_YELLOW, "Gust"},
+    {"pages.wind-line", HistoryAggregation::Average, CYD_CYAN, "Speed"},
+    {"pages.wind-line", HistoryAggregation::Maximum, CYD_YELLOW, "Gust"},
+};
+static const SnapshotHistoryField WIND_HISTORY_FIELDS[] = {
+    {"speed", HistoryAggregation::Average, false},
+    {"gust", HistoryAggregation::Maximum, true},
 };
 
 // Chooses the finest scale with at most eight Y labels.
@@ -25,12 +29,12 @@ static HistoryChartScale windHistoryScale(double minimumY, double maximumY)
 static HistoryChartPage windHistoryPage()
 {
     return {
-        "Last 48 Hours",
+        "Last 72 Hours",
         WIND_HISTORY_SERIES,
         sizeof(WIND_HISTORY_SERIES) / sizeof(WIND_HISTORY_SERIES[0]),
-        48U * 3600U,
-        2U * 3600U,
-        "48 hours",
+        72U * 3600U,
+        3600,
+        "72 hours",
         " mph",
         0,
         2.0,
@@ -42,12 +46,12 @@ static HistoryChartPage windHistoryPage()
 
 void refreshWindHistoryResults()
 {
-    refreshHistoryChartPage(windHistoryPage());
+    refreshSnapshotHistoryPage(windHistoryPage());
 }
 
 void drawWindHistoryScreen()
 {
-    drawHistoryChartPage(windHistoryPage());
+    drawSnapshotHistoryPage(windHistoryPage(), "pages.wind-line", WIND_HISTORY_FIELDS);
     drawNav2("Dir");
 }
 

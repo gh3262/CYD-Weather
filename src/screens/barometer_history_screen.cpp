@@ -1,5 +1,5 @@
 #include "app.h"
-#include "screens/history_chart_page.h"
+#include "screens/snapshot_history_page.h"
 
 // Chooses the finest scale with at most eight Y labels so large swings fit.
 static HistoryChartScale pressureHistoryScale(double minimumY, double maximumY)
@@ -17,7 +17,10 @@ static HistoryChartScale pressureHistoryScale(double minimumY, double maximumY)
 }
 
 static const HistoryChartSeries PRESSURE_HISTORY_SERIES[] = {
-    {"currentpressure", HistoryAggregation::Average, CYD_CYAN, nullptr},
+    {"pages.baro-line", HistoryAggregation::Average, CYD_CYAN, nullptr},
+};
+static const SnapshotHistoryField PRESSURE_HISTORY_FIELDS[] = {
+    {"baro", HistoryAggregation::Average, false},
 };
 
 static HistoryChartPage pressureHistoryPage()
@@ -27,7 +30,7 @@ static HistoryChartPage pressureHistoryPage()
         PRESSURE_HISTORY_SERIES,
         1,
         72U * 3600U,
-        2U * 3600U,
+        3600,
         "72 hours",
         " hPa",
         1,
@@ -40,12 +43,12 @@ static HistoryChartPage pressureHistoryPage()
 
 void refreshBarometerHistoryResults()
 {
-    refreshHistoryChartPage(pressureHistoryPage());
+    refreshSnapshotHistoryPage(pressureHistoryPage());
 }
 
 void drawBarometerHistoryScreen()
 {
-    drawHistoryChartPage(pressureHistoryPage());
+    drawSnapshotHistoryPage(pressureHistoryPage(), "pages.baro-line", PRESSURE_HISTORY_FIELDS);
 }
 
 void enterBarometerHistoryScreen()

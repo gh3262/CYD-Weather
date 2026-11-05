@@ -2,17 +2,13 @@
 
 #include "adafruitio/adafruitio_manager.h"
 #include "screens/text_table_page.h"
+#include "screens/weather_page_values.h"
 
 static const char *const ASTRONOMICAL_FEED_KEYS[] = {
-    "days1sunrise",
-    "days1sunset",
-    "days1moonrise",
-    "days1moonset",
-    "days1moonphase",
+    "pages.p05astro",
 };
 
-static const size_t ASTRONOMICAL_ROW_COUNT =
-    sizeof(ASTRONOMICAL_FEED_KEYS) / sizeof(ASTRONOMICAL_FEED_KEYS[0]);
+static const size_t ASTRONOMICAL_ROW_COUNT = 5;
 static const size_t ASTRONOMICAL_DISPLAY_ROW_COUNT = ASTRONOMICAL_ROW_COUNT + 3;
 
 static const char *const ASTRONOMICAL_LABELS[ASTRONOMICAL_ROW_COUNT] = {
@@ -28,55 +24,7 @@ static String renderedAstronomicalValues[ASTRONOMICAL_ROW_COUNT];
 static String daylightValue;
 static String renderedDaylightValue;
 static bool forceAstronomicalRender = true;
-
-static String readDaylightValue()
-{
-    String sunriseValue;
-    String sunsetValue;
-    if (!adafruitIOManager.getFeedValue("days1sunrise", sunriseValue) ||
-        !adafruitIOManager.getFeedValue("days1sunset", sunsetValue))
-        return "--";
-
-    sunriseValue.trim();
-    sunsetValue.trim();
-    time_t sunrise;
-    time_t sunset;
-    struct tm localSunrise;
-    struct tm localSunset;
-    if (!parseUtcTimestamp(sunriseValue.c_str(), sunrise) ||
-        !parseUtcTimestamp(sunsetValue.c_str(), sunset) ||
-        localtime_r(&sunrise, &localSunrise) == nullptr ||
-        localtime_r(&sunset, &localSunset) == nullptr)
-        return "--";
-
-    // The "next" events may be on different dates; compare local clock times.
-    const int sunriseSeconds = localSunrise.tm_hour * 3600 +
-        localSunrise.tm_min * 60 + localSunrise.tm_sec;
-    const int sunsetSeconds = localSunset.tm_hour * 3600 +
-        localSunset.tm_min * 60 + localSunset.tm_sec;
-    const int daylightMinutes =
-        ((sunsetSeconds - sunriseSeconds + 86400) % 86400) / 60;
-    char buffer[6];
-    snprintf(buffer, sizeof(buffer), "%d:%02d",
-             daylightMinutes / 60, daylightMinutes % 60);
-    return String(buffer);
-}
-
-static String readAstronomicalValue(const char *feedKey)
-{
-    String value;
-    if (!adafruitIOManager.getFeedValue(feedKey, value))
-        return "--";
-
-    value.trim();
-    if (value.isEmpty())
-        return "--";
-
-    if (strcmp(feedKey, "days1moonphase") == 0)
-        return String(moonPhaseDisplayName(value.c_str()));
-
-    return String(formatUtcTimestampLocal(value.c_str()));
-}
+static String lastAstronomicalPayload;
 
 static TextTablePage astronomicalPage(const TextTableRow *rows)
 {
@@ -95,12 +43,26 @@ static TextTablePage astronomicalPage(const TextTableRow *rows)
 static void updateAstronomicalRows(bool redrawPage)
 {
     bool changed = forceAstronomicalRender;
+    AstronomicalPageValues pageValues;
+    int daylightMinutes = 0;
+    String payload;
+    const bool available = adafruitIOManager.getFeedValue(ASTRONOMICAL_FEED_KEYS[0], payload);
+    const char *error = available
+        ? parseAstronomicalPageValues(payload.c_str(), pageValues, daylightMinutes) : nullptr;
+    if (error && (forceAstronomicalRender || payload != lastAstronomicalPayload))
+        Serial.printf("Astronomical: invalid %s: %s.\n", ASTRONOMICAL_FEED_KEYS[0], error);
+    lastAstronomicalPayload = payload;
     for (size_t i = 0; i < ASTRONOMICAL_ROW_COUNT; ++i)
     {
-        astronomicalValues[i] = readAstronomicalValue(ASTRONOMICAL_FEED_KEYS[i]);
+        astronomicalValues[i] = available && !error
+            ? String(pageValues[i].data()) : String("--");
+        if (astronomicalValues[i].isEmpty())
+            astronomicalValues[i] = "--";
         changed = changed || astronomicalValues[i] != renderedAstronomicalValues[i];
     }
-    daylightValue = readDaylightValue();
+    char daylight[6];
+    snprintf(daylight, sizeof(daylight), "%d:%02d", daylightMinutes / 60, daylightMinutes % 60);
+    daylightValue = available && !error ? String(daylight) : String("--");
     changed = changed || daylightValue != renderedDaylightValue;
     if (!changed)
         return;
@@ -139,9 +101,9 @@ static void updateAstronomicalRows(bool redrawPage)
 void drawAstronomicalScreen()
 {
     if (!adafruitIOManager.setActiveFeeds(
-            ASTRONOMICAL_FEED_KEYS, ASTRONOMICAL_ROW_COUNT))
+            ASTRONOMICAL_FEED_KEYS, 1))
     {
-        Serial.println("Astronomical: could not activate its Adafruit IO feeds.");
+        Serial.println("Astronomical: could not activate pages.p05astro.");
     }
     forceAstronomicalRender = true;
     updateAstronomicalRows(true);

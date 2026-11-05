@@ -60,7 +60,7 @@ struct AdafruitIOFeedDefinition
 
 extern const AdafruitIOFeedDefinition AIO_FEEDS[];
 extern const size_t AIO_FEED_COUNT;
-static const size_t AIO_FEED_CAPACITY = 103;
+static const size_t AIO_FEED_CAPACITY = 109;
 
 // Adafruit IO limits data writes, not reads; this ceiling only guards against
 // runaway polling. HTTP 429 responses still pause all requests.

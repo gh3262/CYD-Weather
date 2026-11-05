@@ -46,15 +46,12 @@ void drawNav2(const char *) {}
 bool navPressed1(int x, int) { return x == 1; }
 bool navPressed2(int x, int) { return x == 2; }
 void enterTemperaturesScreen() { state.currentScreen = SCREEN_TEMPERATURES; }
-void enterTemperaturePageScreen() { state.currentScreen = SCREEN_TEMPERATURES_PAGE; }
 void enterTemperatureDailyScreen() { state.currentScreen = SCREEN_TEMPERATURE_DAILY; }
 void drawHistoryChartPage(const HistoryChartPage &page)
 {
     ++originalCharts;
-    check(std::strcmp(page.title, "Last 24 Hours") == 0 &&
-          page.windowSeconds == 86400 &&
-          std::strcmp(page.series[0].feedKey, "feed-avg") == 0,
-          "original temperature chart retains its feed and 24-hour window");
+    (void)page;
+    check(false, "temperature history must not request raw history");
 }
 void refreshHistoryChartPage(const HistoryChartPage &) {}
 void drawHistoryChartFrame(const HistoryChartPage &page)
@@ -62,7 +59,7 @@ void drawHistoryChartFrame(const HistoryChartPage &page)
     ++snapshotFrames;
     check(std::strcmp(page.title, "Last 72 Hours") == 0 &&
           page.windowSeconds == 72 * 3600 && page.bucketSeconds == 3600,
-          "Temps2 chart requests a 72-hour frame with hourly spacing");
+          "temperature chart requests a 72-hour frame with hourly spacing");
 }
 void refreshHistoryChartData(const HistoryChartPage &,
                             const NumericHistoryResult histories[],
@@ -190,17 +187,17 @@ int main()
     NumericHistoryRequest request;
     check(adafruitIOManager.requestNumericHistory("feed-avg", request),
           "prepare pre-existing raw history subscription");
-    enterTemperaturePageHistoryScreen();
-    check(state.currentScreen == SCREEN_TEMPERATURE_PAGE_HISTORY &&
+    enterTemperatureHistoryScreen();
+    check(state.currentScreen == SCREEN_TEMPERATURE_HISTORY &&
           snapshotFrames == 1 && originalCharts == 0 &&
           adafruitIOManager._numericSeriesCount == 0,
-          "Temps2 opens only snapshot history and cancels raw retrieval");
+          "temperature history opens only snapshots and cancels raw retrieval");
     const int feed = adafruitIOManager.findFeed("pages.temp-line");
     check(feed >= 0, "hourly snapshot feed is registered");
     for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
         check(adafruitIOManager._feedCache[i].active ==
                   (static_cast<int>(i) == feed),
-              "Temps2 history subscribes only to pages.temp-line");
+              "temperature history subscribes only to pages.temp-line");
     check(AIO_FEEDS[feed].mayExceed45Chars &&
           AIO_FEEDS[feed].refreshIntervalMinutes == 1,
           "hourly feed supports long snapshots and minute polling");
@@ -255,17 +252,18 @@ int main()
     check(adafruitIOManager._numericSeriesCount == 0 && testUrls.empty(),
           "snapshot refreshes never issue raw numeric-history requests");
     handleTemperatureHistoryTouch(1, 0);
-    check(state.currentScreen == SCREEN_TEMPERATURES_PAGE,
-          "Temps2 history Back returns to Temps2");
+    check(state.currentScreen == SCREEN_TEMPERATURES,
+          "temperature history Back returns to Temperatures");
     enterTemperatureHistoryScreen();
-    check(originalCharts == 1, "original temperature route still draws original chart");
+    check(snapshotFrames == 2 && originalCharts == 0,
+          "reopening temperature history still uses snapshots");
     handleTemperatureHistoryTouch(1, 0);
     check(state.currentScreen == SCREEN_TEMPERATURES,
-          "original history Back returns to original Temps");
-    enterTemperaturePageHistoryScreen();
+          "history Back returns to Temperatures");
+    enterTemperatureHistoryScreen();
     handleTemperatureHistoryTouch(2, 0);
     check(state.currentScreen == SCREEN_TEMPERATURE_DAILY,
-          "Temps2 history retains Daily navigation");
+          "temperature history retains Daily navigation");
     std::printf("PASS: %zu hourly temperature history checks\n", checks);
     return 0;
 }

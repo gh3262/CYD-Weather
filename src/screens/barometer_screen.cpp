@@ -3,6 +3,7 @@
 #include <Fonts/FreeMono9pt7b.h>
 
 #include "adafruitio/adafruitio_manager.h"
+#include "screens/weather_page_values.h"
 
 static const int BAROMETER_FIRST_BASELINE = 47;
 static const int BAROMETER_ROW_SPACING = 19;
@@ -11,44 +12,41 @@ static const int BAROMETER_COLUMN_X[3] = {8, 110, 210};
 struct BarometerRow
 {
     const char *time;
-    const char *pressureFeed;
-    const char *trendFeed;
 };
 
 static const BarometerRow BAROMETER_ROWS[] = {
-    {"Current", "currentpressure", "currentpressuretrend"},
-    {"1 Hour", "hours1pressure", "hours1pressuretrend"},
-    {"2 Hours", "hours2pressure", "hours2pressuretrend"},
-    {"6 Hours", "hours6pressure", "hours6pressuretrend"},
-    {"12 Hours", "hours12pressure", "hours12pressuretrend"},
-    {"24 Hours", "hours24pressure", "hours24pressuretrend"},
+    {"Current"}, {"1 Hour"}, {"2 Hours"}, {"6 Hours"}, {"12 Hours"}, {"24 Hours"},
 };
 
 static const size_t BAROMETER_ROW_COUNT =
     sizeof(BAROMETER_ROWS) / sizeof(BAROMETER_ROWS[0]);
 static String renderedBarometerValues[BAROMETER_ROW_COUNT][2];
 static bool forceBarometerRender = true;
-
-static String readBarometerValue(const char *feedKey)
-{
-    String value;
-    if (!adafruitIOManager.getFeedValue(feedKey, value))
-        return "--";
-
-    value.trim();
-    return value.isEmpty() ? String("--") : value;
-}
+static const char *const BAROMETER_FEEDS[] = {"pages.p04-baro"};
+static String lastBarometerPayload;
 
 void refreshBarometerResults()
 {
+    BarometerPageValues pageValues;
+    String payload;
+    const bool available = adafruitIOManager.getFeedValue(BAROMETER_FEEDS[0], payload);
+    const char *error = available
+        ? parseBarometerPageValues(payload.c_str(), pageValues) : nullptr;
+    if (error && (forceBarometerRender || payload != lastBarometerPayload))
+        Serial.printf("Barometer: invalid %s: %s.\n", BAROMETER_FEEDS[0], error);
+    lastBarometerPayload = payload;
     gfx->setFont(FONT_MONO_SMALL);
     gfx->setTextSize(1);
     gfx->setTextColor(COLOR_TEXT);
 
     for (size_t row = 0; row < BAROMETER_ROW_COUNT; ++row)
     {
-        const String pressure = readBarometerValue(BAROMETER_ROWS[row].pressureFeed);
-        const String trend = readBarometerValue(BAROMETER_ROWS[row].trendFeed);
+        const String pressure = available && !error
+            ? String(pageValues[row * 2].data()) : String("--");
+        String trend = available && !error
+            ? String(pageValues[row * 2 + 1].data()) : String("--");
+        if (trend.isEmpty())
+            trend = "--";
         if (!forceBarometerRender &&
             pressure == renderedBarometerValues[row][0] &&
             trend == renderedBarometerValues[row][1])
@@ -76,14 +74,8 @@ void refreshBarometerResults()
 
 void drawBarometerScreen()
 {
-    const char *feeds[BAROMETER_ROW_COUNT * 2];
-    for (size_t row = 0; row < BAROMETER_ROW_COUNT; ++row)
-    {
-        feeds[row * 2] = BAROMETER_ROWS[row].pressureFeed;
-        feeds[row * 2 + 1] = BAROMETER_ROWS[row].trendFeed;
-    }
-    if (!adafruitIOManager.setActiveFeeds(feeds, BAROMETER_ROW_COUNT * 2))
-        Serial.println("Barometer: could not activate its Adafruit IO feeds.");
+    if (!adafruitIOManager.setActiveFeeds(BAROMETER_FEEDS, 1))
+        Serial.println("Barometer: could not activate pages.p04-baro.");
 
     clearScreen(COLOR_BACKGROUND);
     titleBar("Barometer");

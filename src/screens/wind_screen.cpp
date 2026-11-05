@@ -3,6 +3,7 @@
 #include <Fonts/FreeMono9pt7b.h>
 
 #include "adafruitio/adafruitio_manager.h"
+#include "screens/weather_page_values.h"
 
 static const int WIND_FIRST_BASELINE = 47;
 static const int WIND_ROW_SPACING = 19;
@@ -12,34 +13,27 @@ static const size_t WIND_VALUE_COUNT = 3;
 struct WindRow
 {
     const char *time;
-    const char *feeds[WIND_VALUE_COUNT];
 };
 
 static const WindRow WIND_ROWS[] = {
-    {"Current", {"currentwinddirection", "currentwindspeed", "currentwindgust"}},
-    {"1 Hour", {"hours1winddirection", "hours1windspeed", "hours1windgust"}},
-    {"2 Hours", {"hours2winddirection", "hours2windspeed", "hours2windgust"}},
-    {"6 Hours", {"hours6winddirection", "hours6windspeed", "hours6windgust"}},
-    {"12 Hours", {"hours12winddirection", "hours12windspeed", "hours12windgust"}},
-    {"24 Hours", {"hours24winddirection", "hours24windspeed", "hours24windgust"}},
+    {"Current"}, {"1 Hour"}, {"2 Hours"}, {"6 Hours"}, {"12 Hours"}, {"24 Hours"},
 };
 
 static const size_t WIND_ROW_COUNT = sizeof(WIND_ROWS) / sizeof(WIND_ROWS[0]);
 static String renderedWindValues[WIND_ROW_COUNT][WIND_VALUE_COUNT];
 static bool forceWindRender = true;
-
-static String readWindValue(const char *feedKey)
-{
-    String value;
-    if (!adafruitIOManager.getFeedValue(feedKey, value))
-        return "--";
-
-    value.trim();
-    return value.isEmpty() ? String("--") : value;
-}
+static const char *const WIND_FEEDS[] = {"pages.p03-wind"};
+static String lastWindPayload;
 
 void refreshWindResults()
 {
+    WindPageValues pageValues;
+    String payload;
+    const bool available = adafruitIOManager.getFeedValue(WIND_FEEDS[0], payload);
+    const char *error = available ? parseWindPageValues(payload.c_str(), pageValues) : nullptr;
+    if (error && (forceWindRender || payload != lastWindPayload))
+        Serial.printf("Wind: invalid %s: %s.\n", WIND_FEEDS[0], error);
+    lastWindPayload = payload;
     gfx->setFont(FONT_MONO_SMALL);
     gfx->setTextSize(1);
     gfx->setTextColor(COLOR_TEXT);
@@ -50,7 +44,10 @@ void refreshWindResults()
         bool changed = forceWindRender;
         for (size_t column = 0; column < WIND_VALUE_COUNT; ++column)
         {
-            values[column] = readWindValue(WIND_ROWS[row].feeds[column]);
+            values[column] = available && !error
+                ? String(pageValues[row * WIND_VALUE_COUNT + column].data()) : String("--");
+            if (values[column].isEmpty())
+                values[column] = "--";
             changed = changed || values[column] != renderedWindValues[row][column];
         }
         if (!changed)
@@ -77,14 +74,8 @@ void refreshWindResults()
 
 void drawWindScreen()
 {
-    const char *feeds[WIND_ROW_COUNT * WIND_VALUE_COUNT];
-    for (size_t row = 0; row < WIND_ROW_COUNT; ++row)
-    {
-        for (size_t column = 0; column < WIND_VALUE_COUNT; ++column)
-            feeds[row * WIND_VALUE_COUNT + column] = WIND_ROWS[row].feeds[column];
-    }
-    if (!adafruitIOManager.setActiveFeeds(feeds, WIND_ROW_COUNT * WIND_VALUE_COUNT))
-        Serial.println("Wind: could not activate its Adafruit IO feeds.");
+    if (!adafruitIOManager.setActiveFeeds(WIND_FEEDS, 1))
+        Serial.println("Wind: could not activate pages.p03-wind.");
 
     clearScreen(COLOR_BACKGROUND);
     titleBar("Wind");
