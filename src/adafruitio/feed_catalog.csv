@@ -104,7 +104,7 @@ pages.p02-precipitation,Precipitation Page Values,Precipitation,long_text,,TRUE,
 pages.temp-line,Hourly Temperature History,Temperature,long_text,F,TRUE,periodic,1
 pages.p03-wind,Wind Page Values,Wind,long_text,mph,TRUE,periodic,1
 pages.p04-baro,Barometer Page Values,Barometer,long_text,hPa,TRUE,periodic,1
-pages.p05astro,Astronomical Page Values,Light,long_text,,TRUE,periodic,1
+pages.p05-astro,Astronomical Page Values,Light,long_text,,TRUE,periodic,1
 pages.wind-line,Hourly Wind History,Wind,long_text,mph,TRUE,periodic,1
 pages.baro-line,Hourly Barometer History,Barometer,long_text,hPa,TRUE,periodic,1
 pages.prcp-line,Daily Precipitation History,Precipitation,long_text,in,TRUE,periodic,1

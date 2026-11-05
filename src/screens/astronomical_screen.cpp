@@ -5,7 +5,7 @@
 #include "screens/weather_page_values.h"
 
 static const char *const ASTRONOMICAL_FEED_KEYS[] = {
-    "pages.p05astro",
+    "pages.p05-astro",
 };
 
 static const size_t ASTRONOMICAL_ROW_COUNT = 5;
@@ -103,7 +103,7 @@ void drawAstronomicalScreen()
     if (!adafruitIOManager.setActiveFeeds(
             ASTRONOMICAL_FEED_KEYS, 1))
     {
-        Serial.println("Astronomical: could not activate pages.p05astro.");
+        Serial.println("Astronomical: could not activate pages.p05-astro.");
     }
     forceAstronomicalRender = true;
     updateAstronomicalRows(true);

@@ -590,7 +590,7 @@ precipitation becomes stale when the snapshot no longer reaches local yesterday.
 Duplicate timestamps and invalid values are logged and rejected.
 
 Astronomical shows Sunrise, Sunset, Daylight, Moonrise, Moonset, and Moon Phase using
-`pages.p05astro`, an array of five strings in sunrise, sunset, moonrise,
+`pages.p05-astro`, an array of five strings in sunrise, sunset, moonrise,
 moonset, moon phase order. Times are already local clock strings such as
 `6:23 AM`; moon phase is already a readable name such as `Waning Crescent`.
 Missing values show

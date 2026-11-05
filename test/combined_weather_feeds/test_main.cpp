@@ -158,7 +158,7 @@ static const char *parsePayload(const std::string &key, const char *payload)
     if (key == "pages.p02-precipitation") return parsePrecipitationPageValues(payload, precipitation);
     if (key == "pages.p03-wind") return parseWindPageValues(payload, wind);
     if (key == "pages.p04-baro") return parseBarometerPageValues(payload, barometer);
-    if (key == "pages.p05astro") return parseAstronomicalPageValues(payload, astronomical, daylight);
+    if (key == "pages.p05-astro") return parseAstronomicalPageValues(payload, astronomical, daylight);
     NumericHistoryResult histories[2];
     const SnapshotHistoryField fields[] = {
         {key == "pages.temp-line" ? "ftemp" : key == "pages.baro-line" ? "baro" :
@@ -348,13 +348,13 @@ int main(int argc, char **argv)
     handleBarometerHistoryTouch(1, 0);
     check(state.currentScreen == SCREEN_BAROMETER, "barometer history Back route");
 
-    cache("pages.p05astro", astroPage);
+    cache("pages.p05-astro", astroPage);
     enterAstronomicalScreen();
-    assertOnlyFeed("pages.p05astro");
+    assertOnlyFeed("pages.p05-astro");
     check(tableValues.size() == 8 && tableValues[0] == "6:23 AM" &&
           tableValues[2] == "10:38" && tableValues[7] == "Waning Crescent",
           "Astro retains layout, local clock strings, daylight, and moon phase");
-    cache("pages.p05astro", "[]");
+    cache("pages.p05-astro", "[]");
     refreshAstronomicalResults();
     check(tableValues[0] == "--" && tableValues[2] == "--", "bad Astro shows explicit missing values");
     handleAstronomicalTouch(1, 0);
