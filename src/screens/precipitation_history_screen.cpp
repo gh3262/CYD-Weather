@@ -17,7 +17,7 @@ static const HistoryChartSeries PRECIPITATION_HISTORY_SERIES[] = {
     {"pages.prcp-line", HistoryAggregation::Maximum, CYD_CYAN, nullptr},
 };
 static const SnapshotHistoryField PRECIPITATION_HISTORY_FIELDS[] = {
-    {"prcp", HistoryAggregation::Maximum, false},
+    {"prcp", HistoryAggregation::Maximum},
 };
 
 static HistoryChartPage precipitationHistoryPage()

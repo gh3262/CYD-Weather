@@ -20,7 +20,7 @@ AppState state = {SCREEN_TEMPERATURES};
 static size_t checks = 0;
 static size_t snapshotFrames = 0;
 static size_t originalCharts = 0;
-static NumericHistoryResult displayedHistory;
+static SnapshotHistoryResult displayedHistory;
 static NumericHistoryStatus displayedStatus;
 static bool displayedStale = false;
 
@@ -62,7 +62,7 @@ void drawHistoryChartFrame(const HistoryChartPage &page)
           "temperature chart requests a 72-hour frame with hourly spacing");
 }
 void refreshHistoryChartData(const HistoryChartPage &,
-                            const NumericHistoryResult histories[],
+                            const SnapshotHistoryResult histories[],
                             const NumericHistoryStatus &status, bool stale)
 {
     displayedHistory = histories[0];
@@ -119,7 +119,7 @@ int main()
     tzset();
 #endif
     const std::string snapshot = suppliedSnapshot();
-    NumericHistoryResult result;
+    SnapshotHistoryResult result;
     check(!parseTemperatureHourlyHistory(snapshot.c_str(), result),
           "parse all 112 supplied hourly readings");
     check(result.buckets.size() == 72 && result.sampleCount == 72 &&
@@ -134,12 +134,12 @@ int main()
     checkNear(result.buckets.back().value(HistoryAggregation::Average), 63.6,
               "last visible point uses its supplied hourly average");
     check(!parseTemperatureHourlyHistory(
-        "[{\"ts\":\"2026110410\",\"ftemp\":-5.5},"
-        "{\"ts\":\"2026110408\",\"ftemp\":0}]", result) &&
+        "[{\"ts\":\"2026110409\",\"ftemp\":0},"
+        "{\"ts\":\"2026110410\",\"ftemp\":-5.5}]", result) &&
           result.sampleCount == 2 && result.minimum == -5.5 &&
-          result.maximum == 0 && result.buckets[70].count == 0 &&
-          std::isnan(result.buckets[70].value(HistoryAggregation::Average)),
-          "sort input, retain negative/zero values, and leave missing hours as gaps");
+          result.maximum == 0 && result.buckets.size() == 2 &&
+          result.buckets.front().latest == 0 && result.buckets.back().latest == -5.5,
+          "preserve supplied order and values without filling or aggregation");
     check(hour("2026110102") - hour("2026110101") == 3600 &&
           hour("2026110101") - hour("2026110100") == 7200,
           "fall-back's ambiguous 01 selects standard time and preserves elapsed spacing");
@@ -155,7 +155,6 @@ int main()
         "[{\"ts\":2026110410,\"ftemp\":1}]",
         "[{\"ts\":\"2026110410\"}]",
         "[{\"ts\":\"2026110410\",\"ftemp\":\"1\"}]",
-        "[{\"ts\":\"2026110410\",\"ftemp\":null}]",
         "[{\"ts\":\"2026110410\",\"ftemp\":true}]",
         "[{\"ts\":\"2026110410\",\"ftemp\":1e1000}]",
         "[{\"ts\":\"2026022900\",\"ftemp\":1}]",
@@ -163,8 +162,6 @@ int main()
         "[{\"ts\":\"2026110424\",\"ftemp\":1}]",
         "[{\"ts\":\"20261104xx\",\"ftemp\":1}]",
         "[{\"ts\":\"20261104100\",\"ftemp\":1}]",
-        "[{\"ts\":\"2026110410\",\"ftemp\":1},"
-         "{\"ts\":\"2026110410\",\"ftemp\":2}]",
         "[{\"ts\":\"2026110410\",\"ftemp\":1},{}]"
     })
     {
@@ -174,12 +171,18 @@ int main()
         check(result.endUtc == previousEnd && result.sampleCount == 2 &&
               result.minimum == -5.5, "invalid snapshot cannot partially replace chart data");
     }
+    check(!parseTemperatureHourlyHistory(
+        "[{\"ts\":\"2026110409\",\"ftemp\":null},"
+        "{\"ts\":\"2026110410\",\"ftemp\":1.25}]", result) &&
+          result.sampleCount == 1 && result.buckets.size() == 2 &&
+          result.buckets.front().count == 0 && result.buckets.back().latest == 1.25,
+          "leading null temperature is unplotted without filling");
     check(!parseTemperatureHourlyHistory("[]", result) &&
           result.sampleCount == 0 && result.buckets.empty(),
           "empty snapshot is successful empty data");
     check(!parseTemperatureHourlyHistory(
         "[{\"ts\":\"2026110410\",\"ftemp\":1.25}]", result) &&
-          result.sampleCount == 1 && result.buckets.size() == 72 &&
+          result.sampleCount == 1 && result.buckets.size() == 1 &&
           result.minimum == 1.25 && result.maximum == 1.25,
           "single reading recovers after empty or malformed snapshots");
 
@@ -208,6 +211,7 @@ int main()
     auto &cache = adafruitIOManager._feedCache[feed];
     cache.hasValue = true;
     cache.value = snapshot.c_str();
+    ++cache.revision;
     cache.updatedAt = testMillis;
     refreshTemperatureHistoryResults();
     check(displayedStatus.hasData && displayedStatus.state == NumericHistoryState::Ready &&
@@ -218,11 +222,13 @@ int main()
     check(displayedStatus.revision == revision,
           "unchanged payload does not rebuild history");
     cache.value = "bad JSON";
+    ++cache.revision;
     refreshTemperatureHistoryResults();
     check(displayedStatus.hasData && displayedStatus.state == NumericHistoryState::Failed &&
           displayedHistory.sampleCount == 72 && displayedStale,
           "malformed update retains valid chart with explicit stale failure");
     cache.value = "[]";
+    ++cache.revision;
     refreshTemperatureHistoryResults();
     check(displayedStatus.hasData && displayedStatus.state == NumericHistoryState::Ready &&
           displayedHistory.sampleCount == 0,
@@ -233,6 +239,7 @@ int main()
     std::strftime(currentHour, sizeof(currentHour), "%Y%m%d%H", std::localtime(&now));
     std::snprintf(fresh, sizeof(fresh), "[{\"ts\":\"%s\",\"ftemp\":60}]", currentHour);
     cache.value = fresh;
+    ++cache.revision;
     cache.updatedAt = testMillis;
     refreshTemperatureHistoryResults();
     check(!displayedStale, "current hourly snapshot and fresh cache are not stale");
@@ -248,6 +255,7 @@ int main()
     check(!displayedStale && displayedStatus.revision == freshRevision,
           "successful unchanged feed poll clears stale without rebuilding data");
     cache.value = snapshot.c_str();
+    ++cache.revision;
     refreshTemperatureHistoryResults();
     check(adafruitIOManager._numericSeriesCount == 0 && testUrls.empty(),
           "snapshot refreshes never issue raw numeric-history requests");

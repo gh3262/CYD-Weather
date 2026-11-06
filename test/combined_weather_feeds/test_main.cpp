@@ -13,6 +13,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <string>
 
 TestSerial Serial;
@@ -26,7 +27,72 @@ AppState state = {SCREEN_DETAILS};
 static TestGraphics graphics;
 TestGraphics *gfx = &graphics;
 static size_t checks = 0;
-static NumericHistoryResult displayed[2];
+static size_t failNothrowAllocation = 0;
+
+void *operator new[](size_t size, const std::nothrow_t &) noexcept
+{
+    if (failNothrowAllocation && --failNothrowAllocation == 0)
+        return nullptr;
+    try { return ::operator new[](size); }
+    catch (const std::bad_alloc &) { return nullptr; }
+}
+
+class BudgetJsonAllocator : public ArduinoJson::Allocator
+{
+public:
+    size_t limit = 8192;
+    size_t live = 0;
+    size_t peak = 0;
+    size_t failures = 0;
+    void *allocate(size_t size) override
+    {
+        if (live + size > limit)
+        {
+            ++failures;
+            return nullptr;
+        }
+        void *pointer = std::malloc(size);
+        if (pointer)
+        {
+            sizes[pointer] = size;
+            live += size;
+            peak = std::max(peak, live);
+        }
+        return pointer;
+    }
+    void deallocate(void *pointer) override
+    {
+        if (pointer)
+        {
+            live -= sizes.at(pointer);
+            sizes.erase(pointer);
+            std::free(pointer);
+        }
+    }
+    void *reallocate(void *pointer, size_t size) override
+    {
+        const size_t previous = pointer ? sizes.at(pointer) : 0;
+        if (live - previous + size > limit)
+        {
+            ++failures;
+            return nullptr;
+        }
+        void *replacement = std::realloc(pointer, size);
+        if (replacement)
+        {
+            sizes.erase(pointer);
+            sizes[replacement] = size;
+            live = live - previous + size;
+            peak = std::max(peak, live);
+        }
+        return replacement;
+    }
+
+private:
+    std::map<void *, size_t> sizes;
+};
+
+static SnapshotHistoryResult displayed[2];
 static NumericHistoryStatus displayedStatus;
 static bool displayedStale = false;
 static uint32_t displayedWindow = 0;
@@ -106,7 +172,7 @@ void drawHistoryChartFrame(const HistoryChartPage &page)
     displayedBucket = page.bucketSeconds;
 }
 void refreshHistoryChartData(const HistoryChartPage &page,
-                            const NumericHistoryResult histories[],
+                            const SnapshotHistoryResult histories[],
                             const NumericHistoryStatus &status, bool stale)
 {
     for (size_t i = 0; i < page.seriesCount; ++i)
@@ -134,6 +200,7 @@ static void cache(const char *key, const char *payload)
     auto &entry = adafruitIOManager._feedCache[feed];
     entry.hasValue = true;
     entry.value = payload;
+    ++entry.revision;
     entry.updatedAt = testMillis;
 }
 
@@ -159,11 +226,11 @@ static const char *parsePayload(const std::string &key, const char *payload)
     if (key == "pages.p03-wind") return parseWindPageValues(payload, wind);
     if (key == "pages.p04-baro") return parseBarometerPageValues(payload, barometer);
     if (key == "pages.p05-astro") return parseAstronomicalPageValues(payload, astronomical, daylight);
-    NumericHistoryResult histories[2];
+    SnapshotHistoryResult histories[2];
     const SnapshotHistoryField fields[] = {
         {key == "pages.temp-line" ? "ftemp" : key == "pages.baro-line" ? "baro" :
-         key == "pages.prcp-line" ? "prcp" : "speed", HistoryAggregation::Average, false},
-        {"gust", HistoryAggregation::Maximum, true},
+         key == "pages.prcp-line" ? "prcp" : "speed", HistoryAggregation::Average},
+        {"gust", HistoryAggregation::Maximum},
     };
     return parseWeatherSnapshotHistory(payload, fields, key == "pages.wind-line" ? 2 : 1,
                                        key == "pages.prcp-line", histories);
@@ -230,56 +297,112 @@ int main(int argc, char **argv)
           "invalid barometer types/length rejected");
 
     const SnapshotHistoryField windFields[] = {
-        {"speed", HistoryAggregation::Average, false},
-        {"gust", HistoryAggregation::Maximum, true},
+        {"speed", HistoryAggregation::Average},
+        {"gust", HistoryAggregation::Maximum},
     };
-    const SnapshotHistoryField baroFields[] = {{"baro", HistoryAggregation::Average, false}};
-    const SnapshotHistoryField prcpFields[] = {{"prcp", HistoryAggregation::Maximum, false}};
-    NumericHistoryResult histories[2];
+    const SnapshotHistoryField baroFields[] = {{"baro", HistoryAggregation::Average}};
+    const SnapshotHistoryField prcpFields[] = {{"prcp", HistoryAggregation::Maximum}};
+    SnapshotHistoryResult histories[2];
     check(!parseWeatherSnapshotHistory(
-        "[{\"ts\":\"2026110502\",\"speed\":4,\"gust\":7},"
-        "{\"ts\":\"2026110500\",\"speed\":0,\"gust\":null}]", windFields, 2, false, histories) &&
-          histories[0].buckets.size() == 72 && histories[0].sampleCount == 2 &&
+        "[{\"ts\":\"2026110500\",\"speed\":0,\"gust\":null},"
+        "{\"ts\":\"2026110501\",\"speed\":4,\"gust\":7}]", windFields, 2, false, histories) &&
+          histories[0].buckets.size() == 2 && histories[0].sampleCount == 2 &&
           histories[1].sampleCount == 1 && histories[0].minimum == 0 &&
           histories[1].maximum == 7 &&
-          histories[0].buckets[70].count == 0 && histories[1].buckets[69].count == 0 &&
-          histories[0].startUtc == histories[1].startUtc, "wind null gusts, sorted hours, aligned gaps");
+          histories[0].buckets[0].latest == 0 && histories[1].buckets[0].count == 0 &&
+          histories[0].startUtc == histories[1].startUtc,
+          "wind preserves supplied ordering and leading null without filling or aggregation");
     const int64_t previousEnd = histories[0].endUtc;
     for (const char *invalid : {
         "[{\"ts\":\"2026110502\",\"speed\":4}]",
         "[{\"ts\":\"2026110502\",\"speed\":4,\"gust\":\"7\"}]",
-        "[{\"ts\":\"2026110502\",\"speed\":null,\"gust\":7}]",
-        "[{\"ts\":\"2026110502\",\"speed\":4,\"gust\":7},{}]",
-        "[{\"ts\":\"2026110502\",\"speed\":4,\"gust\":7},"
-         "{\"ts\":\"2026110502\",\"speed\":5,\"gust\":8}]"})
+        "[{\"ts\":\"2026110502\",\"speed\":4,\"gust\":7},{}]"})
         check(parseWeatherSnapshotHistory(invalid, windFields, 2, false, histories) &&
               histories[0].endUtc == previousEnd && histories[1].sampleCount == 1,
               "wind snapshots reject missing/malformed fields atomically");
     check(!parseWeatherSnapshotHistory(
-        "[{\"ts\":\"2026110500\",\"baro\":1013.09},"
-        "{\"ts\":\"2026110100\",\"baro\":9999}]", baroFields, 1, false, histories) &&
+        "[{\"ts\":\"2026110100\",\"baro\":9999},"
+        "{\"ts\":\"2026110500\",\"baro\":1013.09}]", baroFields, 1, false, histories) &&
           histories[0].sampleCount == 1 &&
-          histories[0].buckets.size() == 72, "barometer trims history and extrema to 72 hours");
+          histories[0].buckets.size() == 1, "barometer trims history and extrema to 72 hours");
     checkNear(histories[0].maximum, 1013.09, "barometer visible maximum excludes older records");
     check(!parseWeatherSnapshotHistory(
         "[{\"ts\":\"20261001\",\"prcp\":100},"
         "{\"ts\":\"20261006\",\"prcp\":0.25},"
         "{\"ts\":\"20261104\",\"prcp\":0.12}]", prcpFields, 1, true, histories) &&
-          histories[0].buckets.size() == 30 && histories[0].sampleCount == 2 &&
+          histories[0].buckets.size() == 2 && histories[0].sampleCount == 2 &&
           histories[0].endUtc - histories[0].startUtc == 30 * 86400 &&
           histories[0].bucketSeconds == 86400 && histories[0].maximum == 0.25 &&
           histories[0].buckets.front().latest == 0.25 &&
           std::fabs(histories[0].buckets.back().latest - 0.12) < 1e-6,
           "precipitation selects exact 30 local dates");
     check(!parseWeatherSnapshotHistory("[]", prcpFields, 1, true, histories) &&
-          histories[0].buckets.size() == 30 && histories[0].sampleCount == 0,
-          "empty precipitation draws 30 zero buckets");
+          histories[0].buckets.empty() && histories[0].sampleCount == 0,
+          "empty precipitation does not fabricate daily readings");
     int64_t timestamp;
     check(!parseSnapshotDate("20260229", timestamp) &&
           parseSnapshotDate("20280229", timestamp), "strict leap-day date validation");
     check(parseWeatherSnapshotHistory(
         "[{\"ts\":\"20260229\",\"prcp\":1}]", prcpFields, 1, true, histories),
           "invalid precipitation dates are rejected");
+
+    std::string longWind = "[";
+    int64_t firstHour;
+    check(parseHistoryTimestamp("2026-09-01T00:00:00Z", firstHour), "prepare long history fixture");
+    for (size_t i = 0; i < 1000; ++i)
+    {
+        const time_t timestamp = static_cast<time_t>(firstHour / 1000 + i * 3600);
+        char hour[16];
+        std::strftime(hour, sizeof(hour), "%Y%m%d%H", std::gmtime(&timestamp));
+        longWind += std::string(i ? "," : "") + "{\"ts\":\"" + hour +
+            "\",\"speed\":" + std::to_string(i) + ",\"gust\":" + std::to_string(i + 3) + "}";
+    }
+    longWind += "]";
+    BudgetJsonAllocator budget;
+    check(!parseWeatherSnapshotHistory(longWind.c_str(), windFields, 2, false, histories, &budget) &&
+          histories[0].sampleCount == 72 && histories[1].sampleCount == 72 &&
+          histories[0].buckets.front().latest == 928 && histories[0].buckets.back().latest == 999 &&
+          histories[1].buckets.front().latest == 931 && histories[1].buckets.back().latest == 1002 &&
+          budget.peak <= 8192 && budget.live == 0 && budget.failures == 0,
+          "1000-hour wind snapshot parses with at most 8 KB of live JSON memory");
+    std::string longPrecipitation = "[";
+    for (size_t i = 0; i < 35; ++i)
+    {
+        const time_t timestamp = static_cast<time_t>(firstHour / 1000 + i * 86400);
+        char day[16];
+        std::strftime(day, sizeof(day), "%Y%m%d", std::gmtime(&timestamp));
+        longPrecipitation += std::string(i ? "," : "") + "{\"ts\":\"" + day +
+            "\",\"prcp\":" + std::to_string(i) + "}";
+    }
+    longPrecipitation += "]";
+    SnapshotHistoryResult dailyHistory;
+    check(!parseWeatherSnapshotHistory(longPrecipitation.c_str(), prcpFields, 1, true, &dailyHistory) &&
+          dailyHistory.buckets.size() == 30 && dailyHistory.sampleCount == 30 &&
+          dailyHistory.buckets.front().latest == 5 && dailyHistory.buckets.back().latest == 34 &&
+          dailyHistory.minimum == 5 && dailyHistory.maximum == 34,
+          "35 unique daily totals retain the newest 30 values unchanged");
+    check(!parseWeatherSnapshotHistory(
+        "[{\"ts\":\"2026110500\",\"baro\":null},"
+        "{\"ts\":\"2026110501\",\"baro\":1013}]", baroFields, 1, false, &dailyHistory) &&
+          dailyHistory.buckets.size() == 2 && dailyHistory.sampleCount == 1 &&
+          dailyHistory.buckets.front().count == 0 && dailyHistory.maximum == 1013,
+          "leading null barometer remains unplotted without filling");
+    budget.limit = 0;
+    check(parseWeatherSnapshotHistory(longWind.c_str(), windFields, 2, false, histories, &budget) &&
+          histories[0].sampleCount == 72 && histories[1].sampleCount == 72 &&
+          budget.live == 0, "JSON allocation failure preserves both valid series without abort");
+    failNothrowAllocation = 1;
+    check(parseWeatherSnapshotHistory(longWind.c_str(), windFields, 2, false, histories) &&
+          histories[0].sampleCount == 72 && histories[1].sampleCount == 72,
+          "staging allocation failure preserves data without throwing");
+    for (const char *invalid : {
+        "[{\"ts\":\"2026110500\",\"speed\":4,\"gust\":7},]",
+        "[{\"ts\":\"2026110500\",\"speed\":4,\"gust\":7}] garbage",
+        "[{\"ts\":\"2026110500\",\"speed\":4,\"gust\":7}",
+        "[{\"ts\":\"2026110500\",\"speed\":4,\"gust\":7}"
+         "{\"ts\":\"2026110501\",\"speed\":4,\"gust\":7}]"})
+        check(parseWeatherSnapshotHistory(invalid, windFields, 2, false, histories) &&
+              histories[0].sampleCount == 72, "streaming parser strictly validates array boundaries");
 
     check(adafruitIOManager.begin(), "fake manager starts");
     cache("pages.p01-temp", "[71.4,70.6,75.0,48.95,75.2,70.9]");
@@ -309,7 +432,7 @@ int main(int argc, char **argv)
     check(displayedWindow == 30 * 86400 && displayedBucket == 86400, "precipitation 30-day frame");
     cache("pages.prcp-line", "[{\"ts\":\"20261104\",\"prcp\":0.12}]");
     refreshPrecipitationHistoryResults();
-    check(displayed[0].buckets.size() == 30 &&
+    check(displayed[0].buckets.size() == 1 &&
           std::fabs(displayed[0].maximum - 0.12) < 1e-6,
           "precipitation combined snapshot reaches renderer");
     handlePrecipitationHistoryTouch(1, 0);
@@ -326,6 +449,16 @@ int main(int argc, char **argv)
     refreshWindHistoryResults();
     check(displayedStatus.hasData && displayed[0].sampleCount == 1 &&
           displayed[1].sampleCount == 0, "null gust preserves wind speed graph");
+    cache("pages.wind-line", "[{\"ts\":\"2026110500\",\"speed\":5,\"gust\":8}]");
+    failNothrowAllocation = 1;
+    refreshWindHistoryResults();
+    check(displayedStatus.state == NumericHistoryState::Failed && displayedStale &&
+          displayed[0].maximum == 4, "low-memory refresh retains stale data instead of rebooting");
+    ++testMillis;
+    adafruitIOManager._feedCache[adafruitIOManager.findFeed("pages.wind-line")].updatedAt = testMillis;
+    refreshWindHistoryResults();
+    check(displayedStatus.state == NumericHistoryState::Ready && displayed[0].maximum == 5,
+          "unchanged producer data retries after a new successful poll following low memory");
     cache("pages.wind-line", "bad");
     refreshWindHistoryResults();
     check(displayedStatus.state == NumericHistoryState::Failed && displayedStale &&

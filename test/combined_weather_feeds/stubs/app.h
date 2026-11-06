@@ -31,6 +31,8 @@ static const uint16_t CYD_YELLOW = 0xffe0;
 static const uint16_t CYD_NAVY = 0x000f;
 static const uint16_t COLOR_TEXT = 0xffff;
 static const uint16_t COLOR_BACKGROUND = 0;
+static const uint16_t COLOR_WARNING = 0xffe0;
+static const uint16_t CYD_DARK_GRAY = 0x4208;
 static const int FONT_MONO_SMALL = 1;
 static const int SCREEN_WIDTH = 320;
 static const int HEADER_HEIGHT = 28;
@@ -46,6 +48,7 @@ struct TestGraphics
     void setCursor(int, int) {}
     void print(const char *text) { printed.emplace_back(text); }
     void print(const String &text) { printed.emplace_back(text.c_str()); }
+    void print(char text) { printed.emplace_back(1, text); }
 };
 extern TestGraphics *gfx;
 
@@ -60,6 +63,7 @@ void drawCurrentScreen();
 void clearScreen(uint16_t);
 void titleBar(const char *);
 void setDefaultFont();
+void centerText(const char *, int, uint16_t, int);
 void drawNav1(const char *);
 void drawNav2(const char *);
 void drawNav3(const char *);

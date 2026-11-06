@@ -5,6 +5,7 @@
 
 #include "adafruitio/adafruitio_manager.h"
 
+struct SnapshotHistoryResult;
 struct HistoryChartScale
 {
     double tickInterval;
@@ -54,6 +55,9 @@ void drawHistoryChartPage(const HistoryChartPage &page);
 void drawHistoryChartFrame(const HistoryChartPage &page);
 void refreshHistoryChartData(const HistoryChartPage &page,
                             const NumericHistoryResult histories[],
+                            const NumericHistoryStatus &status, bool stale);
+void refreshHistoryChartData(const HistoryChartPage &page,
+                            const SnapshotHistoryResult histories[],
                             const NumericHistoryStatus &status, bool stale);
 // Redraws only when history status, data presence, or staleness changes.
 void refreshHistoryChartPage(const HistoryChartPage &page);

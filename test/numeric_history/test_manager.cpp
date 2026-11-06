@@ -332,7 +332,7 @@ int main()
     for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
         check(manager._feedCache[i].active == (static_cast<int>(i) == pageFeed),
               "temperature-page subscription activates only its bundled feed");
-    check(AIO_FEEDS[pageFeed].refreshPolicy == AdafruitIORefreshPolicy::Periodic &&
+    check(AIO_FEEDS[pageFeed].refreshPolicy == AdafruitIORefreshPolicy::PagePeriodic &&
           AIO_FEEDS[pageFeed].refreshIntervalMinutes == 1 &&
           AIO_FEEDS[pageFeed].mayExceed45Chars,
           "temperature snapshot polls every minute and supports long values");
@@ -354,7 +354,7 @@ int main()
               "hourly temperature subscription activates only pages.temp-line");
     check(AIO_FEEDS[hourlyFeed].type == AdafruitIOValueType::LongText &&
           AIO_FEEDS[hourlyFeed].mayExceed45Chars &&
-          AIO_FEEDS[hourlyFeed].refreshPolicy == AdafruitIORefreshPolicy::Periodic &&
+          AIO_FEEDS[hourlyFeed].refreshPolicy == AdafruitIORefreshPolicy::PagePeriodic &&
           AIO_FEEDS[hourlyFeed].refreshIntervalMinutes == 1,
           "hourly snapshot supports long JSON and refreshes once per minute");
     const char *hourlySnapshot = "[{\"ts\":\"2026110410\",\"ftemp\":63.6}]";
@@ -367,6 +367,78 @@ int main()
           "latest-value API preserves escaped hourly objects as complete JSON");
     check(testUrls.back().find("/feeds/pages.temp-line/data/last") != std::string::npos,
           "hourly history fetches only the latest snapshot endpoint");
+    manager.publishLatestValues(static_cast<size_t>(hourlyFeed), 1, values, true);
+    String copied;
+    check(manager.getFeedValue("pages.temp-line", copied) && copied == String(hourlySnapshot),
+          "latest snapshot is moved into the active page cache");
+    uint32_t firstRevision = 0;
+    check(manager.getFeedValueRevision("pages.temp-line", firstRevision),
+          "snapshot exposes its content revision without copying JSON");
+    values = {String(hourlySnapshot)};
+    ++testMillis;
+    manager.publishLatestValues(static_cast<size_t>(hourlyFeed), 1, values, true);
+    uint32_t unchangedRevision = 0;
+    check(manager.getFeedValueRevision("pages.temp-line", unchangedRevision) &&
+          unchangedRevision == firstRevision, "unchanged HTTP polls do not change content revision");
+    String::copyLimit() = 0;
+    check(!manager.getFeedValue("pages.temp-line", copied),
+          "failed Arduino String copy is an explicit failure, not successful EmptyInput");
+    String::copyLimit() = SIZE_MAX;
+
+    for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+    {
+        auto &entry = manager._feedCache[i];
+        entry.attempted = true;
+        entry.failed = false;
+        entry.lastAttempt = testMillis;
+    }
+    check(manager.setActiveFeeds(nullptr, 0), "leave all page feeds");
+    size_t dueCount = 0;
+    check(manager.findDueFeed(testMillis, dueCount) == -1,
+          "inactive page snapshots are not downloaded in the background");
+    check(!manager.getFeedValue("pages.temp-line", copied) &&
+          manager._feedCache[hourlyFeed].value.isEmpty(),
+          "leaving history evicts its large cached JSON");
+    const int globalFeed = manager.findFeed("feed-avg");
+    manager._feedCache[globalFeed].attempted = false;
+    check(manager.findDueFeed(testMillis, dueCount) == globalFeed,
+          "existing global periodic feeds still refresh without an active page");
+    manager._feedCache[globalFeed].attempted = true;
+    const char *windSnapshotFeed[] = {"pages.wind-line"};
+    const int windSnapshotIndex = manager.findFeed(windSnapshotFeed[0]);
+    check(manager.setActiveFeeds(windSnapshotFeed, 1) &&
+          manager.findDueFeed(testMillis, dueCount) == windSnapshotIndex,
+          "entering combined history schedules an immediate fetch");
+    values = {String("[{\"ts\":\"2026110500\",\"speed\":4,\"gust\":7}]")};
+    manager.publishLatestValues(static_cast<size_t>(windSnapshotIndex), 1, values, true);
+    check(manager.findDueFeed(testMillis + 59999, dueCount) == -1,
+          "active page snapshot waits the full minute between polls");
+    // Keep global feeds fresh to isolate page scheduling at its minute boundary.
+    for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+        if (AIO_FEEDS[i].refreshPolicy == AdafruitIORefreshPolicy::Periodic)
+            manager._feedCache[i].lastAttempt = testMillis + 60000;
+    check(manager.findDueFeed(testMillis + 60000, dueCount) == windSnapshotIndex,
+          "active combined snapshot is periodically refreshed");
+    check(manager.setActiveFeeds(pageFeeds, 1), "navigate away during wind HTTP request");
+    values = {String("late wind response")};
+    manager.publishLatestValues(static_cast<size_t>(windSnapshotIndex), 1, values, true);
+    check(!manager._feedCache[windSnapshotIndex].hasValue &&
+          manager._feedCache[windSnapshotIndex].value.isEmpty(),
+          "in-flight response cannot repopulate an inactive snapshot cache");
+    const std::string largeValue(20000, 'x');
+    for (size_t turn = 0; turn < 30; ++turn)
+    {
+        const char *const *selected = turn % 2 ? hourlyFeeds : windSnapshotFeed;
+        check(manager.setActiveFeeds(selected, 1), "repeat navigation between large snapshots");
+        const int index = manager.findFeed(selected[0]);
+        values = {String(largeValue)};
+        manager.publishLatestValues(static_cast<size_t>(index), 1, values, true);
+        size_t retained = 0;
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+            if (AIO_FEEDS[i].refreshPolicy == AdafruitIORefreshPolicy::PagePeriodic)
+                retained += manager._feedCache[i].value.length();
+        check(retained == largeValue.size(), "repeated navigation retains only one large page snapshot");
+    }
     check(testResponses.empty(), "all HTTP fixtures consumed");
     std::printf("PASS: %zu history manager checks\n", checks);
     return 0;

@@ -10,7 +10,7 @@ static const HistoryChartSeries TEMPERATURE_HISTORY_SERIES[] = {
     {"pages.temp-line", HistoryAggregation::Average, CYD_CYAN, nullptr},
 };
 static const SnapshotHistoryField TEMPERATURE_HISTORY_FIELDS[] = {
-    {"ftemp", HistoryAggregation::Average, false},
+    {"ftemp", HistoryAggregation::Average},
 };
 
 static HistoryChartPage temperatureHistoryPage()

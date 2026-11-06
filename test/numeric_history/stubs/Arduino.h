@@ -7,6 +7,7 @@
 #include <cstring>
 #include <ctime>
 #include <cstdlib>
+#include <cstdio>
 #include <string>
 #include <type_traits>
 
@@ -16,8 +17,27 @@ class String
 {
 public:
     String() = default;
+    String(const String &) = default;
+    String(String &&) = default;
+    String &operator=(String &&) = default;
+    String &operator=(const String &other)
+    {
+        _text = other._text.size() <= copyLimit() ? other._text : "";
+        return *this;
+    }
+    static size_t &copyLimit()
+    {
+        static size_t limit = SIZE_MAX;
+        return limit;
+    }
     String(const char *text) : _text(text ? text : "") {}
     String(const std::string &text) : _text(text) {}
+    String(double value, unsigned decimals)
+    {
+        char buffer[96];
+        std::snprintf(buffer, sizeof(buffer), "%.*f", static_cast<int>(decimals), value);
+        _text = buffer;
+    }
     template <typename Number,
               typename std::enable_if<std::is_arithmetic<Number>::value, int>::type = 0>
     String(Number number) : _text(std::to_string(number)) {}
@@ -40,6 +60,7 @@ public:
     {
         return String(_text.substr(first, last - first));
     }
+    String substring(size_t first) const { return String(_text.substr(first)); }
     long toInt() const { return std::strtol(c_str(), nullptr, 10); }
     String &operator+=(const String &other) { _text += other._text; return *this; }
     friend String operator+(const String &a, const String &b)
@@ -80,6 +101,14 @@ inline int xTaskCreatePinnedToCore(void (*)(void *), const char *, int, void *, 
 inline uint32_t pdMS_TO_TICKS(uint32_t value) { return value; }
 inline void vTaskDelay(uint32_t) {}
 #if defined(_WIN32)
+inline struct tm *localtime_r(const time_t *value, struct tm *result)
+{
+    const struct tm *local = std::localtime(value);
+    if (!local)
+        return nullptr;
+    *result = *local;
+    return result;
+}
 inline struct tm *gmtime_r(const time_t *value, struct tm *result)
 {
     const struct tm *utc = std::gmtime(value);

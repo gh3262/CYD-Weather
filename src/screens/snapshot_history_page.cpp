@@ -1,24 +1,32 @@
 #include "app.h"
 #include "screens/snapshot_history_page.h"
 
-static NumericHistoryResult snapshotHistories[MAX_NUMERIC_HISTORY_SERIES];
+static SnapshotHistoryResult snapshotHistories[MAX_NUMERIC_HISTORY_SERIES];
 static NumericHistoryStatus snapshotStatus;
 static const char *snapshotFeed = nullptr;
 static const SnapshotHistoryField *snapshotFields = nullptr;
-static String lastSnapshotPayload;
+static uint32_t lastSnapshotRevision = 0;
+static uint32_t lastSnapshotAttemptAt = 0;
 static bool snapshotParsed = false;
 static bool snapshotFeedActive = false;
 
 void refreshSnapshotHistoryPage(const HistoryChartPage &page)
 {
-    String payload;
+    uint32_t feedRevision = 0;
+    uint32_t updatedAt = 0;
     const bool available = snapshotFeedActive &&
-        adafruitIOManager.getFeedValue(snapshotFeed, payload);
+        adafruitIOManager.getFeedValueRevision(snapshotFeed, feedRevision) &&
+        adafruitIOManager.getFeedUpdatedAt(snapshotFeed, updatedAt);
     const bool daily = page.style == HistoryChartStyle::DailyBars;
-    if (available && (!snapshotParsed || payload != lastSnapshotPayload))
+    if (available && (!snapshotParsed || feedRevision != lastSnapshotRevision ||
+        (snapshotStatus.state == NumericHistoryState::Failed &&
+         updatedAt != lastSnapshotAttemptAt)))
     {
-        const char *error = parseWeatherSnapshotHistory(
-            payload.c_str(), snapshotFields, page.seriesCount, daily, snapshotHistories);
+        String payload;
+        const char *error = adafruitIOManager.getFeedValue(snapshotFeed, payload)
+            ? parseWeatherSnapshotHistory(
+                payload.c_str(), snapshotFields, page.seriesCount, daily, snapshotHistories)
+            : "could not copy snapshot from feed cache";
         if (error)
         {
             Serial.printf("%s: invalid %s: %s.\n", page.title, snapshotFeed, error);
@@ -30,10 +38,10 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
             snapshotStatus.state = NumericHistoryState::Ready;
         }
         ++snapshotStatus.revision;
-        lastSnapshotPayload = payload;
+        lastSnapshotRevision = feedRevision;
+        lastSnapshotAttemptAt = updatedAt;
         snapshotParsed = true;
     }
-    uint32_t updatedAt = 0;
     int64_t dailyEnd = 0;
     const int64_t now = static_cast<int64_t>(time(nullptr));
     const bool oldWindow = daily
@@ -42,7 +50,7 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
     const bool stale = snapshotStatus.state == NumericHistoryState::Failed ||
         WiFi.status() != WL_CONNECTED ||
         (snapshotStatus.hasData &&
-         (!available || !adafruitIOManager.getFeedUpdatedAt(snapshotFeed, updatedAt) ||
+         (!available ||
           millis() - updatedAt > 120000U || oldWindow));
     refreshHistoryChartData(page, snapshotHistories, snapshotStatus, stale);
 }
@@ -50,14 +58,17 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
 void drawSnapshotHistoryPage(const HistoryChartPage &page, const char *feedKey,
                              const SnapshotHistoryField fields[])
 {
-    for (NumericHistoryResult &history : snapshotHistories)
-        history = {};
+    for (SnapshotHistoryResult &history : snapshotHistories)
+    {
+        history.buckets.resize(0);
+        history.sampleCount = 0;
+        history.endUtc = 0;
+    }
     snapshotStatus = {};
     snapshotStatus.state = NumericHistoryState::Loading;
     snapshotFeed = feedKey;
     snapshotFields = fields;
     snapshotParsed = false;
-    lastSnapshotPayload = "";
     adafruitIOManager.cancelNumericHistory();
     drawHistoryChartFrame(page);
     const char *feeds[] = {feedKey};

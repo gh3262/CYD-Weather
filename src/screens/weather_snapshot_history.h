@@ -3,10 +3,14 @@
 
 #include <ArduinoJson.h>
 #include <algorithm>
+#include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <memory>
+#include <new>
 #include <utility>
 
 #include "adafruitio/numeric_history.h"
@@ -73,89 +77,184 @@ struct SnapshotHistoryField
 {
     const char *key;
     HistoryAggregation aggregation;
-    bool nullable;
 };
 
-inline const char *parseWeatherSnapshotHistory(
-    const char *json, const SnapshotHistoryField fields[], size_t seriesCount,
-    bool daily, NumericHistoryResult results[])
-{
-    if (!fields || !results || !seriesCount || seriesCount > 2)
-        return "invalid snapshot series";
-    JsonDocument document;
-    const DeserializationError error = deserializeJson(document, json);
-    if (error)
-        return error.c_str();
-    if (!document.is<JsonArray>())
-        return "expected a history array";
+static const size_t SNAPSHOT_HISTORY_BUCKETS = 72;
 
-    struct Reading
+struct SnapshotHistoryBucket
+{
+    int64_t startUtc = 0;
+    double latest = 0;
+    uint32_t count = 0;
+
+    double value(HistoryAggregation) const { return count ? latest : NAN; }
+};
+
+class SnapshotHistoryBuckets
+{
+public:
+    size_t size() const { return _size; }
+    bool empty() const { return _size == 0; }
+    void resize(size_t size) { _size = size; }
+    SnapshotHistoryBucket *begin() { return _storage.data(); }
+    SnapshotHistoryBucket *end() { return begin() + _size; }
+    const SnapshotHistoryBucket *begin() const { return _storage.data(); }
+    const SnapshotHistoryBucket *end() const { return begin() + _size; }
+    SnapshotHistoryBucket &operator[](size_t i) { return _storage[i]; }
+    const SnapshotHistoryBucket &operator[](size_t i) const { return _storage[i]; }
+    const SnapshotHistoryBucket &front() const { return _storage[0]; }
+    const SnapshotHistoryBucket &back() const { return _storage[_size - 1]; }
+
+private:
+    std::array<SnapshotHistoryBucket, SNAPSHOT_HISTORY_BUCKETS> _storage = {};
+    size_t _size = 0;
+};
+
+// Same chart metadata as NumericHistoryResult, without throwing vector growth.
+struct SnapshotHistoryResult
+{
+    int64_t startUtc = 0;
+    int64_t endUtc = 0;
+    uint32_t bucketSeconds = 3600;
+    HistoryAggregation aggregation = HistoryAggregation::Average;
+    SnapshotHistoryBuckets buckets;
+    uint32_t sampleCount = 0;
+    uint32_t invalidValueCount = 0;
+    double minimum = 0;
+    double maximum = 0;
+};
+
+class SnapshotJsonReader
+{
+public:
+    explicit SnapshotJsonReader(const char *text) : cursor(text ? text : "") {}
+    int read() { return *cursor ? static_cast<unsigned char>(*cursor++) : -1; }
+    size_t readBytes(char *buffer, size_t count)
     {
+        size_t copied = 0;
+        while (copied < count && *cursor)
+            buffer[copied++] = *cursor++;
+        return copied;
+    }
+    void skipWhitespace()
+    {
+        while (std::isspace(static_cast<unsigned char>(*cursor)))
+            ++cursor;
+    }
+    const char *cursor;
+};
+
+template <typename Visitor>
+inline const char *visitSnapshotReadings(
+    const char *json, const SnapshotHistoryField fields[], size_t seriesCount,
+    bool daily, Visitor visit, ArduinoJson::Allocator *allocator)
+{
+    SnapshotJsonReader reader(json);
+    reader.skipWhitespace();
+    if (reader.read() != '[')
+        return "expected a history array";
+    reader.skipWhitespace();
+    bool first = true;
+    // Deserialize only one object at a time; the producer may send weeks of hours.
+    while (*reader.cursor != ']')
+    {
+        if (!first)
+        {
+            if (reader.read() != ',')
+                return "expected comma between history records";
+            reader.skipWhitespace();
+        }
+        if (*reader.cursor != '{')
+            return "expected a history object";
+        JsonDocument document = allocator ? JsonDocument(allocator) : JsonDocument();
+        const DeserializationError error = deserializeJson(document, reader);
+        if (error)
+            return error.c_str();
         int64_t timestamp;
-        double values[2];
-    };
-    std::vector<Reading> readings;
-    readings.reserve(document.size());
-    for (JsonVariantConst entry : document.as<JsonArrayConst>())
-    {
-        Reading reading = {};
-        if (!entry.is<JsonObjectConst>() || !entry["ts"].is<const char *>() ||
-            !(daily ? parseSnapshotDate(entry["ts"].as<const char *>(), reading.timestamp)
-                    : parseSnapshotLocalHour(entry["ts"].as<const char *>(), reading.timestamp)))
+        if (!document["ts"].is<const char *>() ||
+            !(daily ? parseSnapshotDate(document["ts"].as<const char *>(), timestamp)
+                    : parseSnapshotLocalHour(document["ts"].as<const char *>(), timestamp)))
             return daily ? "invalid local YYYYMMDD date" : "invalid local YYYYMMDDHH hour";
+        double values[2] = {};
         for (size_t s = 0; s < seriesCount; ++s)
         {
-            const JsonVariantConst value = entry[fields[s].key];
-            if (fields[s].nullable && !value.isUnbound() &&
-                value.isNull())
-                reading.values[s] = NAN;
+            const JsonVariantConst value = document[fields[s].key];
+            if (!value.isUnbound() && value.isNull())
+                values[s] = NAN;
             else if (!value.is<double>() || !std::isfinite(value.as<double>()))
                 return "expected a finite numeric history value";
             else
-                reading.values[s] = value.as<double>();
+                values[s] = value.as<double>();
         }
-        readings.push_back(reading);
+        visit(timestamp, values);
+        first = false;
+        reader.skipWhitespace();
     }
-    std::sort(readings.begin(), readings.end(),
-              [](const Reading &a, const Reading &b) { return a.timestamp < b.timestamp; });
-    for (size_t i = 1; i < readings.size(); ++i)
-        if (readings[i - 1].timestamp == readings[i].timestamp)
-            return "duplicate snapshot timestamp";
+    ++reader.cursor;
+    reader.skipWhitespace();
+    return *reader.cursor ? "unexpected data after history array" : nullptr;
+}
 
+inline const char *parseWeatherSnapshotHistory(
+    const char *json, const SnapshotHistoryField fields[], size_t seriesCount,
+    bool daily, SnapshotHistoryResult results[], ArduinoJson::Allocator *allocator = nullptr)
+{
+    if (!fields || !results || !seriesCount || seriesCount > 2)
+        return "invalid snapshot series";
     const uint32_t interval = daily ? 86400U : 3600U;
-    const size_t buckets = daily ? 30 : 72;
-    int64_t end = readings.empty() ? 0 : readings.back().timestamp + interval;
-    if (daily && readings.empty() &&
+    const size_t limit = daily ? 30 : 72;
+    std::unique_ptr<SnapshotHistoryResult[]> parsed(
+        new (std::nothrow) SnapshotHistoryResult[seriesCount]);
+    if (!parsed)
+        return "insufficient memory for snapshot staging";
+    size_t count = 0;
+    int64_t newest = 0;
+    // The producer supplies ordered, unique, already-filled readings.
+    const char *error = visitSnapshotReadings(json, fields, seriesCount, daily,
+        [&](int64_t timestamp, const double values[]) {
+            newest = timestamp;
+            for (size_t s = 0; s < seriesCount; ++s)
+            {
+                SnapshotHistoryBucket &bucket = parsed[s].buckets[count % limit];
+                bucket.startUtc = timestamp;
+                bucket.count = std::isnan(values[s]) ? 0 : 1;
+                bucket.latest = values[s];
+            }
+            ++count;
+        }, allocator);
+    if (error)
+        return error;
+    int64_t end = count ? newest + interval : 0;
+    if (daily && !count &&
         !completedHistoryEndUtc(static_cast<int64_t>(std::time(nullptr)), end))
         return "local clock unavailable for empty daily snapshot";
-    NumericHistoryResult parsed[2];
     for (size_t s = 0; s < seriesCount; ++s)
     {
-        NumericHistoryResult &result = parsed[s];
+        SnapshotHistoryResult &result = parsed[s];
         result.aggregation = fields[s].aggregation;
         result.bucketSeconds = interval;
-        if (!end)
-            continue;
         result.endUtc = end;
-        result.startUtc = end - buckets * interval;
-        result.buckets.resize(buckets);
-        for (size_t i = 0; i < buckets; ++i)
-            result.buckets[i].startUtc = result.startUtc + i * interval;
-        for (const Reading &reading : readings)
+        result.startUtc = end ? end - limit * interval : 0;
+        result.buckets.resize(std::min(count, limit));
+        if (count > limit)
+            std::rotate(result.buckets.begin(), result.buckets.begin() + count % limit,
+                        result.buckets.end());
+        const auto first = std::find_if(result.buckets.begin(), result.buckets.end(),
+            [&](const SnapshotHistoryBucket &bucket) { return bucket.startUtc >= result.startUtc; });
+        const size_t visible = result.buckets.end() - first;
+        if (first != result.buckets.begin())
+            std::move(first, result.buckets.end(), result.buckets.begin());
+        result.buckets.resize(visible);
+        for (const SnapshotHistoryBucket &bucket : result.buckets)
         {
-            if (reading.timestamp < result.startUtc || std::isnan(reading.values[s]))
+            if (!bucket.count)
                 continue;
-            NumericHistoryBucket &bucket =
-                result.buckets[(reading.timestamp - result.startUtc) / interval];
-            bucket.count = 1;
-            bucket.sum = bucket.minimum = bucket.maximum = bucket.latest = reading.values[s];
-            bucket.latestAtMs = reading.timestamp * 1000;
             if (result.sampleCount++ == 0)
-                result.minimum = result.maximum = reading.values[s];
+                result.minimum = result.maximum = bucket.latest;
             else
             {
-                result.minimum = std::min(result.minimum, reading.values[s]);
-                result.maximum = std::max(result.maximum, reading.values[s]);
+                result.minimum = std::min(result.minimum, bucket.latest);
+                result.maximum = std::max(result.maximum, bucket.latest);
             }
         }
     }

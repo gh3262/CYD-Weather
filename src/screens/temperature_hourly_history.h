@@ -9,10 +9,10 @@ inline bool parseTemperatureHour(const char *text, int64_t &timestamp)
 }
 
 inline const char *parseTemperatureHourlyHistory(const char *json,
-                                                 NumericHistoryResult &result)
+                                                 SnapshotHistoryResult &result)
 {
     const SnapshotHistoryField fields[] = {
-        {"ftemp", HistoryAggregation::Average, false},
+        {"ftemp", HistoryAggregation::Average},
     };
     return parseWeatherSnapshotHistory(json, fields, 1, false, &result);
 }

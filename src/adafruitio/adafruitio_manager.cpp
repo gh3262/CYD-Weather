@@ -236,6 +236,15 @@ bool AdafruitIOManager::setActiveFeeds(const char *const feedKeys[], size_t coun
         if (selected[i] && !_feedCache[i].active)
             _feedCache[i].attempted = false;
         _feedCache[i].active = selected[i];
+        if (!selected[i] &&
+            AIO_FEEDS[i].refreshPolicy == AdafruitIORefreshPolicy::PagePeriodic)
+        {
+            FeedCache &feed = _feedCache[i];
+            feed.value = String();
+            std::vector<String>().swap(feed.history);
+            feed.hasValue = false;
+            feed.cachedHistoryCount = 0;
+        }
     }
     xSemaphoreGive(_mutex);
     return true;
@@ -248,9 +257,16 @@ bool AdafruitIOManager::getFeedValue(const char *feedKey, String &value) const
         return false;
 
     xSemaphoreTake(_mutex, portMAX_DELAY);
-    const bool available = _feedCache[feedIndex].hasValue;
+    bool available = _feedCache[feedIndex].hasValue;
     if (available)
+    {
         value = _feedCache[feedIndex].value;
+        if (value.length() != _feedCache[feedIndex].value.length())
+        {
+            Serial.printf("Adafruit IO: insufficient memory to copy '%s'.\n", feedKey);
+            available = false;
+        }
+    }
     xSemaphoreGive(_mutex);
     return available;
 }
@@ -265,6 +281,19 @@ bool AdafruitIOManager::getFeedUpdatedAt(const char *feedKey, uint32_t &updatedA
     const bool available = _feedCache[feedIndex].hasValue;
     if (available)
         updatedAt = _feedCache[feedIndex].updatedAt;
+    xSemaphoreGive(_mutex);
+    return available;
+}
+
+bool AdafruitIOManager::getFeedValueRevision(const char *feedKey, uint32_t &revision) const
+{
+    const int index = findFeed(feedKey);
+    if (index < 0 || !_mutex)
+        return false;
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    const bool available = _feedCache[index].hasValue;
+    if (available)
+        revision = _feedCache[index].revision;
     xSemaphoreGive(_mutex);
     return available;
 }
@@ -405,26 +434,7 @@ void AdafruitIOManager::runWorker()
         int selectedFeed = -1;
         size_t historyCount = 1;
         xSemaphoreTake(_mutex, portMAX_DELAY);
-        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
-        {
-            const FeedCache &feed = _feedCache[i];
-            const bool periodic =
-                AIO_FEEDS[i].refreshPolicy == AdafruitIORefreshPolicy::Periodic;
-            const bool shouldFetch = periodic || feed.active;
-            const uint32_t elapsed = now - feed.lastAttempt;
-            const uint32_t refreshIntervalMs =
-                static_cast<uint32_t>(AIO_FEEDS[i].refreshIntervalMinutes) *
-                MILLISECONDS_PER_MINUTE;
-            const bool due = !feed.attempted ||
-                (feed.failed && elapsed >= FAILED_FEED_RETRY_MS) ||
-                (periodic && elapsed >= refreshIntervalMs);
-            if (shouldFetch && due)
-            {
-                selectedFeed = static_cast<int>(i);
-                historyCount = feed.historyCount;
-                break;
-            }
-        }
+        selectedFeed = findDueFeed(now, historyCount);
         xSemaphoreGive(_mutex);
 
         if (selectedFeed < 0)
@@ -442,36 +452,7 @@ void AdafruitIOManager::runWorker()
             static_cast<size_t>(selectedFeed), historyCount, values,
             httpStatus, retryAfterMs);
 
-        xSemaphoreTake(_mutex, portMAX_DELAY);
-        FeedCache &feed = _feedCache[selectedFeed];
-        // A count change during the request leaves the new request pending.
-        if (feed.historyCount == historyCount)
-        {
-            feed.attempted = true;
-            feed.failed = !succeeded;
-            feed.lastAttempt = millis();
-            if (succeeded)
-            {
-                const bool changed =
-                    feed.cachedHistoryCount != historyCount ||
-                    feed.hasValue != !values.empty() ||
-                    (historyCount == 1
-                        ? (!values.empty() && feed.value != values.front())
-                        : feed.history != values);
-                if (!values.empty())
-                    feed.value = values.front();
-                else
-                    feed.value = "";
-                feed.hasValue = !values.empty();
-                feed.cachedHistoryCount = historyCount;
-                if (historyCount > 1)
-                    feed.history = std::move(values);
-                feed.updatedAt = millis();
-                if (changed)
-                    ++_cacheRevision;
-            }
-        }
-        xSemaphoreGive(_mutex);
+        publishLatestValues(static_cast<size_t>(selectedFeed), historyCount, values, succeeded);
 
         if (httpStatus == HTTP_TOO_MANY_REQUESTS)
         {
@@ -487,6 +468,67 @@ void AdafruitIOManager::runWorker()
                           AIO_FEEDS[selectedFeed].key, httpStatus);
         }
     }
+}
+
+int AdafruitIOManager::findDueFeed(uint32_t now, size_t &historyCount) const
+{
+    for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+    {
+        const FeedCache &feed = _feedCache[i];
+        const AdafruitIORefreshPolicy policy = AIO_FEEDS[i].refreshPolicy;
+        const bool periodic = policy != AdafruitIORefreshPolicy::OnDemand;
+        const bool shouldFetch = policy == AdafruitIORefreshPolicy::Periodic || feed.active;
+        const uint32_t elapsed = now - feed.lastAttempt;
+        const uint32_t interval =
+            static_cast<uint32_t>(AIO_FEEDS[i].refreshIntervalMinutes) * MILLISECONDS_PER_MINUTE;
+        const bool due = !feed.attempted ||
+            (feed.failed && elapsed >= FAILED_FEED_RETRY_MS) ||
+            (periodic && elapsed >= interval);
+        if (shouldFetch && due)
+        {
+            historyCount = feed.historyCount;
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+void AdafruitIOManager::publishLatestValues(
+    size_t index, size_t historyCount, std::vector<String> &values, bool succeeded)
+{
+    xSemaphoreTake(_mutex, portMAX_DELAY);
+    FeedCache &feed = _feedCache[index];
+    // Discard a page snapshot if navigation deactivated it during HTTP.
+    if (feed.historyCount == historyCount &&
+        (AIO_FEEDS[index].refreshPolicy != AdafruitIORefreshPolicy::PagePeriodic || feed.active))
+    {
+        feed.attempted = true;
+        feed.failed = !succeeded;
+        feed.lastAttempt = millis();
+        if (succeeded)
+        {
+            const bool changed =
+                feed.cachedHistoryCount != historyCount ||
+                feed.hasValue != !values.empty() ||
+                (historyCount == 1
+                    ? (!values.empty() && feed.value != values.front())
+                    : feed.history != values);
+            feed.hasValue = !values.empty();
+            if (historyCount == 1 && !values.empty())
+                feed.value = std::move(values.front());
+            else if (!values.empty())
+                feed.value = values.front();
+            else
+                feed.value = String();
+            feed.cachedHistoryCount = historyCount;
+            if (historyCount > 1)
+                feed.history = std::move(values);
+            feed.updatedAt = millis();
+            if (changed)
+                feed.revision = ++_cacheRevision;
+        }
+    }
+    xSemaphoreGive(_mutex);
 }
 
 void AdafruitIOManager::processNumericHistory()
@@ -733,10 +775,20 @@ bool AdafruitIOManager::fetchLatestValues(
             filter[0]["value"] = true;
         const DeserializationError error = deserializeJson(
             document, http.getStream(), DeserializationOption::Filter(filter));
+        // Release TLS buffers before copying a potentially large snapshot.
+        http.end();
         if (!error && count == 1 && document["value"].is<const char *>())
         {
-            values.push_back(String(document["value"].as<const char *>()));
-            succeeded = true;
+            const char *text = document["value"].as<const char *>();
+            String value(text);
+            if (value.length() == strlen(text))
+            {
+                values.push_back(std::move(value));
+                succeeded = true;
+            }
+            else
+                Serial.printf("Adafruit IO: insufficient memory for '%s' response.\n",
+                              AIO_FEEDS[feedIndex].key);
         }
         else if (!error && count > 1 && document.is<JsonArray>())
         {

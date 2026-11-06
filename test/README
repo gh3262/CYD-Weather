@@ -111,7 +111,7 @@ Hourly temperature snapshot native tests
 ----------------------------------------
 temperature_hourly_history/test_main.cpp covers the supplied 112-hour snapshot,
 exact 72-hour trimming and visible extrema, local calendar validation, DST
-transitions, unordered input, missing hours, negative/zero/single values,
+transitions, preserved producer ordering, leading nulls, negative/zero/single values,
 malformed and empty snapshots, atomic rejection, and recovery. It also compiles
 the production temperature-history screen against the fake manager and renderer
 to check exclusive feed activation, cancellation of raw history, retained stale
@@ -126,8 +126,15 @@ combined_weather_feeds/test_main.cpp compiles all five production details
 screens and all four snapshot-history screens against a recording display and
 fake manager. It checks exclusive combined-feed subscriptions, minute polling,
 row ordering, daylight/AM/PM boundaries, atomic rejection, exact 72-hour and
-30-day windows, aligned wind speed/gust series, explicit null gust gaps,
+30-day windows, aligned wind speed/gust series, explicit leading nulls,
 stale-result retention, and Back/Daily/Dir/History navigation.
+Memory regression tests decode 1,000 supplied hours with no more than 8 KB of
+live JSON allocations, inject JSON/staging allocation failures, and verify
+retained-data recovery after a later unchanged feed poll. The manager suite
+also checks active-only periodic scheduling, inactive cache eviction, in-flight
+response rejection, failed String copies, and repeated large-snapshot navigation.
+History feeds are producer-ordered/unique and are not sorted, deduplicated,
+aggregated, or gap-filled by the display.
 
 g++ -std=c++11 -Wall -Wextra -Werror -Itest\combined_weather_feeds\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\snapshot_history_page.cpp src\screens\temperatures_screen.cpp src\screens\temperature_history_screen.cpp src\screens\precipitation_screen.cpp src\screens\precipitation_history_screen.cpp src\screens\wind_screen.cpp src\screens\wind_history_screen.cpp src\screens\barometer_screen.cpp src\screens\barometer_history_screen.cpp src\screens\astronomical_screen.cpp test\combined_weather_feeds\test_main.cpp -o "$env:TEMP\cyd-combined-weather-tests.exe"
 if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-combined-weather-tests.exe" }
@@ -142,3 +149,10 @@ Import-Csv -LiteralPath "$env:USERPROFILE\Downloads\feeds.csv" | ForEach-Object 
 
 An installed Python ziglang package can run these commands as
 "python -m ziglang c++" in place of g++.
+
+The production shared renderer has a separate low-memory test. It checks safe
+point-allocation failure/retry, direct supplied values, leading nulls, revision
+caching, and stale-data redraw:
+
+g++ -std=c++11 -Wall -Wextra -Werror -Itest\combined_weather_feeds\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\history_chart_page.cpp test\combined_weather_feeds\test_renderer.cpp -o "$env:TEMP\cyd-memory-renderer-tests.exe"
+if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-memory-renderer-tests.exe" }

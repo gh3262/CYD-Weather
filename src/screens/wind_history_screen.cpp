@@ -7,8 +7,8 @@ static const HistoryChartSeries WIND_HISTORY_SERIES[] = {
     {"pages.wind-line", HistoryAggregation::Maximum, CYD_YELLOW, "Gust"},
 };
 static const SnapshotHistoryField WIND_HISTORY_FIELDS[] = {
-    {"speed", HistoryAggregation::Average, false},
-    {"gust", HistoryAggregation::Maximum, true},
+    {"speed", HistoryAggregation::Average},
+    {"gust", HistoryAggregation::Maximum},
 };
 
 // Chooses the finest scale with at most eight Y labels.

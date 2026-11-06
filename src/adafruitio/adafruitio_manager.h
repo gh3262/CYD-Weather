@@ -26,6 +26,7 @@ enum class AdafruitIOValueType
 enum class AdafruitIORefreshPolicy
 {
     Periodic,
+    PagePeriodic,
     OnDemand
 };
 
@@ -53,7 +54,7 @@ struct AdafruitIOFeedDefinition
           mayExceed45Chars(longValue),
           refreshPolicy(policy),
           refreshIntervalMinutes(
-              policy == AdafruitIORefreshPolicy::Periodic ? intervalMinutes : 0)
+              policy != AdafruitIORefreshPolicy::OnDemand ? intervalMinutes : 0)
     {
     }
 };
@@ -83,6 +84,7 @@ public:
     // Returns false until the active feed has produced a value.
     bool getFeedValue(const char *feedKey, String &value) const;
     bool getFeedUpdatedAt(const char *feedKey, uint32_t &updatedAt) const;
+    bool getFeedValueRevision(const char *feedKey, uint32_t &revision) const;
     // Changes only when cached values/history availability change, not on retries.
     uint32_t getCacheRevision() const;
 
@@ -120,6 +122,7 @@ private:
         bool failed;
         bool hasValue;
         bool active;
+        uint32_t revision = 0;
         size_t historyCount = 1;
         size_t cachedHistoryCount = 0;
         std::vector<String> history;
@@ -129,6 +132,9 @@ private:
     void runWorker();
     bool hasRequestSlot() const;
     void recordRequest();
+    int findDueFeed(uint32_t now, size_t &historyCount) const;
+    void publishLatestValues(size_t feedIndex, size_t historyCount,
+                             std::vector<String> &values, bool succeeded);
     bool fetchLatestValues(size_t feedIndex, size_t count,
                           std::vector<String> &values, int &httpStatus,
                           uint32_t &retryAfterMs);

@@ -2,10 +2,13 @@
 #include "screens/history_chart_page.h"
 
 #include <math.h>
+#include <memory>
+#include <new>
 #include <time.h>
 #include <vector>
 
 #include "widgets/line_chart_widget.h"
+#include "screens/weather_snapshot_history.h"
 
 static bool historyActive = false;
 static uint32_t renderedRevision = UINT32_MAX;
@@ -21,7 +24,8 @@ static void drawHistoryMessage(const char *message)
     gfx->setTextSize(2);
 }
 
-static void drawHistoryTimes(const NumericHistoryResult &history, bool dailyBars)
+template <typename History>
+static void drawHistoryTimes(const History &history, bool dailyBars)
 {
     const time_t first = static_cast<time_t>(history.startUtc);
     const time_t last = static_cast<time_t>(
@@ -39,8 +43,9 @@ static void drawHistoryTimes(const NumericHistoryResult &history, bool dailyBars
         gfx->print(label);
 }
 
+template <typename History>
 static void drawHistorySummary(const HistoryChartPage &page,
-                               const NumericHistoryResult *histories,
+                               const History *histories,
                                double minimum, double maximum)
 {
     gfx->setCursor(4, HEADER_HEIGHT + 3);
@@ -56,7 +61,7 @@ static void drawHistorySummary(const HistoryChartPage &page,
     {
         double total = 0.0;
         double peak = 0.0;
-        for (const NumericHistoryBucket &bucket : histories[0].buckets)
+        for (const auto &bucket : histories[0].buckets)
         {
             const double value = bucket.count ? bucket.value(histories[0].aggregation) : 0.0;
             total += value;
@@ -116,14 +121,15 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
     refreshHistoryChartData(page, histories, status, stale);
 }
 
-void refreshHistoryChartData(const HistoryChartPage &page,
-                            const NumericHistoryResult histories[],
-                            const NumericHistoryStatus &status, bool stale)
+template <typename History>
+static void refreshHistoryChartResults(const HistoryChartPage &page,
+                                       const History histories[],
+                                       const NumericHistoryStatus &status, bool stale)
 {
     if (!historyActive)
         return;
     const bool hasData = status.hasData;
-    const NumericHistoryResult &window = histories[0];
+    const History &window = histories[0];
     const bool dailyBars = page.style == HistoryChartStyle::DailyBars;
     const bool floatingBars = page.style == HistoryChartStyle::DailyFloatingBars;
     const bool daily = dailyBars || floatingBars;
@@ -158,8 +164,8 @@ void refreshHistoryChartData(const HistoryChartPage &page,
         }
         for (size_t i = 0; i < window.buckets.size(); ++i)
         {
-            const NumericHistoryBucket &low = histories[0].buckets[i];
-            const NumericHistoryBucket &high = histories[1].buckets[i];
+            const auto &low = histories[0].buckets[i];
+            const auto &high = histories[1].buckets[i];
             if (low.startUtc != high.startUtc)
             {
                 Serial.println("Daily temperature history: mismatched bucket dates.");
@@ -205,32 +211,39 @@ void refreshHistoryChartData(const HistoryChartPage &page,
         {
             minimum = 0.0;
             maximum = 0.0;
-            for (const NumericHistoryBucket &bucket : window.buckets)
+            for (const auto &bucket : window.buckets)
                 if (bucket.count)
                     maximum = max(maximum, bucket.value(window.aggregation));
         }
-        std::vector<LineChartPoint> points[MAX_NUMERIC_HISTORY_SERIES];
+        std::unique_ptr<LineChartPoint[]> points[MAX_NUMERIC_HISTORY_SERIES];
         LineChartSeries series[MAX_NUMERIC_HISTORY_SERIES];
         for (size_t s = 0; s < page.seriesCount; ++s)
         {
-            const NumericHistoryResult &history = histories[s];
-            points[s].reserve(history.buckets.size());
-            for (const NumericHistoryBucket &bucket : history.buckets)
+            const History &history = histories[s];
+            points[s].reset(new (std::nothrow) LineChartPoint[history.buckets.size()]);
+            if (!points[s] && !history.buckets.empty())
+            {
+                Serial.printf("%s: insufficient memory for chart points.\n", page.title);
+                drawHistoryMessage("Not enough memory for chart");
+                return;
+            }
+            size_t index = 0;
+            for (const auto &bucket : history.buckets)
             {
                 const int64_t start = max(bucket.startUtc, history.startUtc);
                 const int64_t end = min(
                     bucket.startUtc + history.bucketSeconds, history.endUtc);
-                points[s].push_back({
+                points[s][index++] = {
                     start + (end - start) / 2.0,
                     dailyBars && bucket.count == 0 ? 0.0 :
                         bucket.value(history.aggregation),
-                });
+                };
             }
-            series[s] = {points[s].data(), points[s].size(), page.series[s].color};
+            series[s] = {points[s].get(), history.buckets.size(), page.series[s].color};
         }
         if (floatingBars)
         {
-            for (size_t i = 0; i < points[0].size(); ++i)
+            for (size_t i = 0; i < window.buckets.size(); ++i)
             {
                 if (isnan(points[0][i].y) || isnan(points[1][i].y) ||
                     points[0][i].y > points[1][i].y)
@@ -252,10 +265,10 @@ void refreshHistoryChartData(const HistoryChartPage &page,
         chart.lineColor = page.series[0].color;
         chart.zeroBarColor = CYD_YELLOW;
         const bool drawn = floatingBars
-            ? drawFloatingBarChartWidget(chart, points[0].data(), points[1].data(),
-                                         points[0].size(), window.bucketSeconds * 0.75)
+            ? drawFloatingBarChartWidget(chart, points[0].get(), points[1].get(),
+                                         window.buckets.size(), window.bucketSeconds * 0.75)
             : dailyBars
-            ? drawBarChartWidget(chart, points[0].data(), points[0].size(),
+            ? drawBarChartWidget(chart, points[0].get(), window.buckets.size(),
                                  window.bucketSeconds * 0.75, 3)
             : drawLineChartSeriesWidget(chart, series, page.seriesCount);
         if (!drawn)
@@ -286,6 +299,20 @@ void refreshHistoryChartData(const HistoryChartPage &page,
     renderedRevision = status.revision;
     renderedStale = stale;
     renderedHasData = hasData;
+}
+
+void refreshHistoryChartData(const HistoryChartPage &page,
+                            const NumericHistoryResult histories[],
+                            const NumericHistoryStatus &status, bool stale)
+{
+    refreshHistoryChartResults(page, histories, status, stale);
+}
+
+void refreshHistoryChartData(const HistoryChartPage &page,
+                            const SnapshotHistoryResult histories[],
+                            const NumericHistoryStatus &status, bool stale)
+{
+    refreshHistoryChartResults(page, histories, status, stale);
 }
 
 void drawHistoryChartFrame(const HistoryChartPage &page)

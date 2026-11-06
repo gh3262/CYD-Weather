@@ -222,7 +222,7 @@ Library and platform versions are pinned in `platformio.ini`.
 ## Adafruit IO feeds
 
 `src/adafruitio/feed_catalog.csv` is the editable feed catalog. Its
-`refresh_policy` column is `periodic` or `on_demand`; periodic feeds specify
+`refresh_policy` column is `periodic`, `page_periodic`, or `on_demand`; periodic feeds specify
 their cadence in `refresh_interval_minutes`, while on-demand feeds leave that
 field blank. Keep the compiled definitions in `feed_catalog.cpp` synchronized
 with catalog edits. `src/adafruitio/adafruitio_manager.*` handles active-page
@@ -235,6 +235,10 @@ so page layouts can plan for wrapping or scrolling. The polling task runs
 independently of the display loop. Periodic feeds are refreshed at their
 catalog interval even when their page is not active; on-demand feeds are
 fetched when selected and retain their cached value until selected again.
+Combined `pages.*` feeds use `page_periodic`: fetch immediately on entry and
+every minute only while selected. Their cached JSON is released on departure,
+and in-flight responses for a departed page are discarded. This avoids keeping
+all large history snapshots in RAM or polling them while other pages are open.
 
 For feeds with separate entries, `setFeedHistoryCount()` requests the latest
 1-1000 entries and `getFeedValues()` reads them in newest-first order. History
@@ -450,8 +454,8 @@ The feed contains `[{"ts":"20261104","prcp":0.12}, ...]`, with local calendar
 dates (`YYYYMMDD`) and one daily total per date. The window covers 30 calendar
 dates ending at the newest supplied date (normally yesterday), without converting
 date labels through the local timezone. Older entries are discarded.
-Dates without records are shown as zero. Dry dates (including missing
-dates) have a yellow 3-pixel bar so all 30 days can be counted; precipitation
+The supplied dates and totals are plotted directly. Dry dates
+have a yellow 3-pixel bar so all 30 days can be counted; precipitation
 bars remain cyan. Bars occupy 75% of each daily slot, leaving a small gap.
 These visual zero markers do not contribute to the total or peak.
 The Y axis starts at zero,
@@ -462,7 +466,7 @@ dates without local-time conversion.
 
 Retrieval uses only the latest combined snapshot, not raw-record pagination.
 The full snapshot is validated before displaying any result. A successfully empty
-array draws an all-zero chart for the 30 completed local dates;
+array contains no plotted daily readings;
 loading and failed requests remain distinct. Refresh failures or WiFi loss mark
 retained data **Stale**; crossing local midnight also marks yesterday's window
 stale until the new window loads. Back returns to Precipitation; Home returns
@@ -488,8 +492,8 @@ Barometer has a **History** button in navigation position 3. It opens
 page as Temperature History (`screens/history_chart_page`), with the same
 loading, empty, stale, and cancellation behavior. The snapshot contains
 `[{"ts":"2026110513","baro":1013.09}, ...]`: local calendar hours and hourly
-average hPa. It shows the newest 72 elapsed hours with hourly buckets and
-gaps for missing hours. The Y range is the observed
+average hPa. It shows the newest 72 elapsed hours using the supplied values
+without averaging or gap filling. The Y range is the observed
 minimum minus 2 hPa through the observed maximum plus 2 hPa; label spacing
 (1, 2, 5, 10, 20, or 50 hPa) is the finest that gives at most eight labels.
 Back returns to Barometer; Home returns Home.
@@ -536,8 +540,9 @@ Wind's navigation position 3 is **Speed**. It opens
 `[{"ts":"2026110513","speed":4.0,"gust":7.0}, ...]`. Local calendar hours
 identify hourly average speed (cyan) and maximum gust (yellow), both in mph.
 Both series use the newest 72 elapsed hours, hourly buckets, and shared axes.
-Missing hours remain gaps; explicit `null` gusts leave gust gaps without
-discarding the corresponding speed. The Y axis
+The producer fills missing hours before publishing; the display does not.
+Leading `null` values remain unplotted without discarding the other series.
+The Y axis
 starts at 0 mph and extends 2 mph above the highest value. The summary line
 shows a colored legend with each series' min-max range. Both series are
 validated and published together from one latest-value request. Back returns to Wind,
@@ -571,23 +576,36 @@ contains a JSON array of hourly averages, for example
 `ts` is a local date/hour (`YYYYMMDDHH`) in the display's `TZ_STRING` timezone;
 `ftemp` is that hour's average Fahrenheit temperature. The graph shows 72 elapsed
 hours ending just after the newest supplied hour, with one point per available
-hour and gaps for missing hours. Older entries are discarded. Points use the
+hour. Older entries are discarded. Points use the
 same scale, min/max summary, and local endpoint labels as the previous chart.
 The feed refreshes once per minute while active. Invalid snapshots are logged;
 any last valid graph is retained and marked **Stale**. WiFi loss, a cache over two
 minutes old, or a newest hour over two hours old also marks the graph stale.
 Empty arrays show an empty-window message. Local timestamps cannot distinguish
 the two fall-back hours, so an ambiguous hour uses standard time; nonexistent
-spring-forward hours and duplicate timestamps are rejected. Back returns to
+spring-forward hours are rejected. Back returns to
 Temperatures; Daily opens the existing daily chart; Home returns Home.
 
 All four combined history feeds refresh once per minute while active. They
-cancel any raw-history job on entry, validate the entire snapshot atomically,
-cache unchanged payloads, and retain the last valid graph as **Stale** after
+cancel any raw-history job on entry, decode the snapshot atomically,
+skip copying/rebuilding unchanged feed revisions, and retain the last valid graph as **Stale** after
 malformed updates, WiFi loss, or a cache older than two minutes. Hourly graphs
 also become stale when the newest supplied hour is over two hours old;
 precipitation becomes stale when the snapshot no longer reaches local yesterday.
-Duplicate timestamps and invalid values are logged and rejected.
+The producer guarantees oldest-to-newest order, unique timestamps, and filled
+hourly readings. The display does not sort, deduplicate, aggregate, or fill
+these feeds: it plots the received values within the requested window.
+Explicit leading nulls remain unplotted. JSON syntax, numeric types, and chart
+timestamps are still decoded/checked; malformed data is logged.
+
+History decoding reads one JSON object at a time and retains at most 72 supplied
+hourly readings per series or 30 daily readings, rather than building a JSON
+document for the whole feed. Compact fixed-capacity chart storage avoids
+throwing vector allocations. Checked staging/point allocations report
+insufficient memory instead of aborting; a failed refresh retains the last valid
+chart and retries after a subsequent feed poll. HTTPS buffers are released before
+copying large responses, and a failed String copy is reported as a failure rather
+than publishing an empty snapshot.
 
 Astronomical shows Sunrise, Sunset, Daylight, Moonrise, Moonset, and Moon Phase using
 `pages.p05-astro`, an array of five strings in sunrise, sunset, moonrise,

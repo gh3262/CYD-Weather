@@ -20,7 +20,7 @@ static const HistoryChartSeries PRESSURE_HISTORY_SERIES[] = {
     {"pages.baro-line", HistoryAggregation::Average, CYD_CYAN, nullptr},
 };
 static const SnapshotHistoryField PRESSURE_HISTORY_FIELDS[] = {
-    {"baro", HistoryAggregation::Average, false},
+    {"baro", HistoryAggregation::Average},
 };
 
 static HistoryChartPage pressureHistoryPage()
