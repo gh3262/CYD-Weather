@@ -61,10 +61,17 @@ bool drawLineChartSeriesWidget(const LineChartWidgetOptions &,
 }
 bool drawBarChartWidget(const LineChartWidgetOptions &, const LineChartPoint *, size_t,
                         double, int) { ++draws; return true; }
-bool drawFloatingBarChartWidget(const LineChartWidgetOptions &, const LineChartPoint *,
-                                const LineChartPoint *, size_t, double)
+bool drawFloatingBarChartWidget(const LineChartWidgetOptions &chart, const LineChartPoint *lows,
+                                const LineChartPoint *highs, size_t count, double width)
 {
     ++draws;
+    check(count == 30 && chart.maximumX - chart.minimumX == 30 * 86400 &&
+          width == 86400 * 0.75, "daily chart renders all 30 dates at 75 percent slot width");
+    for (size_t i = 0; i < count; ++i)
+        check(lows[i].x == chart.minimumX + i * 86400 + 43200 &&
+              highs[i].x == lows[i].x && lows[i].y == static_cast<double>(i) - 5 &&
+              highs[i].y == static_cast<double>(i) + 10,
+              "daily floating bars preserve exact dates and low/high values including zero");
     return true;
 }
 static HistoryChartScale scale(double, double) { return {1, 5}; }
@@ -127,6 +134,39 @@ int main()
     ++status.revision;
     refreshHistoryChartData(page, rawHistories, status, false);
     check(draws == 3, "legacy numeric histories still render with unchanged point values");
+    static const HistoryChartSeries dailySeries[] = {
+        {"pages.dailytemp-bar", HistoryAggregation::Minimum, CYD_CYAN, "Low"},
+        {"pages.dailytemp-bar", HistoryAggregation::Maximum, CYD_CYAN, "High"},
+    };
+    const HistoryChartPage dailyPage = {
+        "Daily Temps - 30 Days", dailySeries, 2, 30 * 86400, 86400, "30 days", " F",
+        1, 10, false, scale, HistoryChartStyle::DailyFloatingBars,
+    };
+    for (size_t s = 0; s < 2; ++s)
+    {
+        histories[s].startUtc = 1791244800;
+        histories[s].endUtc = histories[s].startUtc + 30 * 86400;
+        histories[s].bucketSeconds = 86400;
+        histories[s].aggregation = dailySeries[s].aggregation;
+        histories[s].sampleCount = 30;
+        histories[s].buckets.resize(30);
+        for (size_t i = 0; i < 30; ++i)
+        {
+            auto &bucket = histories[s].buckets[i];
+            bucket.startUtc = histories[s].startUtc + i * 86400;
+            bucket.count = 1;
+            bucket.latest = static_cast<double>(i) + (s ? 10 : -5);
+        }
+        histories[s].minimum = histories[s].buckets.front().latest;
+        histories[s].maximum = histories[s].buckets.back().latest;
+    }
+    drawHistoryChartFrame(dailyPage);
+    ++status.revision;
+    refreshHistoryChartData(dailyPage, histories, status, false);
+    check(draws == 4 &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "30/30 days") !=
+              graphics.printed.end(),
+          "30 paired daily bars render with a 30/30 footer");
     std::printf("PASS: %zu history renderer memory checks\n", checks);
     return 0;
 }

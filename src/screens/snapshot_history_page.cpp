@@ -17,7 +17,8 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
     const bool available = snapshotFeedActive &&
         adafruitIOManager.getFeedValueRevision(snapshotFeed, feedRevision) &&
         adafruitIOManager.getFeedUpdatedAt(snapshotFeed, updatedAt);
-    const bool daily = page.style == HistoryChartStyle::DailyBars;
+    const bool daily = page.style == HistoryChartStyle::DailyBars ||
+        page.style == HistoryChartStyle::DailyFloatingBars;
     if (available && (!snapshotParsed || feedRevision != lastSnapshotRevision ||
         (snapshotStatus.state == NumericHistoryState::Failed &&
          updatedAt != lastSnapshotAttemptAt)))

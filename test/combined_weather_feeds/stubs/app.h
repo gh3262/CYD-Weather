@@ -73,6 +73,9 @@ bool navPressed2(int, int);
 bool navPressed3(int, int);
 void enterDetailsScreen();
 void enterTemperatureDailyScreen();
+void drawTemperatureDailyScreen();
+void refreshTemperatureDailyResults();
+void handleTemperatureDailyTouch(int, int);
 void enterWindDirectionScreen();
 
 void enterTemperaturesScreen();

@@ -1,5 +1,5 @@
 #include "app.h"
-#include "screens/history_chart_page.h"
+#include "screens/snapshot_history_page.h"
 
 static HistoryChartScale dailyTemperatureScale(double, double)
 {
@@ -7,19 +7,23 @@ static HistoryChartScale dailyTemperatureScale(double, double)
 }
 
 static const HistoryChartSeries DAILY_TEMPERATURE_SERIES[] = {
-    {"omp-mintemp", HistoryAggregation::Minimum, CYD_CYAN, "Low"},
-    {"omp-maxtemp", HistoryAggregation::Maximum, CYD_CYAN, "High"},
+    {"pages.dailytemp-bar", HistoryAggregation::Minimum, CYD_CYAN, "Low"},
+    {"pages.dailytemp-bar", HistoryAggregation::Maximum, CYD_CYAN, "High"},
+};
+static const SnapshotHistoryField DAILY_TEMPERATURE_FIELDS[] = {
+    {"mintemp", HistoryAggregation::Minimum},
+    {"maxtemp", HistoryAggregation::Maximum},
 };
 
 static HistoryChartPage dailyTemperaturePage()
 {
     return {
-        "Daily Temps - 14 Days",
+        "Daily Temps - 30 Days",
         DAILY_TEMPERATURE_SERIES,
         2,
-        14U * 86400U,
+        30U * 86400U,
         86400,
-        "14 days",
+        "30 days",
         " F",
         1,
         10.0,
@@ -31,12 +35,13 @@ static HistoryChartPage dailyTemperaturePage()
 
 void refreshTemperatureDailyResults()
 {
-    refreshHistoryChartPage(dailyTemperaturePage());
+    refreshSnapshotHistoryPage(dailyTemperaturePage());
 }
 
 void drawTemperatureDailyScreen()
 {
-    drawHistoryChartPage(dailyTemperaturePage());
+    drawSnapshotHistoryPage(dailyTemperaturePage(), "pages.dailytemp-bar",
+                            DAILY_TEMPERATURE_FIELDS);
     drawNav3("History");
 }
 

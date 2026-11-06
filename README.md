@@ -386,7 +386,7 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Wind History | Back | Dir | — | Home |
 | Temperatures | Back | Daily | History | Home |
 | Temperature History (72 hours) | Back | Daily | — | Home |
-| Daily Temperatures (14 days) | Back | — | History | Home |
+| Daily Temperatures (30 days) | Back | — | History | Home |
 | Astronomical | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
 | Summary | Back | More/Up* | Forecast | Home |
@@ -473,16 +473,23 @@ stale until the new window loads. Back returns to Precipitation; Home returns
 Home. Leaving deactivates snapshot polling when the next page selects its feeds.
 
 Temperatures has a **Daily** button in navigation position 2, alongside the
-existing **History** button in position 3. Daily opens **Daily Temps - 14 Days**,
-a floating cyan bar chart using `omp-mintemp` and `omp-maxtemp` in Fahrenheit.
-It covers 14 completed local calendar dates, with date-only labels encoded as UTC
-midnight. Its existing individual feeds are unchanged. Each bar spans the lowest daily minimum to the highest
-daily maximum, with 75% slot width and a gap between dates. Negative temperatures
+existing **History** button in position 3. Daily opens **Daily Temps - 30 Days**,
+a floating cyan bar chart using only the latest `pages.dailytemp-bar` snapshot.
+The feed contains `[{"ts":"20261104","mintemp":51.3,"maxtemp":68.1}, ...]`,
+with local `YYYYMMDD` dates and daily minimum/maximum Fahrenheit temperatures.
+It shows 30 calendar dates ending on the newest supplied date, with date-only labels
+encoded as UTC midnight. Older entries are discarded. Values are already
+aggregated, ordered earliest to latest, and zero-filled by the producer; the
+display does not aggregate, sort, or fill them. Supplied zeros are plotted as
+real values. Each bar spans `mintemp` to `maxtemp`, with 75% slot width and a
+gap between dates. Negative temperatures
 are supported; equal high/low values draw a one-pixel bar. Dates missing either
 endpoint are left blank, not treated as zero; inverted low/high pairs are logged
 and omitted. The summary shows the lowest low and highest high among paired
-dates, and the footer counts paired dates. Both feeds finish loading before
-publication, with the shared loading, empty, stale, and cancellation behavior.
+dates, and the footer counts paired dates. Both series are decoded atomically
+from the same snapshot, with the shared loading, empty, stale, and cancellation
+behavior. The feed refreshes once per minute while active; no individual
+temperature history feeds are requested.
 Back returns to Temperatures, Home returns Home, and **History** in position 3
 opens Temperature History. Temperature History has **Daily** in position 2
 to switch back. Sunshine and daylight feeds are not used by this page.
@@ -586,12 +593,12 @@ the two fall-back hours, so an ambiguous hour uses standard time; nonexistent
 spring-forward hours are rejected. Back returns to
 Temperatures; Daily opens the existing daily chart; Home returns Home.
 
-All four combined history feeds refresh once per minute while active. They
+All five combined history feeds refresh once per minute while active. They
 cancel any raw-history job on entry, decode the snapshot atomically,
 skip copying/rebuilding unchanged feed revisions, and retain the last valid graph as **Stale** after
 malformed updates, WiFi loss, or a cache older than two minutes. Hourly graphs
 also become stale when the newest supplied hour is over two hours old;
-precipitation becomes stale when the snapshot no longer reaches local yesterday.
+daily graphs become stale when the snapshot no longer reaches local yesterday.
 The producer guarantees oldest-to-newest order, unique timestamps, and filled
 hourly readings. The display does not sort, deduplicate, aggregate, or fill
 these feeds: it plots the received values within the requested window.
