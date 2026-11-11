@@ -25,6 +25,12 @@ invalid-input logging without partial drawing.
 Floating-bar checks cover exact low/high endpoints, negative and equal ranges,
 missing pairs, clipping, mismatched dates, inverted ranges, and invalid buffers
 or widths without partial drawing.
+Range/line overlay checks cover 28 full-width daily bars with no pixel gaps,
+uniform gray ranges, independent yellow line values outside the ranges,
+missing endpoints/line values, and validation before clearing.
+Past/Forecast divider tests verify date-based (not midpoint) mapping, dashed
+white lines above the data, separate left/right labels, edge/outside-window
+handling, and invalid/tiny bounds without partial drawing.
 
 From the repository root, using an installed C++11 compiler (PowerShell):
 
@@ -167,7 +173,17 @@ History/Trend navigation. Widget tests verify strict 0.8/1.5 hPa color boundarie
 and exact average tick placement. Renderer tests cover all three series, bucket
 centers, the 25-bar footer, allocation retry, and stale/revision redraw behavior.
 
-g++ -std=c++11 -Wall -Wextra -Werror -Itest\combined_weather_feeds\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\snapshot_history_page.cpp src\screens\temperatures_screen.cpp src\screens\temperature_history_screen.cpp src\screens\temperature_daily_screen.cpp src\screens\precipitation_screen.cpp src\screens\precipitation_history_screen.cpp src\screens\wind_screen.cpp src\screens\wind_history_screen.cpp src\screens\barometer_screen.cpp src\screens\barometer_history_screen.cpp src\screens\barometer_trend_screen.cpp src\screens\astronomical_screen.cpp test\combined_weather_feeds\test_main.cpp -o "$env:TEMP\cyd-combined-weather-tests.exe"
+Clouds checks preserve all 28 supplied cloud min/max and sunshine percentages,
+including forecast dates. They cover nulls/zeros, empty snapshots, invalid
+percentages/ranges/dates/order, capacity bounds, allocation failures and recovery,
+exclusive hourly feed polling (including the exact one-hour boundary),
+immediate entry fetch, two-hour receipt staleness, and Back navigation. Renderer checks
+verify fixed 0-100% bounds, full daily width, gray/yellow colors, exact endpoints,
+date labels, day count, and stale/revision caching.
+Cloud divider renderer checks verify local calendar midnight and redraw on a
+local date change even without a new feed revision.
+
+g++ -std=c++11 -Wall -Wextra -Werror -Itest\combined_weather_feeds\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\snapshot_history_page.cpp src\screens\temperatures_screen.cpp src\screens\temperature_history_screen.cpp src\screens\temperature_daily_screen.cpp src\screens\precipitation_screen.cpp src\screens\precipitation_history_screen.cpp src\screens\wind_screen.cpp src\screens\wind_history_screen.cpp src\screens\barometer_screen.cpp src\screens\barometer_history_screen.cpp src\screens\barometer_trend_screen.cpp src\screens\clouds_screen.cpp src\screens\astronomical_screen.cpp test\combined_weather_feeds\test_main.cpp -o "$env:TEMP\cyd-combined-weather-tests.exe"
 if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-combined-weather-tests.exe" }
 
 The executable can also validate a real producer payload from stdin, with its

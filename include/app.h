@@ -25,6 +25,7 @@ enum Screen
     SCREEN_WIND,
     SCREEN_WIND_HISTORY,
     SCREEN_WIND_DIRECTION,
+    SCREEN_CLOUDS,
     SCREEN_TEMPERATURES,
     SCREEN_TEMPERATURE_HISTORY,
     SCREEN_TEMPERATURE_DAILY,
@@ -160,6 +161,12 @@ void handleWindDirectionTouch(int x, int y);
 void refreshWindDirectionResults();
 // Cancels its history subscription; safe to call when not active.
 void leaveWindDirectionScreen();
+
+// clouds_screen.cpp
+void drawCloudsScreen();
+void enterCloudsScreen();
+void handleCloudsTouch(int x, int y);
+void refreshCloudsResults();
 
 // temperatures_screen.cpp
 void drawTemperaturesScreen();

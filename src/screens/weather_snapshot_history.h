@@ -175,7 +175,7 @@ inline const char *visitSnapshotReadings(
             !(daily ? parseSnapshotDate(document["ts"].as<const char *>(), timestamp)
                     : parseSnapshotLocalHour(document["ts"].as<const char *>(), timestamp)))
             return daily ? "invalid local YYYYMMDD date" : "invalid local YYYYMMDDHH hour";
-        double values[2] = {};
+        double values[3] = {};
         for (size_t s = 0; s < seriesCount; ++s)
         {
             const JsonVariantConst value = document[fields[s].key];

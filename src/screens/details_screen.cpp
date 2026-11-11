@@ -22,7 +22,7 @@ static const TextTableButton DETAIL_BUTTONS[GRID_COLUMNS * GRID_ROWS] = {
     {"Temps", enterTemperaturesScreen},
     {"Wind", enterWindScreen},
     {"Baro", enterBarometerScreen},
-    {nullptr, nullptr},
+    {"Clouds", enterCloudsScreen},
     {"Precip", enterPrecipitationScreen},
     {nullptr, nullptr},
     {"Astro", enterAstronomicalScreen},

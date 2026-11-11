@@ -2,6 +2,8 @@
 #include <HTTPClient.h>
 #include "screens/snapshot_history_page.h"
 #include "widgets/line_chart_widget.h"
+#include "screens/clouds_history.h"
+#include "clouds_fixture.h"
 
 #include <cstdlib>
 #include <new>
@@ -19,6 +21,19 @@ static bool failAllocation = false;
 static size_t draws = 0;
 static size_t checks = 0;
 static size_t trendDraws = 0;
+static size_t cloudDraws = 0;
+static double cloudDivider = NAN;
+
+static void setTestTimezone(const char *zone)
+{
+#ifdef _WIN32
+    _putenv_s("TZ", zone);
+    _tzset();
+#else
+    setenv("TZ", zone, 1);
+    tzset();
+#endif
+}
 
 void *operator new[](size_t size, const std::nothrow_t &) noexcept
 {
@@ -76,6 +91,31 @@ bool drawFloatingBarChartWidget(const LineChartWidgetOptions &chart, const LineC
     return true;
 }
 static HistoryChartScale scale(double, double) { return {1, 5}; }
+
+bool drawFloatingBarLineChartWidget(const LineChartWidgetOptions &chart,
+                                    const LineChartPoint *lows,
+                                    const LineChartPoint *highs,
+                                    const LineChartPoint *sunshine, size_t count,
+                                    double width, uint16_t lineColor)
+{
+    ++cloudDraws;
+    int64_t today = 0;
+    check(completedHistoryEndUtc(static_cast<int64_t>(time(nullptr)), today) &&
+          chart.pastForecastX == static_cast<double>(today),
+          "cloud divider uses local calendar midnight encoded on the date-only axis");
+    cloudDivider = chart.pastForecastX;
+    check(count == 28 && chart.maximumX - chart.minimumX == 28 * 86400 &&
+          chart.minimumY == 0 && chart.maximumY == 100 && width == 86400 &&
+          chart.lineColor == CYD_GRAY && lineColor == CYD_YELLOW,
+          "Clouds uses full day gray ranges and a yellow line on a fixed 0-100 scale");
+    for (size_t i = 0; i < count; ++i)
+        check(lows[i].x == chart.minimumX + i * 86400 + 43200 &&
+              highs[i].x == lows[i].x && sunshine[i].x == lows[i].x &&
+              lows[i].y == CLOUDS_MIN[i] && highs[i].y == CLOUDS_MAX[i] &&
+              std::fabs(sunshine[i].y - CLOUDS_SUNSHINE[i]) < 0.00001,
+              "cloud renderer preserves all supplied min/max/sunshine values and centers");
+    return true;
+}
 
 bool drawPressureTrendChartWidget(const LineChartWidgetOptions &chart,
                                   const LineChartPoint *lows,
@@ -229,6 +269,47 @@ int main()
     check(trendDraws == 1, "unchanged trend revision does not redraw");
     refreshHistoryChartData(trendPage, trends, status, true);
     check(trendDraws == 2, "stale trend redraws all three series");
+    static const HistoryChartSeries cloudSeries[] = {
+        {"pages.om-sun", HistoryAggregation::Minimum, CYD_GRAY, "Cloud cover"},
+        {"pages.om-sun", HistoryAggregation::Maximum, CYD_GRAY, "Cloud cover"},
+        {"pages.om-sun", HistoryAggregation::Average, CYD_YELLOW, "Sunshine"},
+    };
+    const HistoryChartPage cloudPage = {
+        "Clouds", cloudSeries, 3, 28 * 86400, 86400, "28 days", "%",
+        0, 0, true, scale, HistoryChartStyle::CloudRangeLine,
+    };
+    check(!parseCloudsHistory(CLOUDS_SNAPSHOT, trends), "parse cloud renderer fixture");
+    setTestTimezone("UTC12");
+    drawHistoryChartFrame(cloudPage);
+    ++status.revision;
+    failAllocation = true;
+    refreshHistoryChartData(cloudPage, trends, status, false);
+    check(cloudDraws == 0 && graphics.printed.back() == "Not enough memory for chart",
+          "cloud point allocation failure is visible");
+    refreshHistoryChartData(cloudPage, trends, status, false);
+    check(cloudDraws == 1 &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "28 days") !=
+              graphics.printed.end() &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "10/28") !=
+              graphics.printed.end() &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "11/24") !=
+              graphics.printed.end(), "cloud renderer retries and labels the actual date window");
+    refreshHistoryChartData(cloudPage, trends, status, false);
+    check(cloudDraws == 1, "unchanged Clouds does not redraw");
+    refreshHistoryChartData(cloudPage, trends, status, true);
+    check(cloudDraws == 2, "stale Clouds redraws its retained data");
+    const double previousDivider = cloudDivider;
+    setTestTimezone("UTC-12");
+    refreshHistoryChartData(cloudPage, trends, status, true);
+    check(cloudDraws == 3 && cloudDivider == previousDivider + 86400,
+          "local date rollover moves divider without a feed revision or stale-state change");
+    refreshHistoryChartData(cloudPage, trends, status, true);
+    check(cloudDraws == 3, "new local date is cached after successful redraw");
+    check(!parseCloudsHistory("[]", trends), "parse empty clouds fixture");
+    ++status.revision;
+    refreshHistoryChartData(cloudPage, trends, status, false);
+    check(cloudDraws == 3 && graphics.printed.back() == "No cloud/sunshine readings",
+          "empty Clouds shows an explicit message without claiming a past-only window");
     std::printf("PASS: %zu history renderer memory checks\n", checks);
     return 0;
 }

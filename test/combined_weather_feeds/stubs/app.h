@@ -19,6 +19,7 @@ enum Screen
     SCREEN_WIND,
     SCREEN_WIND_HISTORY,
     SCREEN_WIND_DIRECTION,
+    SCREEN_CLOUDS,
     SCREEN_BAROMETER,
     SCREEN_BAROMETER_HISTORY,
     SCREEN_BAROMETER_TREND,
@@ -35,6 +36,7 @@ static const uint16_t COLOR_TEXT = 0xffff;
 static const uint16_t COLOR_BACKGROUND = 0;
 static const uint16_t COLOR_WARNING = 0xffe0;
 static const uint16_t CYD_DARK_GRAY = 0x4208;
+static const uint16_t CYD_GRAY = 0x8410;
 static const int FONT_MONO_SMALL = 1;
 static const int SCREEN_WIDTH = 320;
 static const int HEADER_HEIGHT = 28;
@@ -79,6 +81,10 @@ void drawTemperatureDailyScreen();
 void refreshTemperatureDailyResults();
 void handleTemperatureDailyTouch(int, int);
 void enterWindDirectionScreen();
+void enterCloudsScreen();
+void drawCloudsScreen();
+void refreshCloudsResults();
+void handleCloudsTouch(int, int);
 
 void enterTemperaturesScreen();
 void drawTemperaturesScreen();

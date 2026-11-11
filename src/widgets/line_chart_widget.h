@@ -33,6 +33,8 @@ struct LineChartWidgetOptions
     uint16_t gridColor;
     uint16_t labelColor;
     uint16_t zeroBarColor;
+    // NaN disables the dashed Past/Forecast divider; otherwise an X-axis value.
+    double pastForecastX;
 
     LineChartWidgetOptions();
 };
@@ -78,5 +80,13 @@ bool drawPressureTrendChartWidget(const LineChartWidgetOptions &options,
                                  const LineChartPoint *upper,
                                  const LineChartPoint *average, size_t pointCount,
                                  double barWidth);
+
+// Draw a uniform floating range, then an independent line on the same axes.
+// All three series share X; the line need not fall within the range.
+bool drawFloatingBarLineChartWidget(const LineChartWidgetOptions &options,
+                                    const LineChartPoint *lower,
+                                    const LineChartPoint *upper,
+                                    const LineChartPoint *line, size_t pointCount,
+                                    double barWidth, uint16_t lineColor);
 
 #endif

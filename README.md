@@ -81,6 +81,7 @@ src/
     wind_screen.cpp     Wind table; Dir and Speed buttons
     wind_direction_screen.cpp  12-hour compass dial and wind rose
     wind_history_screen.cpp    72-hour speed/gust chart
+    clouds_screen.cpp, clouds_history.h  Daily cloud ranges and sunshine forecast
     snapshot_history_page.*   Shared combined-feed history loading/refresh
     astronomical_screen.cpp, alerts_screen.cpp (list, details, full text)
     System screens:
@@ -238,7 +239,8 @@ independently of the display loop. Periodic feeds are refreshed at their
 catalog interval even when their page is not active; on-demand feeds are
 fetched when selected and retain their cached value until selected again.
 Combined `pages.*` feeds use `page_periodic`: fetch immediately on entry and
-every minute only while selected. Their cached JSON is released on departure,
+at their catalog interval only while selected (one minute, except Clouds at
+one hour). Their cached JSON is released on departure,
 and in-flight responses for a departed page are discarded. This avoids keeping
 all large history snapshots in RAM or polling them while other pages are open.
 
@@ -386,6 +388,7 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Wind | Back | Dir | Speed | Home |
 | Wind Direction | Back | — | Speed | Home |
 | Wind History | Back | Dir | — | Home |
+| Clouds | Back | — | — | Home |
 | Temperatures | Back | Daily | History | Home |
 | Temperature History (72 hours) | Back | Daily | — | Home |
 | Daily Temperatures (30 days) | Back | — | History | Home |
@@ -428,13 +431,47 @@ is opened or its Refresh button is pressed; they do not poll the network.
 Details provides a two-column, four-row button grid in the left two-thirds
 of the content area. The left column contains **Temps**, **Baro**, **Precip**,
 and **Astro**, opening Temperatures, Barometer, Precipitation, and Astronomical,
-respectively. The top-right **Wind** button opens Wind. The remaining three slots
+respectively. The top-right **Wind** button opens Wind; **Clouds** directly
+below it opens Clouds. The remaining two slots
 are inactive placeholders. The right third shows the
 thermometer using `feed-avg` in red and `currenttemperatureapparent` in cyan,
 on a 10 to 100 F scale. The tube is centered in its panel, with Fahrenheit
 ticks on the left and Celsius ticks on the right (enabled by
 `ThermometerWidgetOptions::showCelsiusScale`). Until a temperature is available it shows `-- F`
 instead of a default reading.
+
+**Clouds** reads only the latest `pages.om-sun` snapshot, fetched on entry and
+refreshed hourly while open. The producer updates the feed every six hours.
+The feed supplies 28 daily records covering 14 past days and
+14 forecast days:
+
+```json
+[{"ts":"20261111","dld":10.43,"ssd":8.0,"pct_ss":76.72,"cc_mean":22.62,"cc_max":80.0,"cc_min":0.0}]
+```
+
+`ts` is a local calendar date (`YYYYMMDD`). On a fixed 0-100% scale, gray
+floating bars span `cc_min` to `cc_max` and occupy the entire daily slot, with
+no gaps between adjacent dates. A yellow line overlays the supplied `pct_ss`
+(sunshine as a percentage of daylight hours); it is independent of the cloud
+range. `dld`, `ssd`, and `cc_mean` are not plotted or used to recalculate values.
+All supplied dates are shown, including forecasts, with actual first/last date
+labels and a day count. The display does not sort, aggregate, or fill dates.
+A dashed white vertical divider marks the start of today in local time,
+with **Past** on its left and **Forecast** on its right. Today is included on
+the forecast side. The divider follows the date, not the midpoint, and moves
+at local midnight even if the feed has not changed. Its labels occupy a row
+above the data; a label is omitted if its side is too narrow to fit. No divider
+is drawn when today falls outside the supplied window or the clock is unavailable.
+Equal cloud endpoints draw a one-pixel bar; null endpoints omit the range,
+and null sunshine breaks the line. Zero is a real reading.
+
+Invalid dates, missing/non-numeric fields, percentages outside 0-100, inverted
+cloud ranges, unordered/duplicate dates, or snapshots exceeding 72 records are
+logged and rejected atomically, retaining any previous data as stale.
+An empty array shows no readings. Loading, memory-failure, retry, and offline
+behavior use the shared snapshot-history page. Staleness uses feed receipt age
+(two hours, or two polling intervals), not forecast dates. No raw numeric history is requested.
+Back returns to Details; Home returns Home.
 
 Barometer uses a monospaced three-column table with cyan **Time**, **Pressure**,
 and **Trend** headers. Its rows show Current, 1 Hour, 2 Hours, 6 Hours, 12 Hours,

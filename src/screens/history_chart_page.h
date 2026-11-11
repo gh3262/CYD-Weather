@@ -26,13 +26,14 @@ enum class HistoryChartStyle
     Line,
     DailyBars,
     DailyFloatingBars,
-    PressureTrendBars
+    PressureTrendBars,
+    CloudRangeLine
 };
 
 struct HistoryChartPage
 {
     const char *title;
-    // Up to two numeric-history series, or three snapshot pressure-trend series.
+    // Up to two numeric-history series, or three snapshot series.
     const HistoryChartSeries *series;
     size_t seriesCount;
     uint32_t windowSeconds;

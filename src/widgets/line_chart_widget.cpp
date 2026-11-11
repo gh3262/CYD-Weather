@@ -26,7 +26,8 @@ LineChartWidgetOptions::LineChartWidgetOptions()
       axisColor(COLOR_TEXT),
       gridColor(CYD_DARK_GRAY),
       labelColor(COLOR_TEXT),
-      zeroBarColor(CYD_DARK_GRAY)
+      zeroBarColor(CYD_DARK_GRAY),
+      pastForecastX(NAN)
 {
 }
 
@@ -212,10 +213,39 @@ static void drawBars(const LineChartWidgetOptions &options,
     }
 }
 
+static void drawPastForecastDivider(const LineChartWidgetOptions &options,
+                                    int left, int top, int right, int bottom)
+{
+    if (isnan(options.pastForecastX) ||
+        options.pastForecastX < options.minimumX ||
+        options.pastForecastX > options.maximumX)
+        return;
+    const int x = chartPixel(
+        (options.pastForecastX - options.minimumX) /
+            (options.maximumX - options.minimumX), left, right);
+    for (int y = top; y <= bottom; y += 7)
+        gfx->drawLine(x, y, x, min(y + 3, bottom), options.labelColor);
+    setDefaultFont();
+    gfx->setTextSize(1);
+    gfx->setTextColor(options.labelColor);
+    if (x - left >= 28)
+    {
+        gfx->setCursor(x - 28, top - 12);
+        gfx->print("Past");
+    }
+    if (right - x >= 52)
+    {
+        gfx->setCursor(x + 4, top - 12);
+        gfx->print("Forecast");
+    }
+    gfx->setTextColor(COLOR_TEXT);
+    gfx->setTextSize(2);
+}
+
 static bool drawChartWidget(const LineChartWidgetOptions &options,
                              const LineChartSeries *series, size_t seriesCount,
                              double barWidth, int zeroBarHeight,
-                             bool floatingBars = false)
+                             bool floatingBars = false, bool rangeLine = false)
 {
     const double rangeX = options.maximumX - options.minimumX;
     const double rangeY = options.maximumY - options.minimumY;
@@ -230,6 +260,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
         options.y > SCREEN_HEIGHT - options.height ||
         !isfinite(options.minimumX) || !isfinite(options.maximumX) ||
         !isfinite(options.minimumY) || !isfinite(options.maximumY) ||
+        isinf(options.pastForecastX) ||
         !isfinite(rangeX) || !isfinite(rangeY) ||
         rangeX <= 0.0 || rangeY <= 0.0 ||
         !validBuffers)
@@ -269,7 +300,12 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
                 Serial.println("Floating bar chart widget: mismatched X or inverted range.");
                 return false;
             }
-            if (seriesCount == 3)
+            if (rangeLine && series[2].points[i].x != lower.x)
+            {
+                Serial.println("Floating bar line chart widget: mismatched X.");
+                return false;
+            }
+            if (seriesCount == 3 && !rangeLine)
             {
                 const LineChartPoint &average = series[2].points[i];
                 if (average.x != lower.x || isnan(lower.y) || isnan(upper.y) ||
@@ -283,9 +319,15 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
     }
 
     int left = options.x + 2;
-    const int top = options.y + (options.showYScale ? 4 : 2);
+    const int top = options.y + (options.showYScale ? 4 : 2) +
+        (isnan(options.pastForecastX) ? 0 : 12);
     const int right = options.x + options.width - 3;
     const int bottom = options.y + options.height - (options.showYScale ? 5 : 3);
+    if (!isnan(options.pastForecastX) && bottom - top < 7)
+    {
+        Serial.println("Line chart widget: bounds are too small for the Past/Forecast divider.");
+        return false;
+    }
     ScaleSteps ticks = {};
     ScaleSteps labels = {};
     if (options.showYScale)
@@ -390,13 +432,13 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
             const int y1 = chartPixel((options.maximumY - lower.y) / rangeY,
                                      top, bottom);
             uint16_t color = options.lineColor;
-            if (seriesCount == 3)
+            if (seriesCount == 3 && !rangeLine)
             {
                 color = upper.y > lower.y + 1.5 ? CYD_ORANGE :
                     upper.y > lower.y + 0.8 ? CYD_YELLOW : CYD_GREEN;
             }
             gfx->fillRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1, color);
-            if (seriesCount == 3)
+            if (seriesCount == 3 && !rangeLine)
             {
                 const double average = series[2].points[i].y;
                 if (average >= options.minimumY && average <= options.maximumY)
@@ -408,6 +450,9 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
                 }
             }
         }
+        if (rangeLine)
+            drawSeries(options, series[2], rangeX, rangeY, left, top, right, bottom);
+        drawPastForecastDivider(options, left, top, right, bottom);
         return true;
     }
     for (size_t s = 0; s < seriesCount; ++s)
@@ -418,6 +463,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
         else
             drawSeries(options, series[s], rangeX, rangeY, left, top, right, bottom);
     }
+    drawPastForecastDivider(options, left, top, right, bottom);
     return true;
 }
 
@@ -478,4 +524,24 @@ bool drawPressureTrendChartWidget(const LineChartWidgetOptions &options,
         {average, pointCount, options.labelColor},
     };
     return drawChartWidget(options, series, 3, barWidth, 0, true);
+}
+
+bool drawFloatingBarLineChartWidget(const LineChartWidgetOptions &options,
+                                    const LineChartPoint *lower,
+                                    const LineChartPoint *upper,
+                                    const LineChartPoint *line, size_t pointCount,
+                                    double barWidth, uint16_t lineColor)
+{
+    if (!isfinite(barWidth) || barWidth <= 0.0 ||
+        !isfinite(barWidth / (options.maximumX - options.minimumX)))
+    {
+        Serial.println("Floating bar line chart widget: invalid bar width.");
+        return false;
+    }
+    const LineChartSeries series[] = {
+        {lower, pointCount, options.lineColor},
+        {upper, pointCount, options.lineColor},
+        {line, pointCount, lineColor},
+    };
+    return drawChartWidget(options, series, 3, barWidth, 0, true, true);
 }

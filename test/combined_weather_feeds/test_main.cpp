@@ -9,6 +9,8 @@
 #include "screens/temperature_page_values.h"
 #include "screens/precipitation_page_values.h"
 #include "screens/barometer_trend_history.h"
+#include "screens/clouds_history.h"
+#include "clouds_fixture.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -147,6 +149,7 @@ void drawCurrentScreen()
     case SCREEN_BAROMETER: drawBarometerScreen(); break;
     case SCREEN_BAROMETER_HISTORY: drawBarometerHistoryScreen(); break;
     case SCREEN_BAROMETER_TREND: drawBarometerTrendScreen(); break;
+    case SCREEN_CLOUDS: drawCloudsScreen(); break;
     case SCREEN_ASTRONOMICAL: drawAstronomicalScreen(); break;
     default: break;
     }
@@ -184,7 +187,7 @@ void refreshHistoryChartData(const HistoryChartPage &page,
     displayedStale = stale;
 }
 
-static void assertOnlyFeed(const char *key)
+static void assertOnlyFeed(const char *key, uint16_t intervalMinutes = 1)
 {
     const int feed = adafruitIOManager.findFeed(key);
     check(feed >= 0, "combined feed is registered");
@@ -192,8 +195,8 @@ static void assertOnlyFeed(const char *key)
         check(adafruitIOManager._feedCache[i].active == (static_cast<int>(i) == feed),
               "visible page activates exactly its combined feed");
     check(AIO_FEEDS[feed].mayExceed45Chars &&
-          AIO_FEEDS[feed].refreshIntervalMinutes == 1,
-          "combined feeds preserve long JSON and poll once per minute");
+          AIO_FEEDS[feed].refreshIntervalMinutes == intervalMinutes,
+          "combined feeds preserve long JSON and use their configured polling interval");
 }
 
 static void cache(const char *key, const char *payload)
@@ -716,6 +719,137 @@ int main(int argc, char **argv)
     handleBarometerTrendTouch(1, 0);
     assertOnlyFeed("pages.p04-baro");
     check(state.currentScreen == SCREEN_BAROMETER, "Trend Back returns to Barometer");
+
+    cache("pages.om-sun", CLOUDS_SNAPSHOT);
+    enterCloudsScreen();
+    assertOnlyFeed("pages.om-sun", 60);
+    {
+        const int cloudFeed = adafruitIOManager.findFeed("pages.om-sun");
+        size_t historyCount = 0;
+        auto &entry = adafruitIOManager._feedCache[cloudFeed];
+        check(!entry.attempted, "Clouds fetch is immediately due on entry");
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+        {
+            adafruitIOManager._feedCache[i].attempted = true;
+            adafruitIOManager._feedCache[i].failed = false;
+            adafruitIOManager._feedCache[i].lastAttempt = testMillis;
+        }
+        check(adafruitIOManager.findDueFeed(testMillis + 3599999U, historyCount) != cloudFeed,
+              "Clouds does not refresh before one hour");
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+            if (static_cast<int>(i) != cloudFeed)
+                adafruitIOManager._feedCache[i].lastAttempt = testMillis + 3600000U;
+        check(adafruitIOManager.findDueFeed(testMillis + 3600000U, historyCount) == cloudFeed,
+              "Clouds refresh is due at exactly one hour");
+    }
+    check(state.currentScreen == SCREEN_CLOUDS &&
+          displayedStatus.state == NumericHistoryState::Ready && !displayedStale &&
+          displayedBucket == 86400 && displayedWindow == 28U * 86400U,
+          "Clouds activates its own feed and accepts the forecast snapshot");
+    int64_t cloudFirst, cloudLast;
+    check(parseSnapshotDate("20261028", cloudFirst) &&
+          parseSnapshotDate("20261124", cloudLast) &&
+          displayed[0].startUtc == cloudFirst && displayed[0].endUtc == cloudLast + 86400,
+          "Clouds includes all past and forecast dates with no leading empty window");
+    for (size_t s = 0; s < 3; ++s)
+        check(displayed[s].buckets.size() == 28 && displayed[s].sampleCount == 28,
+              "all three cloud series preserve 28 supplied dates");
+    for (size_t i = 0; i < 28; ++i)
+    {
+        check(displayed[0].buckets[i].startUtc == cloudFirst + static_cast<int64_t>(i) * 86400,
+              "cloud dates retain producer order");
+        checkNear(displayed[0].buckets[i].latest, CLOUDS_MIN[i], "exact cloud minimum");
+        checkNear(displayed[1].buckets[i].latest, CLOUDS_MAX[i], "exact cloud maximum");
+        checkNear(displayed[2].buckets[i].latest, CLOUDS_SUNSHINE[i], "exact sunshine percent");
+    }
+    const uint32_t cloudRevision = displayedStatus.revision;
+    refreshCloudsResults();
+    check(displayedStatus.revision == cloudRevision, "unchanged cloud data is not reparsed");
+    const char *invalidClouds[] = {
+        "[{\"ts\":\"20260230\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50}]",
+        "[{\"ts\":\"20261111\",\"cc_min\":101,\"cc_max\":100,\"pct_ss\":50}]",
+        "[{\"ts\":\"20261111\",\"cc_min\":-1,\"cc_max\":100,\"pct_ss\":50}]",
+        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":101,\"pct_ss\":50}]",
+        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":101}]",
+        "[{\"ts\":\"20261111\",\"cc_min\":60,\"cc_max\":40,\"pct_ss\":50}]",
+        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100}]",
+        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":\"50\"}]",
+        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50}] trailing",
+        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50},"
+        "{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50}]",
+        "[{\"ts\":\"20261112\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50},"
+        "{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50}]",
+    };
+    for (const char *invalid : invalidClouds)
+    {
+        cache("pages.om-sun", invalid);
+        refreshCloudsResults();
+        check(displayedStatus.state == NumericHistoryState::Failed && displayedStale &&
+              displayed[0].buckets.size() == 28 &&
+              std::fabs(displayed[2].buckets.back().latest - 96.4) < 0.00001,
+              "invalid clouds update retains all three previous series as stale");
+    }
+    BudgetJsonAllocator cloudAllocator;
+    check(!parseCloudsHistory(CLOUDS_SNAPSHOT, displayed, &cloudAllocator) &&
+          cloudAllocator.peak <= 8192 && cloudAllocator.live == 0,
+          "cloud JSON decoding uses bounded live memory and frees it");
+    std::string oversizedClouds = "[";
+    for (size_t i = 0; i < 73; ++i)
+    {
+        const time_t date = static_cast<time_t>(cloudFirst + static_cast<int64_t>(i) * 86400);
+        struct tm calendar;
+        char day[16], record[128];
+        check(gmtime_r(&date, &calendar) &&
+              std::strftime(day, sizeof(day), "%Y%m%d", &calendar),
+              "format cloud capacity fixture date");
+        std::snprintf(record, sizeof(record),
+            "%s{\"ts\":\"%s\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50}",
+            i ? "," : "", day);
+        oversizedClouds += record;
+    }
+    oversizedClouds += "]";
+    check(parseCloudsHistory(oversizedClouds.c_str(), displayed) &&
+          displayed[0].buckets.size() == 28,
+          "cloud capacity overflow rejects atomically before writing beyond storage");
+    cloudAllocator.limit = 1;
+    check(parseCloudsHistory(CLOUDS_SNAPSHOT, displayed, &cloudAllocator) &&
+          cloudAllocator.failures && displayed[0].buckets.size() == 28,
+          "cloud JSON allocation failure preserves data atomically");
+    cache("pages.om-sun", CLOUDS_SNAPSHOT);
+    failNothrowAllocation = 1;
+    refreshCloudsResults();
+    check(displayedStatus.state == NumericHistoryState::Failed &&
+          displayed[0].buckets.size() == 28, "cloud staging failure preserves data");
+    ++testMillis;
+    adafruitIOManager._feedCache[adafruitIOManager.findFeed("pages.om-sun")].updatedAt = testMillis;
+    refreshCloudsResults();
+    check(displayedStatus.state == NumericHistoryState::Ready && !displayedStale,
+          "clouds recovers on an unchanged later feed poll");
+    testMillis += 120001;
+    refreshCloudsResults();
+    check(!displayedStale, "Clouds stays fresh beyond the old two-minute timeout");
+    testMillis += 7200000U - 120001U;
+    refreshCloudsResults();
+    check(!displayedStale, "Clouds remains fresh through two hourly polling intervals");
+    ++testMillis;
+    refreshCloudsResults();
+    check(displayedStale, "Clouds becomes stale after two hours without a successful receipt");
+    cache("pages.om-sun",
+        "[{\"ts\":\"20261111\",\"cc_min\":null,\"cc_max\":100,\"pct_ss\":0},"
+        "{\"ts\":\"20261113\",\"cc_min\":0,\"cc_max\":0,\"pct_ss\":null}]");
+    refreshCloudsResults();
+    check(displayedStatus.state == NumericHistoryState::Ready &&
+          displayed[0].buckets.size() == 2 && !displayed[0].buckets[0].count &&
+          displayed[2].buckets[0].count && displayed[2].buckets[0].latest == 0 &&
+          !displayed[2].buckets[1].count &&
+          displayed[0].buckets[1].startUtc - displayed[0].buckets[0].startUtc == 2 * 86400,
+          "cloud nulls remain missing, zeros remain real, and missing dates are not filled");
+    cache("pages.om-sun", "[]");
+    refreshCloudsResults();
+    check(displayedStatus.state == NumericHistoryState::Ready && displayed[0].buckets.empty(),
+          "empty clouds snapshot clears data without inventing dates");
+    handleCloudsTouch(1, 0);
+    check(state.currentScreen == SCREEN_DETAILS, "Clouds Back returns to Details");
 
     cache("pages.p05-astro", astroPage);
     enterAstronomicalScreen();

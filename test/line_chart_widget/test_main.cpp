@@ -558,6 +558,116 @@ int main()
     check(drawPressureTrendChartWidget(options, nullptr, nullptr, nullptr, 0, 0.75) &&
           graphics.rectangles.size() == 1, "empty pressure chart does not invent bars");
 
+    options = testOptions();
+    options.maximumX = 28;
+    options.maximumY = 100;
+    options.lineColor = CYD_DARK_GRAY;
+    LineChartPoint cloudLows[28], cloudHighs[28], sunshine[28];
+    for (size_t i = 0; i < 28; ++i)
+    {
+        cloudLows[i] = {i + 0.5, 20};
+        cloudHighs[i] = {i + 0.5, 60};
+        sunshine[i] = {i + 0.5, i % 2 ? 0.0 : 100.0};
+    }
+    graphics.reset();
+    check(drawFloatingBarLineChartWidget(options, cloudLows, cloudHighs, sunshine,
+                                         28, 1.0, CYD_YELLOW) &&
+          graphics.rectangles.size() == 29 && graphics.lines.size() == 27,
+          "cloud range and independent sunshine line draw together with one background clear");
+    for (size_t i = 0; i < 28; ++i)
+    {
+        const auto &bar = graphics.rectangles[i + 1];
+        check(bar.color == CYD_DARK_GRAY && bar.y == 82 && bar.height == 41,
+              "uniform gray bars map exact cloud-cover endpoints");
+        if (i)
+        {
+            const auto &previous = graphics.rectangles[i];
+            check(bar.x <= previous.x + previous.width,
+                  "full-width daily bars have no pixel gaps across all 28 dates");
+        }
+    }
+    for (const auto &line : graphics.lines)
+        check(line.color == CYD_YELLOW &&
+              ((line.y0 == 42 && line.y1 == 142) || (line.y0 == 142 && line.y1 == 42)),
+              "yellow sunshine line may lie outside the cloud-cover range");
+    cloudLows[0].y = NAN;
+    sunshine[1].y = NAN;
+    graphics.reset();
+    check(drawFloatingBarLineChartWidget(options, cloudLows, cloudHighs, sunshine,
+                                         28, 1.0, CYD_YELLOW) &&
+          graphics.rectangles.size() == 28 && graphics.lines.size() == 25,
+          "missing cloud range leaves sunshine independent and null sunshine breaks the line");
+    sunshine[0].x = 0.75;
+    graphics.reset();
+    check(!drawFloatingBarLineChartWidget(options, cloudLows, cloudHighs, sunshine,
+                                          28, 1.0, CYD_YELLOW) &&
+          graphics.rectangles.empty(), "mismatched overlay dates reject before drawing");
+    graphics.reset();
+    check(!drawFloatingBarLineChartWidget(options, cloudLows, cloudHighs, nullptr,
+                                          28, 1.0, CYD_YELLOW) &&
+          graphics.rectangles.empty(), "missing overlay buffer rejects before drawing");
+    check(!drawFloatingBarLineChartWidget(options, cloudLows, cloudHighs, sunshine,
+                                          28, 0, CYD_YELLOW) &&
+          graphics.rectangles.empty(), "invalid overlay width rejects before drawing");
+    check(drawFloatingBarLineChartWidget(options, nullptr, nullptr, nullptr,
+                                         0, 1.0, CYD_YELLOW),
+          "empty range-line chart draws no invented values");
+    options = testOptions();
+    options.maximumX = 28;
+    options.maximumY = 100;
+    options.width = 305;
+    options.lineColor = CYD_DARK_GRAY;
+    options.pastForecastX = 10;
+    sunshine[0].x = 0.5;
+    graphics.reset();
+    check(drawFloatingBarLineChartWidget(options, cloudLows, cloudHighs, sunshine,
+                                         28, 1, CYD_YELLOW),
+          "Past/Forecast divider draws with range and sunshine overlay");
+    const int dividerX = 12 + static_cast<int>(std::floor(10.0 / 28 * 300 + 0.5));
+    size_t dashCount = 0;
+    for (const auto &line : graphics.lines)
+        if (line.color == options.labelColor)
+        {
+            check(line.x0 == dividerX && line.x1 == dividerX &&
+                  line.y0 == 54 + static_cast<int>(dashCount) * 7 &&
+                  line.y1 == std::min(line.y0 + 3, 142),
+                  "white divider follows date X, not midpoint, with clipped four-pixel dashes");
+            ++dashCount;
+        }
+    check(dashCount == 13 && graphics.lines.back().color == options.labelColor,
+          "divider spans plot and is drawn above bars and sunshine");
+    check(graphics.texts.size() == 2 &&
+          graphics.texts[0].value == "Past" &&
+          graphics.texts[0].x == dividerX - 28 &&
+          graphics.texts[1].value == "Forecast" &&
+          graphics.texts[1].x == dividerX + 4 &&
+          graphics.texts[0].y == 42 && graphics.texts[1].y == 42 &&
+          graphics.texts[0].color == options.labelColor &&
+          graphics.texts[1].color == options.labelColor,
+          "white labels sit on the appropriate sides in a separate row above the data");
+    options.pastForecastX = 0;
+    graphics.reset();
+    check(drawFloatingBarLineChartWidget(options, nullptr, nullptr, nullptr, 0, 1, CYD_YELLOW) &&
+          graphics.texts.size() == 1 && graphics.texts[0].value == "Forecast",
+          "at the first date, only Forecast fits and no label leaves the chart");
+    options.pastForecastX = 28;
+    graphics.reset();
+    check(drawFloatingBarLineChartWidget(options, nullptr, nullptr, nullptr, 0, 1, CYD_YELLOW) &&
+          graphics.texts.size() == 1 && graphics.texts[0].value == "Past",
+          "at the end date, only Past fits");
+    for (double outside : {-1.0, 29.0})
+    {
+        options.pastForecastX = outside;
+        graphics.reset();
+        check(drawFloatingBarLineChartWidget(options, nullptr, nullptr, nullptr, 0, 1, CYD_YELLOW) &&
+              graphics.lines.empty() && graphics.texts.empty(),
+              "divider outside supplied dates is omitted rather than clamped to an edge");
+    }
+    options.pastForecastX = std::numeric_limits<double>::infinity();
+    expectInvalid(options, diagonal, 2);
+    options.pastForecastX = 10;
+    options.height = 15;
+    expectInvalid(options, diagonal, 2);
     std::printf("PASS: %zu line-chart checks\n", checks);
     return 0;
 }

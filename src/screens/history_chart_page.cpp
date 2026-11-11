@@ -14,6 +14,7 @@ static bool historyActive = false;
 static uint32_t renderedRevision = UINT32_MAX;
 static bool renderedStale = false;
 static bool renderedHasData = false;
+static int64_t renderedCloudDay = 0;
 
 static void drawHistoryMessage(const char *message)
 {
@@ -49,6 +50,15 @@ static void drawHistorySummary(const HistoryChartPage &page,
                                double minimum, double maximum)
 {
     gfx->setCursor(4, HEADER_HEIGHT + 3);
+    if (page.style == HistoryChartStyle::CloudRangeLine)
+    {
+        gfx->setTextColor(page.series[0].color);
+        gfx->print("Cloud cover  ");
+        gfx->setTextColor(page.series[2].color);
+        gfx->print("Sunshine (%)");
+        gfx->setTextColor(COLOR_TEXT);
+        return;
+    }
     if (page.style == HistoryChartStyle::DailyFloatingBars ||
         page.style == HistoryChartStyle::PressureTrendBars)
     {
@@ -134,9 +144,13 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     const bool dailyBars = page.style == HistoryChartStyle::DailyBars;
     const bool floatingBars = page.style == HistoryChartStyle::DailyFloatingBars;
     const bool trendBars = page.style == HistoryChartStyle::PressureTrendBars;
-    const bool daily = dailyBars || floatingBars;
+    const bool clouds = page.style == HistoryChartStyle::CloudRangeLine;
+    const bool daily = dailyBars || floatingBars || clouds;
+    int64_t cloudDay = 0;
+    if (clouds && !completedHistoryEndUtc(static_cast<int64_t>(time(nullptr)), cloudDay))
+        cloudDay = 0;
     if (status.revision == renderedRevision && stale == renderedStale &&
-        hasData == renderedHasData)
+        hasData == renderedHasData && (!clouds || cloudDay == renderedCloudDay))
         return;
 
     uint32_t sampleCount = 0;
@@ -203,7 +217,9 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     }
     else if (sampleCount == 0 && (!dailyBars || invalidCount > 0))
     {
-        const String message = stale ? String("No readings (stale history)") :
+        const String message = clouds
+            ? String(stale ? "No cloud/sunshine readings (stale)" : "No cloud/sunshine readings")
+            : stale ? String("No readings (stale history)") :
             String(invalidCount ? "No valid readings in last " :
                 "No readings in last ") + page.windowText;
         drawHistoryMessage(message.c_str());
@@ -244,7 +260,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
             }
             series[s] = {points[s].get(), history.buckets.size(), page.series[s].color};
         }
-        if (floatingBars)
+        if (floatingBars || clouds)
         {
             for (size_t i = 0; i < window.buckets.size(); ++i)
             {
@@ -259,7 +275,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         chart.minimumX = static_cast<double>(window.startUtc);
         chart.maximumX = static_cast<double>(window.endUtc);
         chart.minimumY = page.zeroBasedY ? 0.0 : minimum - page.yPadding;
-        chart.maximumY = maximum + page.yPadding;
+        chart.maximumY = clouds ? 100.0 : maximum + page.yPadding;
         const HistoryChartScale scale = page.scale(chart.minimumY, chart.maximumY);
         chart.showYScale = true;
         chart.yTickInterval = scale.tickInterval;
@@ -267,7 +283,18 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         chart.yLabelDecimalPlaces = dailyBars ? 2 : 0;
         chart.lineColor = page.series[0].color;
         chart.zeroBarColor = CYD_YELLOW;
-        const bool drawn = trendBars
+        if (clouds)
+        {
+            if (cloudDay)
+                chart.pastForecastX = static_cast<double>(cloudDay);
+            else
+                Serial.println("Clouds: local date unavailable for Past/Forecast divider.");
+        }
+        const bool drawn = clouds
+            ? drawFloatingBarLineChartWidget(chart, points[0].get(), points[1].get(),
+                                             points[2].get(), window.buckets.size(),
+                                             window.bucketSeconds, page.series[2].color)
+            : trendBars
             ? drawPressureTrendChartWidget(chart, points[0].get(), points[1].get(),
                                             points[2].get(), window.buckets.size(),
                                             window.bucketSeconds * 0.75)
@@ -299,7 +326,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         const String count = trendBars ? String(window.buckets.size()) + " bars" :
             floatingBars ? String(pairedDays) + "/" +
                 String(window.buckets.size()) + " days" :
-            dailyBars ? String(window.buckets.size()) + " days" :
+            dailyBars || clouds ? String(window.buckets.size()) + " days" :
                         String(sampleCount) + " pts";
         centerText(count.c_str(), NAV_Y - 11, COLOR_TEXT, 1);
         gfx->setTextSize(2);
@@ -307,6 +334,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     renderedRevision = status.revision;
     renderedStale = stale;
     renderedHasData = hasData;
+    renderedCloudDay = cloudDay;
 }
 
 void refreshHistoryChartData(const HistoryChartPage &page,
