@@ -49,7 +49,8 @@ static void drawHistorySummary(const HistoryChartPage &page,
                                double minimum, double maximum)
 {
     gfx->setCursor(4, HEADER_HEIGHT + 3);
-    if (page.style == HistoryChartStyle::DailyFloatingBars)
+    if (page.style == HistoryChartStyle::DailyFloatingBars ||
+        page.style == HistoryChartStyle::PressureTrendBars)
     {
         gfx->setTextColor(COLOR_TEXT);
         gfx->print("Low " + String(minimum, page.valueDecimals) +
@@ -132,6 +133,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     const History &window = histories[0];
     const bool dailyBars = page.style == HistoryChartStyle::DailyBars;
     const bool floatingBars = page.style == HistoryChartStyle::DailyFloatingBars;
+    const bool trendBars = page.style == HistoryChartStyle::PressureTrendBars;
     const bool daily = dailyBars || floatingBars;
     if (status.revision == renderedRevision && stale == renderedStale &&
         hasData == renderedHasData)
@@ -152,13 +154,13 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     }
 
     size_t pairedDays = 0;
-    if (hasData && floatingBars)
+    if (hasData && (floatingBars || trendBars))
     {
         minimum = INFINITY;
         maximum = -INFINITY;
         if (histories[0].buckets.size() != histories[1].buckets.size())
         {
-            Serial.println("Daily temperature history: mismatched bucket counts.");
+            Serial.printf("%s: mismatched bucket counts.\n", page.title);
             drawHistoryMessage("History dates do not match");
             return;
         }
@@ -168,7 +170,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
             const auto &high = histories[1].buckets[i];
             if (low.startUtc != high.startUtc)
             {
-                Serial.println("Daily temperature history: mismatched bucket dates.");
+                Serial.printf("%s: mismatched bucket dates.\n", page.title);
                 drawHistoryMessage("History dates do not match");
                 return;
             }
@@ -178,7 +180,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
             const double highValue = high.value(histories[1].aggregation);
             if (lowValue > highValue)
             {
-                Serial.println("Daily temperature history: daily low exceeds high; omitting date.");
+                Serial.printf("%s: low exceeds high; omitting bucket.\n", page.title);
                 continue;
             }
             ++pairedDays;
@@ -193,10 +195,11 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
             ? "History failed - retrying" : stale
                 ? "Offline - waiting for WiFi" : "Loading history...");
     }
-    else if (floatingBars && pairedDays == 0)
+    else if ((floatingBars || trendBars) && pairedDays == 0)
     {
-        drawHistoryMessage(stale ? "No paired daily readings (stale)" :
-                                  "No paired daily readings");
+        drawHistoryMessage(trendBars
+            ? stale ? "No pressure buckets (stale)" : "No pressure buckets"
+            : stale ? "No paired daily readings (stale)" : "No paired daily readings");
     }
     else if (sampleCount == 0 && (!dailyBars || invalidCount > 0))
     {
@@ -215,8 +218,8 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
                 if (bucket.count)
                     maximum = max(maximum, bucket.value(window.aggregation));
         }
-        std::unique_ptr<LineChartPoint[]> points[MAX_NUMERIC_HISTORY_SERIES];
-        LineChartSeries series[MAX_NUMERIC_HISTORY_SERIES];
+        std::unique_ptr<LineChartPoint[]> points[3];
+        LineChartSeries series[3];
         for (size_t s = 0; s < page.seriesCount; ++s)
         {
             const History &history = histories[s];
@@ -264,7 +267,11 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         chart.yLabelDecimalPlaces = dailyBars ? 2 : 0;
         chart.lineColor = page.series[0].color;
         chart.zeroBarColor = CYD_YELLOW;
-        const bool drawn = floatingBars
+        const bool drawn = trendBars
+            ? drawPressureTrendChartWidget(chart, points[0].get(), points[1].get(),
+                                            points[2].get(), window.buckets.size(),
+                                            window.bucketSeconds * 0.75)
+            : floatingBars
             ? drawFloatingBarChartWidget(chart, points[0].get(), points[1].get(),
                                          window.buckets.size(), window.bucketSeconds * 0.75)
             : dailyBars
@@ -289,7 +296,8 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         }
         gfx->setTextColor(COLOR_TEXT);
         drawHistoryTimes(window, daily);
-        const String count = floatingBars ? String(pairedDays) + "/" +
+        const String count = trendBars ? String(window.buckets.size()) + " bars" :
+            floatingBars ? String(pairedDays) + "/" +
                 String(window.buckets.size()) + " days" :
             dailyBars ? String(window.buckets.size()) + " days" :
                         String(sampleCount) + " pts";

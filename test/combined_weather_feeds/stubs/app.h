@@ -21,12 +21,14 @@ enum Screen
     SCREEN_WIND_DIRECTION,
     SCREEN_BAROMETER,
     SCREEN_BAROMETER_HISTORY,
+    SCREEN_BAROMETER_TREND,
     SCREEN_ASTRONOMICAL
 };
 struct AppState { Screen currentScreen; };
 extern AppState state;
 
 static const uint16_t CYD_CYAN = 0x07ff;
+static const uint16_t CYD_GREEN = 0x07e0;
 static const uint16_t CYD_YELLOW = 0xffe0;
 static const uint16_t CYD_NAVY = 0x000f;
 static const uint16_t COLOR_TEXT = 0xffff;
@@ -110,6 +112,10 @@ void enterBarometerHistoryScreen();
 void drawBarometerHistoryScreen();
 void refreshBarometerHistoryResults();
 void handleBarometerHistoryTouch(int, int);
+void enterBarometerTrendScreen();
+void drawBarometerTrendScreen();
+void refreshBarometerTrendResults();
+void handleBarometerTrendTouch(int, int);
 void enterAstronomicalScreen();
 void drawAstronomicalScreen();
 void refreshAstronomicalResults();

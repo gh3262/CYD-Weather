@@ -1,7 +1,8 @@
 #include "app.h"
 #include "screens/snapshot_history_page.h"
+#include "screens/barometer_trend_history.h"
 
-static SnapshotHistoryResult snapshotHistories[MAX_NUMERIC_HISTORY_SERIES];
+static SnapshotHistoryResult snapshotHistories[PRESSURE_TREND_SERIES_COUNT];
 static NumericHistoryStatus snapshotStatus;
 static const char *snapshotFeed = nullptr;
 static const SnapshotHistoryField *snapshotFields = nullptr;
@@ -19,15 +20,20 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
         adafruitIOManager.getFeedUpdatedAt(snapshotFeed, updatedAt);
     const bool daily = page.style == HistoryChartStyle::DailyBars ||
         page.style == HistoryChartStyle::DailyFloatingBars;
+    const bool trend = page.style == HistoryChartStyle::PressureTrendBars;
     if (available && (!snapshotParsed || feedRevision != lastSnapshotRevision ||
         (snapshotStatus.state == NumericHistoryState::Failed &&
          updatedAt != lastSnapshotAttemptAt)))
     {
         String payload;
-        const char *error = adafruitIOManager.getFeedValue(snapshotFeed, payload)
-            ? parseWeatherSnapshotHistory(
-                payload.c_str(), snapshotFields, page.seriesCount, daily, snapshotHistories)
-            : "could not copy snapshot from feed cache";
+        const char *error = nullptr;
+        if (!adafruitIOManager.getFeedValue(snapshotFeed, payload))
+            error = "could not copy snapshot from feed cache";
+        else if (trend)
+            error = parseBarometerTrendHistory(payload.c_str(), snapshotHistories);
+        else
+            error = parseWeatherSnapshotHistory(
+                payload.c_str(), snapshotFields, page.seriesCount, daily, snapshotHistories);
         if (error)
         {
             Serial.printf("%s: invalid %s: %s.\n", page.title, snapshotFeed, error);
@@ -47,7 +53,8 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
     const int64_t now = static_cast<int64_t>(time(nullptr));
     const bool oldWindow = daily
         ? !completedHistoryEndUtc(now, dailyEnd) || dailyEnd > snapshotHistories[0].endUtc
-        : snapshotHistories[0].endUtc && now > snapshotHistories[0].endUtc + 3600;
+        : snapshotHistories[0].endUtc &&
+            now > snapshotHistories[0].endUtc + page.bucketSeconds;
     const bool stale = snapshotStatus.state == NumericHistoryState::Failed ||
         WiFi.status() != WL_CONNECTED ||
         (snapshotStatus.hasData &&

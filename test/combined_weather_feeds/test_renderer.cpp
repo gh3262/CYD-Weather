@@ -18,6 +18,7 @@ TestGraphics *gfx = &graphics;
 static bool failAllocation = false;
 static size_t draws = 0;
 static size_t checks = 0;
+static size_t trendDraws = 0;
 
 void *operator new[](size_t size, const std::nothrow_t &) noexcept
 {
@@ -75,6 +76,25 @@ bool drawFloatingBarChartWidget(const LineChartWidgetOptions &chart, const LineC
     return true;
 }
 static HistoryChartScale scale(double, double) { return {1, 5}; }
+
+bool drawPressureTrendChartWidget(const LineChartWidgetOptions &chart,
+                                  const LineChartPoint *lows,
+                                  const LineChartPoint *highs,
+                                  const LineChartPoint *averages, size_t count, double width)
+{
+    ++trendDraws;
+    check(count == 25 && width == 10800 * 0.75 &&
+          chart.maximumX - chart.minimumX == 25 * 10800,
+          "trend renders all 25 supplied three-hour slots");
+    for (size_t i = 0; i < count; ++i)
+        check(lows[i].x == chart.minimumX + i * 10800 + 5400 &&
+              highs[i].x == lows[i].x && averages[i].x == lows[i].x &&
+              lows[i].y == 1018.0 + i * 0.1 &&
+              highs[i].y == 1020.0 + i * 0.1 &&
+              averages[i].y == 1018.25 + i * 0.1,
+              "trend renderer preserves min/max/average and bucket centers");
+    return true;
+}
 
 int main()
 {
@@ -167,6 +187,48 @@ int main()
           std::find(graphics.printed.begin(), graphics.printed.end(), "30/30 days") !=
               graphics.printed.end(),
           "30 paired daily bars render with a 30/30 footer");
+    static const HistoryChartSeries trendSeries[] = {
+        {"pages.baro-trend", HistoryAggregation::Minimum, CYD_GREEN, "Low"},
+        {"pages.baro-trend", HistoryAggregation::Maximum, CYD_GREEN, "High"},
+        {"pages.baro-trend", HistoryAggregation::Average, COLOR_TEXT, "Average"},
+    };
+    const HistoryChartPage trendPage = {
+        "Barometer Trend", trendSeries, 3, 72 * 3600, 10800, "3 days", " hPa",
+        1, 1, false, scale, HistoryChartStyle::PressureTrendBars,
+    };
+    static SnapshotHistoryResult trends[3];
+    for (size_t s = 0; s < 3; ++s)
+    {
+        auto &history = trends[s];
+        history.startUtc = 1794092400;
+        history.endUtc = history.startUtc + 25 * 10800;
+        history.bucketSeconds = 10800;
+        history.sampleCount = 25;
+        history.aggregation = trendSeries[s].aggregation;
+        history.buckets.resize(25);
+        for (size_t i = 0; i < 25; ++i)
+        {
+            history.buckets[i].startUtc = history.startUtc + i * 10800;
+            history.buckets[i].count = 1;
+            history.buckets[i].latest = (s == 0 ? 1018 : s == 1 ? 1020 : 1018.25) + i * 0.1;
+        }
+        history.minimum = history.buckets.front().latest;
+        history.maximum = history.buckets.back().latest;
+    }
+    drawHistoryChartFrame(trendPage);
+    ++status.revision;
+    failAllocation = true;
+    refreshHistoryChartData(trendPage, trends, status, false);
+    check(trendDraws == 0 && graphics.printed.back() == "Not enough memory for chart",
+          "trend point allocation failure is visible");
+    refreshHistoryChartData(trendPage, trends, status, false);
+    check(trendDraws == 1 &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "25 bars") !=
+              graphics.printed.end(), "trend retries and shows bucket count, not series point count");
+    refreshHistoryChartData(trendPage, trends, status, false);
+    check(trendDraws == 1, "unchanged trend revision does not redraw");
+    refreshHistoryChartData(trendPage, trends, status, true);
+    check(trendDraws == 2, "stale trend redraws all three series");
     std::printf("PASS: %zu history renderer memory checks\n", checks);
     return 0;
 }

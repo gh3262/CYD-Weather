@@ -252,7 +252,9 @@ static const ScreenDef screens[] = {
     /* SCREEN_PRECIPITATION */ { drawPrecipitationScreen, handlePrecipitationTouch, nullptr,           refreshPrecipitationResults, true },
     /* SCREEN_PRECIPITATION_HISTORY */ { drawPrecipitationHistoryScreen, handlePrecipitationHistoryTouch, nullptr, refreshPrecipitationHistoryResults, true },
     /* SCREEN_BAROMETER    */ { drawBarometerScreen, handleBarometerTouch, nullptr,                   refreshBarometerResults, true },
-        /* SCREEN_BAROMETER_HISTORY */ { drawBarometerHistoryScreen, handleBarometerHistoryTouch, nullptr, refreshBarometerHistoryResults, true },    /* SCREEN_WIND         */ { drawWindScreen, handleWindTouch, nullptr,                             refreshWindResults, true },
+    /* SCREEN_BAROMETER_HISTORY */ { drawBarometerHistoryScreen, handleBarometerHistoryTouch, nullptr, refreshBarometerHistoryResults, true },
+    /* SCREEN_BAROMETER_TREND */ { drawBarometerTrendScreen, handleBarometerTrendTouch, nullptr, refreshBarometerTrendResults, true },
+    /* SCREEN_WIND         */ { drawWindScreen, handleWindTouch, nullptr,                             refreshWindResults, true },
     /* SCREEN_WIND_HISTORY */ { drawWindHistoryScreen, handleWindHistoryTouch, nullptr, refreshWindHistoryResults, true },
     /* SCREEN_WIND_DIRECTION */ { drawWindDirectionScreen, handleWindDirectionTouch, nullptr, refreshWindDirectionResults, true },
     /* SCREEN_TEMPERATURES */ { drawTemperaturesScreen, handleTemperaturesTouch, nullptr,               refreshTemperaturesResults, true },
@@ -279,6 +281,7 @@ static bool isHistoryChartScreen(Screen screen)
     return screen == SCREEN_TEMPERATURE_HISTORY ||
         screen == SCREEN_TEMPERATURE_DAILY ||
         screen == SCREEN_BAROMETER_HISTORY ||
+        screen == SCREEN_BAROMETER_TREND ||
         screen == SCREEN_WIND_HISTORY ||
         screen == SCREEN_PRECIPITATION_HISTORY;
 }

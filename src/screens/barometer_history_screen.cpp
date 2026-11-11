@@ -1,20 +1,6 @@
 #include "app.h"
 #include "screens/snapshot_history_page.h"
-
-// Chooses the finest scale with at most eight Y labels so large swings fit.
-static HistoryChartScale pressureHistoryScale(double minimumY, double maximumY)
-{
-    static const HistoryChartScale SCALES[] = {
-        {0.5, 1.0}, {1.0, 2.0}, {1.0, 5.0}, {5.0, 10.0}, {10.0, 20.0}, {10.0, 50.0},
-    };
-    const double range = maximumY - minimumY;
-    for (const HistoryChartScale &scale : SCALES)
-    {
-        if (range / scale.labelInterval <= 8.0)
-            return scale;
-    }
-    return {50.0, 100.0};
-}
+#include "screens/barometer_history_scale.h"
 
 static const HistoryChartSeries PRESSURE_HISTORY_SERIES[] = {
     {"pages.baro-line", HistoryAggregation::Average, CYD_CYAN, nullptr},
@@ -49,6 +35,7 @@ void refreshBarometerHistoryResults()
 void drawBarometerHistoryScreen()
 {
     drawSnapshotHistoryPage(pressureHistoryPage(), "pages.baro-line", PRESSURE_HISTORY_FIELDS);
+    drawNav3("Trend");
 }
 
 void enterBarometerHistoryScreen()
@@ -61,4 +48,6 @@ void handleBarometerHistoryTouch(int x, int y)
 {
     if (navPressed1(x, y))
         enterBarometerScreen();
+    else if (navPressed3(x, y))
+        enterBarometerTrendScreen();
 }

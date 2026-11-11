@@ -3,15 +3,11 @@
 #include <Fonts/FreeMono9pt7b.h>
 #include <math.h>
 #include <time.h>
-#include <vector>
 
 #include "adafruitio/adafruitio_manager.h"
-#include "screens/wind_direction_stats.h"
+#include "screens/wind_direction_snapshot.h"
 
-static const char *const DIRECTION_FEED = "currentwinddegrees";
-static const char *const SPEED_FEED = "currentwindspeed";
-static const uint32_t WINDOW_SECONDS = 12U * 3600U;
-static const uint32_t BUCKET_SECONDS = 10U * 60U;
+static const char *const SNAPSHOT_FEED = "pages.winddir-graphic";
 static const char *const WINDOW_LABEL = "12h";
 static const double CALM_MPH = 1.0;
 
@@ -39,7 +35,13 @@ struct WindDirectionView
 };
 
 static bool directionActive = false;
-static bool historyRequested = false;
+static bool snapshotFeedActive = false;
+static bool snapshotParsed = false;
+static bool snapshotHasData = false;
+static bool snapshotFailed = false;
+static uint32_t lastSnapshotRevision = 0;
+static uint32_t lastSnapshotAttemptAt = 0;
+static WindDirectionSnapshot snapshot;
 static bool directionRendered = false;
 static WindDirectionView renderedView;
 
@@ -64,23 +66,6 @@ static bool sameView(const WindDirectionView &a, const WindDirectionView &b)
         if (x.sectorCounts[i] != y.sectorCounts[i])
             return false;
     return true;
-}
-
-static bool parseNumber(const String &text, double &value)
-{
-    String trimmed = text;
-    trimmed.trim();
-    if (trimmed.isEmpty())
-        return false;
-    char *end = nullptr;
-    value = strtod(trimmed.c_str(), &end);
-    return end && *end == '\0' && isfinite(value);
-}
-
-static bool readFeedNumber(const char *feedKey, double &value)
-{
-    String text;
-    return adafruitIOManager.getFeedValue(feedKey, text) && parseNumber(text, value);
 }
 
 static int roundBearing(double bearing)
@@ -299,65 +284,50 @@ static void renderView(const WindDirectionView &view)
     gfx->setTextSize(2);
 }
 
-// Newest history sample, falling back to the latest-value cache before it loads.
-static bool currentBearing(const NumericHistoryResult *direction, double &bearing)
-{
-    int64_t newest = INT64_MIN;
-    for (size_t i = 0; direction && i < direction->buckets.size(); ++i)
-    {
-        const NumericHistoryBucket &bucket = direction->buckets[i];
-        if (bucket.count && bucket.latestAtMs > newest)
-        {
-            newest = bucket.latestAtMs;
-            bearing = bucket.latest;
-        }
-    }
-    return newest != INT64_MIN ||
-        (readFeedNumber(DIRECTION_FEED, bearing) && bearing >= 0 && bearing <= 360);
-}
-
 void refreshWindDirectionResults()
 {
     if (!directionActive)
         return;
-    NumericHistoryResult histories[2];
-    NumericHistoryStatus status;
-    const bool hasData = adafruitIOManager.getNumericHistory(histories, 2, status);
+    uint32_t revision = 0;
+    uint32_t updatedAt = 0;
+    const bool available = snapshotFeedActive &&
+        adafruitIOManager.getFeedValueRevision(SNAPSHOT_FEED, revision) &&
+        adafruitIOManager.getFeedUpdatedAt(SNAPSHOT_FEED, updatedAt);
+    if (available && (!snapshotParsed || revision != lastSnapshotRevision ||
+        (snapshotFailed && updatedAt != lastSnapshotAttemptAt)))
+    {
+        String payload;
+        const char *error = adafruitIOManager.getFeedValue(SNAPSHOT_FEED, payload)
+            ? parseWindDirectionSnapshot(payload.c_str(), snapshot)
+            : "could not copy snapshot from feed cache";
+        snapshotFailed = error != nullptr;
+        if (error)
+            Serial.printf("Wind Direction: invalid %s: %s.\n", SNAPSHOT_FEED, error);
+        else
+            snapshotHasData = true;
+        snapshotParsed = true;
+        lastSnapshotRevision = revision;
+        lastSnapshotAttemptAt = updatedAt;
+    }
     const int64_t now = static_cast<int64_t>(time(nullptr));
-    const bool stale = status.state == NumericHistoryState::Failed ||
+    const bool stale = snapshotFailed ||
         WiFi.status() != WL_CONNECTED ||
-        (hasData && now > histories[0].endUtc + 120);
+        (snapshotHasData && (!available || millis() - updatedAt > 120000U ||
+                            now > snapshot.endUtc + 120));
 
     WindDirectionView view;
-    double value;
-    if (currentBearing(hasData ? &histories[0] : nullptr, value))
-        view.currentBearing = roundBearing(value);
-    if (readFeedNumber(SPEED_FEED, value) && value >= 0)
-        view.currentSpeed = static_cast<int>(lround(value));
-
-    if (hasData && histories[0].buckets.size() == histories[1].buckets.size())
+    if (snapshotHasData)
     {
-        // Pair each bucket's mean bearing with that bucket's mean speed.
-        std::vector<WindDirectionSample> samples;
-        samples.reserve(histories[0].buckets.size());
-        for (size_t i = 0; i < histories[0].buckets.size(); ++i)
-        {
-            const NumericHistoryBucket &direction = histories[0].buckets[i];
-            const NumericHistoryBucket &speed = histories[1].buckets[i];
-            if (direction.count && speed.count)
-                samples.push_back({direction.value(HistoryAggregation::CircularAverage),
-                                   speed.value(HistoryAggregation::Average)});
-        }
+        view.currentBearing = snapshot.currentBearing;
+        view.currentSpeed = snapshot.currentSpeed;
         view.hasStats = true;
-        view.stats = calculateWindDirectionStats(samples.data(), samples.size(), CALM_MPH);
+        view.stats = snapshot.stats;
     }
 
     const size_t sampleCount = view.stats.windySamples + view.stats.calmSamples;
-    if (!historyRequested)
-        view.status = "History unavailable";
-    else if (!hasData)
-        view.status = status.state == NumericHistoryState::Failed
-            ? "History failed" : stale ? "Offline" : "Loading history...";
+    if (!snapshotHasData)
+        view.status = snapshotFailed ? "Snapshot failed" :
+            stale ? "Offline" : "Loading snapshot...";
     else if (stale)
     {
         view.status = "Stale";
@@ -379,21 +349,15 @@ void refreshWindDirectionResults()
 
 void drawWindDirectionScreen()
 {
-    const char *const feeds[] = {DIRECTION_FEED, SPEED_FEED};
-    NumericHistoryRequest requests[2];
-    for (NumericHistoryRequest &request : requests)
-    {
-        request.windowSeconds = WINDOW_SECONDS;
-        request.bucketSeconds = BUCKET_SECONDS;
-    }
-    requests[0].aggregation = HistoryAggregation::CircularAverage;
-    requests[1].aggregation = HistoryAggregation::Average;
-
-    historyRequested = adafruitIOManager.requestNumericHistory(feeds, requests, 2);
-    if (!adafruitIOManager.setActiveFeeds(feeds, 2))
-        Serial.println("Wind Direction: could not activate its Adafruit IO feeds.");
-    if (!historyRequested)
-        Serial.println("Wind Direction: could not request Adafruit IO history.");
+    snapshot = {};
+    snapshotParsed = false;
+    snapshotHasData = false;
+    adafruitIOManager.cancelNumericHistory();
+    const char *const feeds[] = {SNAPSHOT_FEED};
+    snapshotFeedActive = adafruitIOManager.setActiveFeeds(feeds, 1);
+    snapshotFailed = !snapshotFeedActive;
+    if (!snapshotFeedActive)
+        Serial.printf("Wind Direction: could not activate %s.\n", SNAPSHOT_FEED);
 
     clearScreen(COLOR_BACKGROUND);
     titleBar("Wind Direction");

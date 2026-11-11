@@ -71,4 +71,12 @@ bool drawFloatingBarChartWidget(const LineChartWidgetOptions &options,
                                 const LineChartPoint *upper, size_t pointCount,
                                 double barWidth);
 
+// Pressure range colors: green <= 0.8, yellow > 0.8, orange > 1.5 hPa.
+// Average points must share X and lie within each range. Ticks use labelColor.
+bool drawPressureTrendChartWidget(const LineChartWidgetOptions &options,
+                                 const LineChartPoint *lower,
+                                 const LineChartPoint *upper,
+                                 const LineChartPoint *average, size_t pointCount,
+                                 double barWidth);
+
 #endif

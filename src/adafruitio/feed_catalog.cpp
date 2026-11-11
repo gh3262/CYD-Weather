@@ -109,7 +109,9 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"pages.p04-baro", "Barometer Page Values", "Barometer", AdafruitIOValueType::LongText, "hPa", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.p05-astro", "Astronomical Page Values", "Light", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.wind-line", "Hourly Wind History", "Wind", AdafruitIOValueType::LongText, "mph", true, AdafruitIORefreshPolicy::PagePeriodic},
+    {"pages.winddir-graphic", "Wind Direction Graphic", "Wind", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.baro-line", "Hourly Barometer History", "Barometer", AdafruitIOValueType::LongText, "hPa", true, AdafruitIORefreshPolicy::PagePeriodic},
+    {"pages.baro-trend", "Barometer Trend", "Barometer", AdafruitIOValueType::LongText, "hPa", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.prcp-line", "Daily Precipitation History", "Precipitation", AdafruitIOValueType::LongText, "in", true, AdafruitIORefreshPolicy::PagePeriodic},
 };
 

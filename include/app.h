@@ -21,6 +21,7 @@ enum Screen
     SCREEN_PRECIPITATION_HISTORY,
     SCREEN_BAROMETER,
     SCREEN_BAROMETER_HISTORY,
+    SCREEN_BAROMETER_TREND,
     SCREEN_WIND,
     SCREEN_WIND_HISTORY,
     SCREEN_WIND_DIRECTION,
@@ -133,6 +134,12 @@ void drawBarometerHistoryScreen();
 void enterBarometerHistoryScreen();
 void handleBarometerHistoryTouch(int x, int y);
 void refreshBarometerHistoryResults();
+
+// barometer_trend_screen.cpp
+void drawBarometerTrendScreen();
+void enterBarometerTrendScreen();
+void handleBarometerTrendTouch(int x, int y);
+void refreshBarometerTrendResults();
 
 // wind_screen.cpp
 void drawWindScreen();

@@ -269,6 +269,16 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
                 Serial.println("Floating bar chart widget: mismatched X or inverted range.");
                 return false;
             }
+            if (seriesCount == 3)
+            {
+                const LineChartPoint &average = series[2].points[i];
+                if (average.x != lower.x || isnan(lower.y) || isnan(upper.y) ||
+                    isnan(average.y) || average.y < lower.y || average.y > upper.y)
+                {
+                    Serial.println("Pressure trend chart widget: invalid average.");
+                    return false;
+                }
+            }
         }
     }
 
@@ -379,7 +389,24 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
                                      top, bottom);
             const int y1 = chartPixel((options.maximumY - lower.y) / rangeY,
                                      top, bottom);
-            gfx->fillRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1, options.lineColor);
+            uint16_t color = options.lineColor;
+            if (seriesCount == 3)
+            {
+                color = upper.y > lower.y + 1.5 ? CYD_ORANGE :
+                    upper.y > lower.y + 0.8 ? CYD_YELLOW : CYD_GREEN;
+            }
+            gfx->fillRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1, color);
+            if (seriesCount == 3)
+            {
+                const double average = series[2].points[i].y;
+                if (average >= options.minimumY && average <= options.maximumY)
+                {
+                    const int y = chartPixel((options.maximumY - average) / rangeY,
+                                             top, bottom);
+                    gfx->drawLine(max(left, x0 - 1), y, min(right, x1 + 1), y,
+                                  options.labelColor);
+                }
+            }
         }
         return true;
     }
@@ -431,4 +458,24 @@ bool drawFloatingBarChartWidget(const LineChartWidgetOptions &options,
         {upper, pointCount, options.lineColor},
     };
     return drawChartWidget(options, series, 2, barWidth, 0, true);
+}
+
+bool drawPressureTrendChartWidget(const LineChartWidgetOptions &options,
+                                 const LineChartPoint *lower,
+                                 const LineChartPoint *upper,
+                                 const LineChartPoint *average, size_t pointCount,
+                                 double barWidth)
+{
+    if (!isfinite(barWidth) || barWidth <= 0.0 ||
+        !isfinite(barWidth / (options.maximumX - options.minimumX)))
+    {
+        Serial.println("Pressure trend chart widget: invalid bar width.");
+        return false;
+    }
+    const LineChartSeries series[] = {
+        {lower, pointCount, options.lineColor},
+        {upper, pointCount, options.lineColor},
+        {average, pointCount, options.labelColor},
+    };
+    return drawChartWidget(options, series, 3, barWidth, 0, true);
 }

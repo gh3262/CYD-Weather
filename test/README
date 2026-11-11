@@ -86,6 +86,26 @@ cancelling winds, and the smallest covering range. From the repository root:
 g++ -std=c++11 -Wall -Wextra -Werror -Isrc src\screens\wind_direction_stats.cpp test\wind_direction_stats\test_main.cpp -o "$env:TEMP\cyd-wind-direction-tests.exe"
 if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-wind-direction-tests.exe" }
 
+Wind direction snapshot native tests
+------------------------------------
+wind_direction_snapshot/test_main.cpp checks the compact feed contract,
+required fields, numeric bounds, count consistency, null/empty/all-calm cases,
+atomic rejection, current-value rounding, and the production renderer.
+Integration checks cover exclusive pages.winddir-graphic activation, raw-history
+cancellation, minute polling, unchanged-value caching, stale receipts/windows,
+WiFi loss, malformed-update retention/recovery, and navigation.
+
+python -m ziglang c++ -std=c++11 -Wall -Wextra -Werror -Itest\wind_direction_snapshot\stubs -Itest\combined_weather_feeds\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\wind_direction_stats.cpp src\screens\wind_direction_screen.cpp test\wind_direction_snapshot\test_main.cpp -o "$env:TEMP\cyd-wind-snapshot-tests.exe"
+if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-wind-snapshot-tests.exe" }
+
+g++, clang++, or "zig c++" can replace "python -m ziglang c++". The executable
+also accepts one argument and reads a producer JSON payload from stdin to
+validate the Python/C++ contract directly. External test_winddir.py runs with
+"python -B -m unittest -v test_winddir" from the producer directory, without
+network access or credentials. It covers matching statistics, UTC bucketing,
+73 partial-window buckets, gaps, cancellation, duplicate IDs, pagination,
+publication/dry-run, and failure without partial writes.
+
 Temperature page snapshot native tests
 --------------------------------------
 temperature_page_values/test_main.cpp tests the production JSON parser using
@@ -140,7 +160,14 @@ response rejection, failed String copies, and repeated large-snapshot navigation
 History feeds are producer-ordered/unique and are not sorted, deduplicated,
 aggregated, or gap-filled by the display.
 
-g++ -std=c++11 -Wall -Wextra -Werror -Itest\combined_weather_feeds\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\snapshot_history_page.cpp src\screens\temperatures_screen.cpp src\screens\temperature_history_screen.cpp src\screens\temperature_daily_screen.cpp src\screens\precipitation_screen.cpp src\screens\precipitation_history_screen.cpp src\screens\wind_screen.cpp src\screens\wind_history_screen.cpp src\screens\barometer_screen.cpp src\screens\barometer_history_screen.cpp src\screens\astronomical_screen.cpp test\combined_weather_feeds\test_main.cpp -o "$env:TEMP\cyd-combined-weather-tests.exe"
+Barometer Trend checks cover all 25 supplied three-hour slots, exact min/max/
+average preservation, local bucket dates, invalid/empty snapshots, atomic stale
+retention, allocation failure/recovery, exclusive feed activation, and reciprocal
+History/Trend navigation. Widget tests verify strict 0.8/1.5 hPa color boundaries
+and exact average tick placement. Renderer tests cover all three series, bucket
+centers, the 25-bar footer, allocation retry, and stale/revision redraw behavior.
+
+g++ -std=c++11 -Wall -Wextra -Werror -Itest\combined_weather_feeds\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\snapshot_history_page.cpp src\screens\temperatures_screen.cpp src\screens\temperature_history_screen.cpp src\screens\temperature_daily_screen.cpp src\screens\precipitation_screen.cpp src\screens\precipitation_history_screen.cpp src\screens\wind_screen.cpp src\screens\wind_history_screen.cpp src\screens\barometer_screen.cpp src\screens\barometer_history_screen.cpp src\screens\barometer_trend_screen.cpp src\screens\astronomical_screen.cpp test\combined_weather_feeds\test_main.cpp -o "$env:TEMP\cyd-combined-weather-tests.exe"
 if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-combined-weather-tests.exe" }
 
 The executable can also validate a real producer payload from stdin, with its

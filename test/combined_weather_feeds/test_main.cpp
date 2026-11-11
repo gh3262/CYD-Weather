@@ -8,6 +8,7 @@
 #include "screens/weather_page_values.h"
 #include "screens/temperature_page_values.h"
 #include "screens/precipitation_page_values.h"
+#include "screens/barometer_trend_history.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -92,12 +93,13 @@ private:
     std::map<void *, size_t> sizes;
 };
 
-static SnapshotHistoryResult displayed[2];
+static SnapshotHistoryResult displayed[3];
 static NumericHistoryStatus displayedStatus;
 static bool displayedStale = false;
 static uint32_t displayedWindow = 0;
 static uint32_t displayedBucket = 0;
 static std::vector<std::string> tableValues;
+static std::string navLabels[4];
 
 static void check(bool condition, const char *message)
 {
@@ -121,10 +123,10 @@ static void checkNear(double value, double expected, const char *message)
 void clearScreen(uint16_t) { graphics.printed.clear(); }
 void titleBar(const char *) {}
 void setDefaultFont() {}
-void drawNav1(const char *) {}
-void drawNav2(const char *) {}
-void drawNav3(const char *) {}
-void drawNav4(const char *) {}
+void drawNav1(const char *text) { navLabels[0] = text; }
+void drawNav2(const char *text) { navLabels[1] = text; }
+void drawNav3(const char *text) { navLabels[2] = text; }
+void drawNav4(const char *text) { navLabels[3] = text; }
 bool navPressed1(int x, int) { return x == 1; }
 bool navPressed2(int x, int) { return x == 2; }
 bool navPressed3(int x, int) { return x == 3; }
@@ -144,6 +146,7 @@ void drawCurrentScreen()
     case SCREEN_WIND_HISTORY: drawWindHistoryScreen(); break;
     case SCREEN_BAROMETER: drawBarometerScreen(); break;
     case SCREEN_BAROMETER_HISTORY: drawBarometerHistoryScreen(); break;
+    case SCREEN_BAROMETER_TREND: drawBarometerTrendScreen(); break;
     case SCREEN_ASTRONOMICAL: drawAstronomicalScreen(); break;
     default: break;
     }
@@ -259,7 +262,9 @@ static const char *parsePayload(const std::string &key, const char *payload)
     if (key == "pages.p03-wind") return parseWindPageValues(payload, wind);
     if (key == "pages.p04-baro") return parseBarometerPageValues(payload, barometer);
     if (key == "pages.p05-astro") return parseAstronomicalPageValues(payload, astronomical, daylight);
-    SnapshotHistoryResult histories[2];
+    SnapshotHistoryResult histories[3];
+    if (key == "pages.baro-trend")
+        return parseBarometerTrendHistory(payload, histories);
     if (key == "pages.dailytemp-bar")
     {
         const SnapshotHistoryField fields[] = {
@@ -570,6 +575,147 @@ int main(int argc, char **argv)
     checkNear(displayed[0].maximum, 1013.09, "barometer snapshot preserves supplied pressure");
     handleBarometerHistoryTouch(1, 0);
     check(state.currentScreen == SCREEN_BAROMETER, "barometer history Back route");
+
+    check(navLabels[1] == "Trend", "barometer position 2 is labelled Trend");
+    handleBarometerTouch(2, 0);
+    check(state.currentScreen == SCREEN_BAROMETER_TREND &&
+          navLabels[2] == "History", "barometer Trend button and History link");
+    assertOnlyFeed("pages.baro-trend");
+    check(displayedWindow == 72 * 3600 && displayedBucket == 3 * 3600,
+          "trend requests three-hour bucket chart without raw history");
+    std::string trendPayload = "[";
+    const double suppliedTrend[25][3] = {
+        {1022.16, 1023.03, 1022.7911111111111},
+        {1022.93, 1023.16, 1023.0188888888889},
+        {1023.12, 1023.54, 1023.26125},
+        {1023.18, 1023.93, 1023.6744444444444},
+        {1021.67, 1023.72, 1022.7611111111112},
+        {1020.58, 1021.46, 1020.9177777777778},
+        {1020.36, 1021.11, 1020.7377777777778},
+        {1021.16, 1021.62, 1021.3966666666666},
+        {1021.26, 1021.56, 1021.39},
+        {1021.22, 1021.65, 1021.3675},
+        {1021.75, 1023.01, 1022.2288888888888},
+        {1022.93, 1023.43, 1023.1433333333334},
+        {1021.42, 1023.23, 1022.3577777777778},
+        {1020.7, 1021.22, 1020.8811111111112},
+        {1020.66, 1021.21, 1020.8399999999999},
+        {1020.92, 1021.33, 1021.1637499999999},
+        {1021.16, 1021.92, 1021.6222222222223},
+        {1020.82, 1021.23, 1021.0025},
+        {1020.78, 1021.12, 1020.9077777777778},
+        {1021.32, 1022.17, 1021.8711111111111},
+        {1020.53, 1021.78, 1021.3766666666666},
+        {1018.45, 1020.17, 1019.02},
+        {1018.21, 1018.8, 1018.5355555555556},
+        {1018.58, 1019.33, 1018.9925000000001},
+        {1018.32, 1018.62, 1018.5125},
+    };
+    for (size_t i = 0; i < 25; ++i)
+    {
+        char record[180];
+        std::snprintf(record, sizeof(record),
+            "%s{\"bucket\":\"2026-11-%02u-%u\",\"min\":%.17g,\"max\":%.17g,\"average\":%.17g}",
+            i ? "," : "", static_cast<unsigned>(7 + (i + 7) / 8),
+            static_cast<unsigned>((i + 7) % 8 + 1),
+            suppliedTrend[i][0], suppliedTrend[i][1], suppliedTrend[i][2]);
+        trendPayload += record;
+    }
+    trendPayload += "]";
+    cache("pages.baro-trend", trendPayload.c_str());
+    refreshBarometerTrendResults();
+    check(displayedStatus.state == NumericHistoryState::Ready &&
+          displayed[0].buckets.size() == 25 && displayed[2].sampleCount == 25,
+          "all 25 supplied three-hour buckets and three fields are retained");
+    checkNear(displayed[0].buckets[0].latest, 1022.16, "trend exact minimum");
+    checkNear(displayed[1].buckets[0].latest, 1023.03, "trend exact maximum");
+    checkNear(displayed[2].buckets[0].latest, 1022.7911111111111, "trend exact average");
+    for (size_t i = 0; i < 25; ++i)
+        for (size_t s = 0; s < 3; ++s)
+            checkNear(displayed[s].buckets[i].latest, suppliedTrend[i][s],
+                      "every supplied pressure min/max/average survives decoding");
+    checkNear(displayed[0].minimum, 1018.21, "sample lowest low");
+    checkNear(displayed[1].maximum, 1023.93, "sample highest high");
+    BudgetJsonAllocator trendAllocator;
+    trendAllocator.limit = 1;
+    check(parseBarometerTrendHistory(trendPayload.c_str(), displayed, &trendAllocator) &&
+          trendAllocator.failures && displayed[0].buckets.size() == 25,
+          "JSON allocation failure preserves previous pressure trend atomically");
+    const std::string gapTrend =
+        "[{\"bucket\":\"2026-11-07-1\",\"min\":1,\"max\":2,\"average\":1.5},"
+        "{\"bucket\":\"2026-11-07-3\",\"min\":1,\"max\":2,\"average\":1.5}]";
+    static SnapshotHistoryResult gapResults[3];
+    check(!parseBarometerTrendHistory(gapTrend.c_str(), gapResults) &&
+          gapResults[0].buckets.size() == 2 &&
+          gapResults[0].buckets[1].startUtc - gapResults[0].buckets[0].startUtc == 21600,
+          "missing pressure buckets are not filled or reaggregated");
+    std::string oversizedTrend = "[";
+    for (size_t i = 0; i < 73; ++i)
+    {
+        char record[128];
+        std::snprintf(record, sizeof(record),
+            "%s{\"bucket\":\"2026-11-%02u-%u\",\"min\":1,\"max\":2,\"average\":1.5}",
+            i ? "," : "", static_cast<unsigned>(1 + i / 8),
+            static_cast<unsigned>(i % 8 + 1));
+        oversizedTrend += record;
+    }
+    oversizedTrend += "]";
+    check(parseBarometerTrendHistory(oversizedTrend.c_str(), displayed) &&
+          displayed[0].buckets.size() == 25,
+          "pressure bucket capacity is enforced before writing past storage");
+    int64_t trendStart, trendEnd;
+    check(parsePressureTrendBucket("2026-11-07-8", trendStart, trendEnd) &&
+          displayed[0].startUtc == trendStart && trendEnd - trendStart == 10800 &&
+          displayed[0].endUtc - displayed[0].startUtc == 25 * 10800,
+          "bucket 8 is local 21:00 through midnight; no sample is trimmed");
+    check(!parsePressureTrendBucket("2026-02-30-1", trendStart, trendEnd) &&
+          !parsePressureTrendBucket("2026-11-07-0", trendStart, trendEnd) &&
+          !parsePressureTrendBucket("2026-11-07-9", trendStart, trendEnd),
+          "invalid calendar dates and bucket indices rejected");
+    const char *invalidTrends[] = {
+        "[{\"bucket\":\"2026-11-07-8\",\"min\":2,\"max\":1,\"average\":1.5}]",
+        "[{\"bucket\":\"2026-11-07-8\",\"min\":1,\"max\":2,\"average\":3}]",
+        "[{\"bucket\":\"2026-11-07-8\",\"min\":1,\"max\":2}]",
+        "[{\"bucket\":\"2026-11-07-8\",\"min\":null,\"max\":2,\"average\":1.5}]",
+        "[{\"bucket\":\"2026-11-07-8\",\"min\":\"1\",\"max\":2,\"average\":1.5}]",
+        "[{\"bucket\":\"2026-11-07-8\",\"min\":1,\"max\":2,\"average\":1.5}] trailing",
+        "[{\"bucket\":\"2026-11-07-8\",\"min\":1,\"max\":2,\"average\":1.5},"
+        "{\"bucket\":\"2026-11-07-8\",\"min\":1,\"max\":2,\"average\":1.5}]",
+        "[{\"bucket\":\"2026-11-07-8\",\"min\":1,\"max\":2,\"average\":1.5},"
+        "{\"bucket\":\"2026-11-07-7\",\"min\":1,\"max\":2,\"average\":1.5}]",
+    };
+    for (const char *invalid : invalidTrends)
+    {
+        cache("pages.baro-trend", invalid);
+        refreshBarometerTrendResults();
+        check(displayedStatus.state == NumericHistoryState::Failed && displayedStale &&
+              displayed[0].buckets.size() == 25,
+              "invalid trend update preserves all previous buckets and marks stale");
+    }
+    cache("pages.baro-trend", trendPayload.c_str());
+    failNothrowAllocation = 1;
+    refreshBarometerTrendResults();
+    check(displayedStatus.state == NumericHistoryState::Failed &&
+          displayed[0].buckets.size() == 25, "trend allocation failure retains data");
+    ++testMillis;
+    adafruitIOManager._feedCache[adafruitIOManager.findFeed("pages.baro-trend")].updatedAt = testMillis;
+    refreshBarometerTrendResults();
+    check(displayedStatus.state == NumericHistoryState::Ready,
+          "trend retries unchanged payload after a subsequent poll");
+    cache("pages.baro-trend", "[]");
+    refreshBarometerTrendResults();
+    check(displayedStatus.state == NumericHistoryState::Ready &&
+          displayed[0].buckets.empty(), "empty trend is successful with no invented bars");
+    handleBarometerTrendTouch(3, 0);
+    assertOnlyFeed("pages.baro-line");
+    check(state.currentScreen == SCREEN_BAROMETER_HISTORY && navLabels[2] == "Trend",
+          "Trend History link and reciprocal Trend label");
+    handleBarometerHistoryTouch(3, 0);
+    assertOnlyFeed("pages.baro-trend");
+    check(state.currentScreen == SCREEN_BAROMETER_TREND, "History Trend link");
+    handleBarometerTrendTouch(1, 0);
+    assertOnlyFeed("pages.p04-baro");
+    check(state.currentScreen == SCREEN_BAROMETER, "Trend Back returns to Barometer");
 
     cache("pages.p05-astro", astroPage);
     enterAstronomicalScreen();

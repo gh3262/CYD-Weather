@@ -70,6 +70,7 @@ src/
     Pure logic (no display code, native-tested):
     weather_descriptor.h  Pressure-based one-word forecast (Home)
     wind_direction_stats.*  Speed-weighted mean, range, steadiness, wind rose
+    wind_direction_snapshot.h  Precomputed wind graphic JSON contract
     Weather screens:
     home_screen.cpp     Clock, temperature, weather word, navigation
     snapshot_screen.cpp, summary_screen.cpp, forecast_screen.cpp
@@ -94,6 +95,7 @@ test/
   numeric_history/      History parsing/aggregation and manager with fake HTTP
   weather_descriptor/   Compile-time static_assert checks
   wind_direction_stats/ Wind direction statistics
+  wind_direction_snapshot/ Wind graphic feed/parser/renderer integration
 ```
 
 `main.cpp` routes each `Screen` enum value through a screen table. To add a
@@ -505,6 +507,32 @@ minimum minus 2 hPa through the observed maximum plus 2 hPa; label spacing
 (1, 2, 5, 10, 20, or 50 hPa) is the finest that gives at most eight labels.
 Back returns to Barometer; Home returns Home.
 
+Barometer also has **Trend** in navigation position 2. It opens **Barometer
+Trend**, using only the latest `pages.baro-trend` snapshot, refreshed once per
+minute while active:
+
+```json
+[{"bucket":"2026-11-07-8","min":1022.16,"max":1023.03,"average":1022.7911111111111}]
+```
+
+The feed supplies about three days of ordered, unique three-hour buckets in
+hPa. Bucket numbers use local time: 1 is midnight-3 AM, through 8 at 9 PM-midnight.
+All supplied buckets are plotted (including a 25-bucket snapshot), without
+aggregation, sorting, gap filling, or trimming to exactly 24 bars. At most 72
+buckets are supported; larger or malformed snapshots are logged and rejected
+atomically, retaining any previous valid chart as stale.
+Each floating bar spans `min` to `max`, with a contrasting white tick at the
+supplied `average`. Ranges greater than 1.5 hPa are orange; ranges greater than
+0.8 through 1.5 hPa are yellow; ranges at or below 0.8 hPa are green.
+Equal min/max values remain visible. Missing/non-numeric values, inverted ranges,
+averages outside the range, invalid dates/bucket numbers, and unordered or
+duplicate buckets reject the snapshot. An empty array shows no pressure buckets.
+The Y scale fits the supplied extrema with 1 hPa padding, and the footer counts
+bars. Loading, stale, offline, memory-failure, and recovery behavior use the
+shared snapshot-history page; no raw numeric-history subscription is made.
+**History** in position 3 opens the 72-hour graph, which now has **Trend** in
+position 3 to switch back. Back returns to Barometer; Home returns Home.
+
 Wind uses the same monospaced layout with cyan **Time**, **Dir**, **Speed**,
 and **Gust** headers. Rows show Current, 1 Hour, 2 Hours, 6 Hours, 12 Hours,
 and 24 Hours. `pages.p03-wind` supplies six direction/speed/gust triples in
@@ -514,11 +542,14 @@ are redrawn. Back returns to Details; Home returns to Home.
 
 Wind has a **Dir** button in navigation position 2. It opens
 **Wind Direction**, a compass dial plus a text panel covering a rolling 12-hour
-window. `src/screens/wind_direction_screen.cpp` requests two numeric-history
-series with 10-minute UTC buckets: `currentwinddegrees` (CircularAverage) and
-`currentwindspeed` (Average). It pairs each bucket's mean bearing with that
-bucket's mean speed and passes the pairs to the pure functions in
-`src/screens/wind_direction_stats.*`:
+window. `src/screens/wind_direction_screen.cpp` reads only
+`pages.winddir-graphic`, a precomputed JSON snapshot. It does not request raw
+history or calculate wind statistics on the CYD. The external `winddir.py`
+producer retrieves `currentwinddegrees` and `currentwindspeed` over one shared
+rolling window, handles pagination and duplicate IDs, and pairs independently
+calculated circular-mean bearings and arithmetic-mean speeds in UTC-aligned
+10-minute buckets. Missing or undefined pairs are skipped, not filled.
+Partial edge buckets mean a window can contain up to 73 pairs.
 
 - **12h avg** (red rim marker) is the speed-weighted vector mean: the bearing
   of the sum of speed × unit vector. Strong winds count more than light ones.
@@ -535,12 +566,50 @@ bucket's mean speed and passes the pairs to the pure functions in
 
 The white arrow points into the wind, toward the bearing the wind comes from,
 like a weather vane. It turns gray when the current speed is calm. The current
-bearing is the newest history sample, or the latest `currentwinddegrees` value
-before the history loads. The speed comes from `currentwindspeed`. History
-refreshes every minute while the page is open, and the dial redraws only when
-displayed values change. Failures, WiFi loss, or data more than two minutes old
-show **Stale**. Back returns to Wind, **Speed** opens the speed chart, and Home
-returns Home.
+bearing supplied by the producer is the newest valid direction history sample,
+falling back to the latest `currentwinddegrees` value for an empty valid history.
+The current speed comes from the latest `currentwindspeed` value. These current
+readings are independent, not timestamp-paired. Current speed is rounded before
+the display's calm test, preserving the existing behavior.
+The feed refreshes every minute while the page is open, and the dial redraws
+only when displayed values change. Invalid updates retain the previous graphic
+and log the validation error. WiFi loss, a failed update, a receipt older than
+two minutes, or a producer window older than two minutes show **Stale**.
+Back returns to Wind, **Speed** opens the speed chart, and Home returns Home.
+
+The `pages.winddir-graphic` feed value is a JSON object, for example:
+
+```json
+{"windowEndUtc":"2026-11-07T16:00:00Z","windowSeconds":43200,"bucketSeconds":600,"currentBearing":350,"currentSpeedMph":10,"hasAverage":true,"averageBearing":0,"steadiness":0.984807753,"rangeStart":350,"rangeSpan":20,"windySamples":2,"calmSamples":0,"sectorCounts":[2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}
+```
+
+All fields are required. Current bearing/speed may be `null` when unavailable;
+`averageBearing` must be `null` when `hasAverage` is false. Bearings are in
+degrees from north, speed is mph, and steadiness is a fraction from 0 to 1.
+`rangeSpan` runs clockwise from `rangeStart`. Sector counts are nonnegative
+integers ordered N, NNE, NE, ENE, E, ESE, SE, SSE, S, SSW, SW, WSW, W, WNW,
+NW, NNW, summing to `windySamples`. The display derives their maximum.
+An all-calm or empty window has no average, zero steadiness/range, and zero
+sector counts; calm buckets contribute only to `calmSamples`.
+
+The external Python producer runs on the Raspberry Pi with Python 3.10+,
+`requests`, an accurate system clock, and environment variables
+`AIO_USERNAME` and `AIO_KEY`; do not embed credentials in source. Create the
+`pages.winddir-graphic` feed in Adafruit IO before publishing. From the
+directory containing `winddir.py`, PowerShell examples are:
+
+```powershell
+$env:AIO_USERNAME = "your-username"
+$env:AIO_KEY = "your-api-key"
+python winddir.py --once --dry-run  # Read inputs and inspect JSON; no write.
+python winddir.py --once           # Publish once.
+python winddir.py                  # Publish every 60 seconds; Ctrl+C stops.
+python -B -m unittest -v test_winddir
+```
+
+Every successful cycle publishes one snapshot. Retrieval or pagination failures
+are logged and do not overwrite the feed with partial or fabricated results.
+The producer retains full-precision statistical bearings; the CYD rounds labels.
 
 Wind's navigation position 3 is **Speed**. It opens
 **Last 72 Hours**, a two-line chart using only `pages.wind-line`, for example

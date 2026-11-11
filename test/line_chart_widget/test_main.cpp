@@ -514,6 +514,50 @@ int main()
           graphics.rectangles.size() == 1,
           "all unpaired daily highs draw no invented ranges");
 
+    options = testOptions();
+    options.minimumY = 1018;
+    options.maximumY = 1024;
+    const LineChartPoint trendLows[] = {
+        {1, 1020}, {3, 1020}, {5, 1020}, {7, 1020}, {9, 1020},
+    };
+    const LineChartPoint trendHighs[] = {
+        {1, 1020}, {3, 1020.8}, {5, 1020.80001}, {7, 1021.5}, {9, 1021.50001},
+    };
+    const LineChartPoint trendAverages[] = {
+        {1, 1020}, {3, 1020.2}, {5, 1020.6}, {7, 1021.1}, {9, 1021.2},
+    };
+    graphics.reset();
+    check(drawPressureTrendChartWidget(options, trendLows, trendHighs, trendAverages, 5, 0.75),
+          "pressure bars accept exact thresholds and supplied averages");
+    const uint16_t expectedColors[] = {CYD_GREEN, CYD_GREEN, CYD_YELLOW, CYD_YELLOW, CYD_ORANGE};
+    check(graphics.rectangles.size() == 6 && graphics.lines.size() == 5,
+          "each pressure bucket draws one high-low bar and one average tick");
+    for (size_t i = 0; i < 5; ++i)
+    {
+        const auto &bar = graphics.rectangles[i + 1];
+        const auto &tick = graphics.lines[i];
+        const int expectedY = 42 + static_cast<int>(
+            std::floor((1024 - trendAverages[i].y) / 6 * 100 + 0.5));
+        check(bar.color == expectedColors[i], "strict pressure range color thresholds");
+        check(tick.y0 == expectedY && tick.y1 == expectedY &&
+              tick.x0 == bar.x - 1 && tick.x1 == bar.x + bar.width &&
+              tick.color == options.labelColor,
+              "contrasting average tick uses the supplied average, not range midpoint");
+    }
+    check(graphics.rectangles[1].height == 1, "equal pressure min/max stays visible");
+    const LineChartPoint invalidAverages[] = {{1, 1021}};
+    graphics.reset();
+    previousErrors = Serial.errors;
+    check(!drawPressureTrendChartWidget(options, trendLows, trendHighs, invalidAverages, 1, 0.75) &&
+          Serial.errors == previousErrors + 1 && graphics.rectangles.empty(),
+          "average outside range rejected before clearing chart");
+    graphics.reset();
+    check(!drawPressureTrendChartWidget(options, trendLows, trendHighs, nullptr, 5, 0.75) &&
+          graphics.rectangles.empty(), "missing average buffer rejected");
+    graphics.reset();
+    check(drawPressureTrendChartWidget(options, nullptr, nullptr, nullptr, 0, 0.75) &&
+          graphics.rectangles.size() == 1, "empty pressure chart does not invent bars");
+
     std::printf("PASS: %zu line-chart checks\n", checks);
     return 0;
 }

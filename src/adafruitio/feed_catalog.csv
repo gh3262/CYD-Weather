@@ -107,5 +107,7 @@ pages.p03-wind,Wind Page Values,Wind,long_text,mph,TRUE,page_periodic,1
 pages.p04-baro,Barometer Page Values,Barometer,long_text,hPa,TRUE,page_periodic,1
 pages.p05-astro,Astronomical Page Values,Light,long_text,,TRUE,page_periodic,1
 pages.wind-line,Hourly Wind History,Wind,long_text,mph,TRUE,page_periodic,1
+pages.winddir-graphic,Wind Direction Graphic,Wind,long_text,,TRUE,page_periodic,1
 pages.baro-line,Hourly Barometer History,Barometer,long_text,hPa,TRUE,page_periodic,1
+pages.baro-trend,Barometer Trend,Barometer,long_text,hPa,TRUE,page_periodic,1
 pages.prcp-line,Daily Precipitation History,Precipitation,long_text,in,TRUE,page_periodic,1

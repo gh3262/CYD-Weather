@@ -18,6 +18,8 @@ static const uint16_t CYD_CYAN = 2;
 static const uint16_t COLOR_TEXT = 3;
 static const uint16_t CYD_DARK_GRAY = 4;
 static const uint16_t CYD_YELLOW = 5;
+static const uint16_t CYD_GREEN = 6;
+static const uint16_t CYD_ORANGE = 7;
 
 struct RecordedLine
 {
