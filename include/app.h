@@ -24,6 +24,7 @@ enum Screen
     SCREEN_BAROMETER_TREND,
     SCREEN_WIND,
     SCREEN_WIND_HISTORY,
+    SCREEN_WIND_DAILY,
     SCREEN_WIND_DIRECTION,
     SCREEN_CLOUDS,
     SCREEN_TEMPERATURES,
@@ -153,6 +154,11 @@ void drawWindHistoryScreen();
 void enterWindHistoryScreen();
 void handleWindHistoryTouch(int x, int y);
 void refreshWindHistoryResults();
+
+void drawWindDailyScreen();
+void enterWindDailyScreen();
+void handleWindDailyTouch(int x, int y);
+void refreshWindDailyResults();
 
 // wind_direction_screen.cpp
 void drawWindDirectionScreen();

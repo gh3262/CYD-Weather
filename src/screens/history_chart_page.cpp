@@ -147,8 +147,10 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         page.style == HistoryChartStyle::DailyForecastFloatingBars;
     const bool trendBars = page.style == HistoryChartStyle::PressureTrendBars;
     const bool clouds = page.style == HistoryChartStyle::CloudBarsLine;
-    const bool forecast = clouds || page.style == HistoryChartStyle::DailyForecastFloatingBars;
-    const bool daily = dailyBars || floatingBars || clouds;
+    const bool forecastLine = page.style == HistoryChartStyle::DailyForecastLine;
+    const bool forecast = clouds || forecastLine ||
+        page.style == HistoryChartStyle::DailyForecastFloatingBars;
+    const bool daily = dailyBars || floatingBars || clouds || forecastLine;
     int64_t forecastDay = 0;
     if (forecast && !completedHistoryEndUtc(static_cast<int64_t>(time(nullptr)), forecastDay))
         forecastDay = 0;
@@ -222,6 +224,8 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     {
         const String message = clouds
             ? String(stale ? "No cloud/sunshine readings (stale)" : "No cloud/sunshine readings")
+            : forecastLine
+            ? String(stale ? "No daily readings (stale)" : "No daily readings")
             : stale ? String("No readings (stale history)") :
             String(invalidCount ? "No valid readings in last " :
                 "No readings in last ") + page.windowText;
@@ -331,7 +335,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         const String count = trendBars ? String(window.buckets.size()) + " bars" :
             floatingBars ? String(pairedDays) + "/" +
                 String(window.buckets.size()) + " days" :
-            dailyBars || clouds ? String(window.buckets.size()) + " days" :
+            dailyBars || clouds || forecastLine ? String(window.buckets.size()) + " days" :
                         String(sampleCount) + " pts";
         centerText(count.c_str(), NAV_Y - 11, COLOR_TEXT, 1);
         gfx->setTextSize(2);

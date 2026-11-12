@@ -12,6 +12,7 @@
 #include "screens/clouds_history.h"
 #include "clouds_fixture.h"
 #include "temperature_daily_fixture.h"
+#include "wind_daily_fixture.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -147,6 +148,7 @@ void drawCurrentScreen()
     case SCREEN_PRECIPITATION_HISTORY: drawPrecipitationHistoryScreen(); break;
     case SCREEN_WIND: drawWindScreen(); break;
     case SCREEN_WIND_HISTORY: drawWindHistoryScreen(); break;
+    case SCREEN_WIND_DAILY: drawWindDailyScreen(); break;
     case SCREEN_BAROMETER: drawBarometerScreen(); break;
     case SCREEN_BAROMETER_HISTORY: drawBarometerHistoryScreen(); break;
     case SCREEN_BAROMETER_TREND: drawBarometerTrendScreen(); break;
@@ -239,6 +241,8 @@ static const char *parsePayload(const std::string &key, const char *payload)
         return parseDailyForecastHistory(payload, DAILY_TEMPERATURE_FIELDS, 2, histories);
     if (key == "pages.om-sun")
         return parseCloudsHistory(payload, histories);
+    if (key == "pages.om-wind")
+        return parseDailyForecastHistory(payload, DAILY_WIND_FIELDS, 2, histories);
     const SnapshotHistoryField fields[] = {
         {key == "pages.temp-line" ? "ftemp" : key == "pages.baro-line" ? "baro" :
          key == "pages.prcp-line" ? "prcp" : "speed", HistoryAggregation::Average},
@@ -606,6 +610,63 @@ int main(int argc, char **argv)
     refreshWindHistoryResults();
     check(displayedStatus.state == NumericHistoryState::Failed && displayedStale &&
           displayed[0].sampleCount == 1, "invalid wind update retains stale valid series");
+    check(navLabels[2] == "Daily", "wind speed offers Daily in position three");
+    handleWindHistoryTouch(3, 0);
+    check(state.currentScreen == SCREEN_WIND_DAILY, "wind Daily route");
+    assertOnlyFeed("pages.om-wind", 60);
+    check(displayedWindow == 28U * 86400U && displayedBucket == 86400,
+          "daily wind uses a daily forecast frame");
+    cache("pages.om-wind", DAILY_WIND_SNAPSHOT);
+    refreshWindDailyResults();
+    check(displayedStatus.state == NumericHistoryState::Ready && !displayedStale &&
+          displayed[0].buckets.size() == 28 && displayed[1].buckets.size() == 28 &&
+          displayed[0].startUtc == firstDay && displayed[0].endUtc == lastDay + 86400,
+          "daily wind includes the entire supplied date window");
+    for (size_t i = 0; i < 28; ++i)
+    {
+        check(displayed[0].buckets[i].startUtc == firstDay + static_cast<int64_t>(i) * 86400 &&
+              displayed[1].buckets[i].startUtc == displayed[0].buckets[i].startUtc,
+              "daily wind dates stay aligned");
+        checkNear(displayed[0].buckets[i].latest, DAILY_WIND_SPEED[i], "daily mean speed");
+        checkNear(displayed[1].buckets[i].latest, DAILY_WIND_GUST[i], "daily maximum gust");
+    }
+    testMillis += 7200000U;
+    refreshWindDailyResults();
+    check(!displayedStale, "daily wind remains fresh for two polling intervals");
+    ++testMillis;
+    refreshWindDailyResults();
+    check(displayedStale, "daily wind becomes stale after two polling intervals");
+    cache("pages.om-wind",
+          "[{\"ts\":\"20261111\",\"wind_speed_10m_mean\":0,\"wind_gusts_10m_max\":null},"
+          "{\"ts\":\"20261113\",\"wind_speed_10m_mean\":null,\"wind_gusts_10m_max\":4}]");
+    refreshWindDailyResults();
+    check(displayedStatus.state == NumericHistoryState::Ready &&
+          displayed[0].buckets.size() == 2 && displayed[0].buckets[0].latest == 0 &&
+          !displayed[1].buckets[0].count && !displayed[0].buckets[1].count &&
+          displayed[1].buckets[1].latest == 4 &&
+          displayed[0].buckets[1].startUtc - displayed[0].buckets[0].startUtc == 2 * 86400,
+          "daily wind preserves zeros, nulls and missing dates independently");
+    const char *invalidDailyWind[] = {
+        "[{\"ts\":\"20261111\",\"wind_speed_10m_mean\":2}]",
+        "[{\"ts\":\"20261111\",\"wind_speed_10m_mean\":\"2\",\"wind_gusts_10m_max\":3}]",
+        ("[{\"ts\":\"20261111\",\"wind_speed_10m_mean\":2,\"wind_gusts_10m_max\":3},"
+         "{\"ts\":\"20261111\",\"wind_speed_10m_mean\":2,\"wind_gusts_10m_max\":3}]"),
+    };
+    for (const char *invalid : invalidDailyWind)
+    {
+        cache("pages.om-wind", invalid);
+        refreshWindDailyResults();
+        check(displayedStatus.state == NumericHistoryState::Failed && displayedStale &&
+              displayed[0].buckets.size() == 2 && displayed[1].buckets[1].latest == 4,
+              "invalid daily wind retains both prior series");
+    }
+    cache("pages.om-wind", "[]");
+    refreshWindDailyResults();
+    check(displayedStatus.state == NumericHistoryState::Ready && displayed[0].buckets.empty(),
+          "empty daily wind clears prior results");
+    handleWindDailyTouch(1, 0);
+    check(state.currentScreen == SCREEN_WIND_HISTORY, "daily Back returns to speed history");
+    assertOnlyFeed("pages.wind-line");
     handleWindHistoryTouch(2, 0);
     check(state.currentScreen == SCREEN_WIND_DIRECTION, "wind Dir route preserved");
 

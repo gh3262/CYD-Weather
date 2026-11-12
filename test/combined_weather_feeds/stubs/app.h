@@ -18,6 +18,7 @@ enum Screen
     SCREEN_PRECIPITATION_HISTORY,
     SCREEN_WIND,
     SCREEN_WIND_HISTORY,
+    SCREEN_WIND_DAILY,
     SCREEN_WIND_DIRECTION,
     SCREEN_CLOUDS,
     SCREEN_BAROMETER,
@@ -111,6 +112,10 @@ void enterWindHistoryScreen();
 void drawWindHistoryScreen();
 void refreshWindHistoryResults();
 void handleWindHistoryTouch(int, int);
+void enterWindDailyScreen();
+void drawWindDailyScreen();
+void refreshWindDailyResults();
+void handleWindDailyTouch(int, int);
 void enterBarometerScreen();
 void drawBarometerScreen();
 void refreshBarometerResults();

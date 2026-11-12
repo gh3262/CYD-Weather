@@ -10,6 +10,14 @@ static const SnapshotHistoryField WIND_HISTORY_FIELDS[] = {
     {"speed", HistoryAggregation::Average},
     {"gust", HistoryAggregation::Maximum},
 };
+static const HistoryChartSeries WIND_DAILY_SERIES[] = {
+    {"pages.om-wind", HistoryAggregation::Average, CYD_CYAN, "Speed"},
+    {"pages.om-wind", HistoryAggregation::Maximum, CYD_YELLOW, "Gust"},
+};
+static const SnapshotHistoryField WIND_DAILY_FIELDS[] = {
+    {"wind_speed_10m_mean", HistoryAggregation::Average},
+    {"wind_gusts_10m_max", HistoryAggregation::Maximum},
+};
 
 // Chooses the finest scale with at most eight Y labels.
 static HistoryChartScale windHistoryScale(double minimumY, double maximumY)
@@ -53,6 +61,7 @@ void drawWindHistoryScreen()
 {
     drawSnapshotHistoryPage(windHistoryPage(), "pages.wind-line", WIND_HISTORY_FIELDS);
     drawNav2("Dir");
+    drawNav3("Daily");
 }
 
 void enterWindHistoryScreen()
@@ -67,4 +76,37 @@ void handleWindHistoryTouch(int x, int y)
         enterWindScreen();
     else if (navPressed2(x, y))
         enterWindDirectionScreen();
+    else if (navPressed3(x, y))
+        enterWindDailyScreen();
+}
+
+static HistoryChartPage windDailyPage()
+{
+    return {
+        "Daily Wind - 28 Days", WIND_DAILY_SERIES, 2, 28U * 86400U, 86400,
+        "28 days", " mph", 0, 2.0, true, windHistoryScale,
+        HistoryChartStyle::DailyForecastLine,
+    };
+}
+
+void refreshWindDailyResults()
+{
+    refreshSnapshotHistoryPage(windDailyPage());
+}
+
+void drawWindDailyScreen()
+{
+    drawSnapshotHistoryPage(windDailyPage(), "pages.om-wind", WIND_DAILY_FIELDS);
+}
+
+void enterWindDailyScreen()
+{
+    state.currentScreen = SCREEN_WIND_DAILY;
+    drawCurrentScreen();
+}
+
+void handleWindDailyTouch(int x, int y)
+{
+    if (navPressed1(x, y))
+        enterWindHistoryScreen();
 }

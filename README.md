@@ -674,6 +674,17 @@ shows a colored legend with each series' min-max range. Both series are
 validated and published together from one latest-value request. Back returns to Wind,
 **Dir** opens Wind Direction, and Home returns Home.
 
+The Speed page's **Daily** button opens **Daily Wind - 28 Days**, using only
+the latest `pages.om-wind` snapshot. It plots the supplied daily
+`wind_speed_10m_mean` in cyan and `wind_gusts_10m_max` in yellow, in mph;
+`wind_direction_10m_dominant` is ignored. Local `YYYYMMDD` dates and values
+are plotted as supplied, without aggregation or gap filling. Null values leave
+gaps independently, and zero is a reading. The date-based Past/Forecast
+divider marks the start of today and moves at local midnight. The Y axis starts
+at zero with 2 mph padding above the highest value. The feed is fetched on
+entry and refreshed hourly; malformed or unordered snapshots retain the
+previous chart as stale. Back returns to Speed and Home returns Home.
+
 Temperatures uses the text-table layout for Temperature, Feels Like,
 Apparent, Dew Point, Heat Index, and Wind Chill, in that order, from
 `pages.p01-temp`. Feels Like and Apparent

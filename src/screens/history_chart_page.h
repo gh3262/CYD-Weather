@@ -27,6 +27,7 @@ enum class HistoryChartStyle
     DailyBars,
     DailyFloatingBars,
     DailyForecastFloatingBars,
+    DailyForecastLine,
     PressureTrendBars,
     CloudBarsLine
 };

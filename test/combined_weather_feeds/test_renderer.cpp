@@ -5,6 +5,7 @@
 #include "screens/clouds_history.h"
 #include "clouds_fixture.h"
 #include "temperature_daily_fixture.h"
+#include "wind_daily_fixture.h"
 
 #include <cstdlib>
 #include <new>
@@ -26,6 +27,8 @@ static size_t cloudDraws = 0;
 static double cloudDivider = NAN;
 static size_t dailyForecastDraws = 0;
 static double dailyDivider = NAN;
+static size_t windDailyDraws = 0;
+static double windDailyDivider = NAN;
 
 static void setTestTimezone(const char *zone)
 {
@@ -68,9 +71,30 @@ void drawNav4(const char *) {}
 
 LineChartWidgetOptions::LineChartWidgetOptions()
     : pastForecastX(NAN), forecastBarInterval(0.0) {}
-bool drawLineChartSeriesWidget(const LineChartWidgetOptions &,
+bool drawLineChartSeriesWidget(const LineChartWidgetOptions &chart,
                                const LineChartSeries *series, size_t count)
 {
+    if (!std::isnan(chart.pastForecastX))
+    {
+        ++windDailyDraws;
+        int64_t today = 0;
+        check(completedHistoryEndUtc(static_cast<int64_t>(time(nullptr)), today) &&
+              chart.pastForecastX == static_cast<double>(today),
+              "daily wind divider follows the local calendar date");
+        windDailyDivider = chart.pastForecastX;
+        check(count == 2 && series[0].pointCount == 28 && series[1].pointCount == 28 &&
+              series[0].color == CYD_CYAN && series[1].color == CYD_YELLOW &&
+              chart.maximumX - chart.minimumX == 28 * 86400 &&
+              chart.minimumY == 0 && std::fabs(chart.maximumY - 36.67) < 0.00001,
+              "daily wind draws cyan speed and yellow gust lines on the zero-based mph scale");
+        for (size_t i = 0; i < 28; ++i)
+            check(series[0].points[i].x == chart.minimumX + i * 86400 + 43200 &&
+                  series[1].points[i].x == series[0].points[i].x &&
+                  std::fabs(series[0].points[i].y - DAILY_WIND_SPEED[i]) < 0.00001 &&
+                  std::fabs(series[1].points[i].y - DAILY_WIND_GUST[i]) < 0.00001,
+                  "daily wind renderer preserves both values and every date");
+        return true;
+    }
     ++draws;
     check(count == 2 && series[0].pointCount == 2 && series[1].pointCount == 2,
           "both snapshot lines retain exactly the supplied points");
@@ -292,6 +316,38 @@ int main()
     refreshHistoryChartData(forecastPage, histories, status, false);
     check(dailyForecastDraws == 3 && graphics.printed.back() == "No paired daily readings",
           "empty daily forecast shows no fabricated bars");
+    static const HistoryChartSeries windDailySeries[] = {
+        {"pages.om-wind", HistoryAggregation::Average, CYD_CYAN, "Speed"},
+        {"pages.om-wind", HistoryAggregation::Maximum, CYD_YELLOW, "Gust"},
+    };
+    const HistoryChartPage windDailyPage = {
+        "Daily Wind - 28 Days", windDailySeries, 2, 28 * 86400, 86400, "28 days", " mph",
+        0, 2, true, scale, HistoryChartStyle::DailyForecastLine,
+    };
+    check(!parseDailyForecastHistory(DAILY_WIND_SNAPSHOT, DAILY_WIND_FIELDS, 2, histories),
+          "parse daily wind renderer fixture");
+    setTestTimezone("UTC12");
+    drawHistoryChartFrame(windDailyPage);
+    ++status.revision;
+    refreshHistoryChartData(windDailyPage, histories, status, false);
+    check(windDailyDraws == 1 &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "28 days") != graphics.printed.end() &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "10/28") != graphics.printed.end() &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "11/24") != graphics.printed.end(),
+          "daily wind labels its date endpoints and day count");
+    refreshHistoryChartData(windDailyPage, histories, status, false);
+    check(windDailyDraws == 1, "unchanged daily wind is not redrawn");
+    const double previousWindDivider = windDailyDivider;
+    setTestTimezone("UTC-12");
+    refreshHistoryChartData(windDailyPage, histories, status, false);
+    check(windDailyDraws == 2 && windDailyDivider == previousWindDivider + 86400,
+          "daily wind divider moves on date change without a new feed revision");
+    check(!parseDailyForecastHistory("[]", DAILY_WIND_FIELDS, 2, histories),
+          "parse empty daily wind fixture");
+    ++status.revision;
+    refreshHistoryChartData(windDailyPage, histories, status, false);
+    check(windDailyDraws == 2 && graphics.printed.back() == "No daily readings",
+          "empty daily wind shows an explicit message");
     static const HistoryChartSeries trendSeries[] = {
         {"pages.baro-trend", HistoryAggregation::Minimum, CYD_GREEN, "Low"},
         {"pages.baro-trend", HistoryAggregation::Maximum, CYD_GREEN, "High"},

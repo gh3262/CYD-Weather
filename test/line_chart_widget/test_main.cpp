@@ -723,6 +723,19 @@ int main()
     for (const auto &line : graphics.lines)
         check(line.x0 == dividerX && line.x1 == dividerX && line.color == options.labelColor,
               "floating bar divider is white and uses today's date coordinate");
+    const LineChartPoint dailySpeed[] = {{0.5, 10}, {27.5, 20}};
+    const LineChartPoint dailyGust[] = {{0.5, 20}, {27.5, 30}};
+    const LineChartSeries dailyLines[] = {
+        {dailySpeed, 2, CYD_CYAN}, {dailyGust, 2, CYD_YELLOW},
+    };
+    graphics.reset();
+    check(drawLineChartSeriesWidget(options, dailyLines, 2) &&
+          graphics.texts.size() == 2 && graphics.texts[0].value == "Past" &&
+          graphics.texts[1].value == "Forecast" &&
+          graphics.lines.size() == dashCount + 2 &&
+          graphics.lines[0].color == CYD_CYAN && graphics.lines[1].color == CYD_YELLOW &&
+          graphics.lines.back().color == options.labelColor,
+          "daily lines retain their colors with the divider drawn above them");
     options.forecastBarInterval = 1;
     const LineChartPoint temperatureLows[] = {{9.5, 10}, {10.5, 20}, {11.5, 30}};
     const LineChartPoint temperatureHighs[] = {{9.5, 40}, {10.5, 50}, {11.5, 60}};

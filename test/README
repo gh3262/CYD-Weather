@@ -190,6 +190,9 @@ Bar/line widget tests verify zero-anchored sunshine heights, independent red
 cloud lines, null gaps/zeros, validation before clearing, and divider layering.
 Cloud divider renderer checks verify local calendar midnight and redraw on a
 local date change even without a new feed revision.
+Daily wind checks cover the supplied 28-day speed and gust snapshot, independent
+nulls, invalid updates, feed activation, and navigation. Renderer and widget
+checks cover line colors, date labels, and the moving Past/Forecast divider.
 
 g++ -std=c++11 -Wall -Wextra -Werror -Itest\combined_weather_feeds\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\snapshot_history_page.cpp src\screens\temperatures_screen.cpp src\screens\temperature_history_screen.cpp src\screens\temperature_daily_screen.cpp src\screens\precipitation_screen.cpp src\screens\precipitation_history_screen.cpp src\screens\wind_screen.cpp src\screens\wind_history_screen.cpp src\screens\barometer_screen.cpp src\screens\barometer_history_screen.cpp src\screens\barometer_trend_screen.cpp src\screens\clouds_screen.cpp src\screens\astronomical_screen.cpp test\combined_weather_feeds\test_main.cpp -o "$env:TEMP\cyd-combined-weather-tests.exe"
 if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-combined-weather-tests.exe" }
