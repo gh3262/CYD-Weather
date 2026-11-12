@@ -246,7 +246,8 @@ static void drawPastForecastDivider(const LineChartWidgetOptions &options,
 static bool drawChartWidget(const LineChartWidgetOptions &options,
                              const LineChartSeries *series, size_t seriesCount,
                              double barWidth, int zeroBarHeight,
-                             bool floatingBars = false, bool rangeLine = false)
+                             bool floatingBars = false, bool rangeLine = false,
+                             bool barLine = false)
 {
     const double rangeX = options.maximumX - options.minimumX;
     const double rangeY = options.maximumY - options.minimumY;
@@ -280,7 +281,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
             Serial.println("Line chart widget: invalid or unordered data point.");
             return false;
         }
-        for (size_t i = 0; barWidth > 0.0 && !floatingBars &&
+        for (size_t i = 0; barWidth > 0.0 && !floatingBars && (!barLine || s == 0) &&
              i < series[s].pointCount; ++i)
         {
             if (series[s].points[i].y < 0.0)
@@ -290,6 +291,14 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
             }
         }
     }
+
+    if (barLine)
+        for (size_t i = 0; i < series[0].pointCount; ++i)
+            if (series[0].points[i].x != series[1].points[i].x)
+            {
+                Serial.println("Bar line chart widget: mismatched X.");
+                return false;
+            }
 
     if (floatingBars)
     {
@@ -462,7 +471,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
     }
     for (size_t s = 0; s < seriesCount; ++s)
     {
-        if (barWidth > 0.0)
+        if (barWidth > 0.0 && (!barLine || s == 0))
             drawBars(options, series[s], barWidth, zeroBarHeight, rangeX, rangeY,
                      left, top, right, bottom);
         else
@@ -509,6 +518,23 @@ bool drawFloatingBarChartWidget(const LineChartWidgetOptions &options,
         {upper, pointCount, options.lineColor},
     };
     return drawChartWidget(options, series, 2, barWidth, 0, true);
+}
+
+bool drawBarLineChartWidget(const LineChartWidgetOptions &options,
+                            const LineChartPoint *bars, const LineChartPoint *line,
+                            size_t pointCount, double barWidth, uint16_t lineColor)
+{
+    if (!isfinite(barWidth) || barWidth <= 0.0 || options.minimumY != 0.0 ||
+        !isfinite(barWidth / (options.maximumX - options.minimumX)))
+    {
+        Serial.println("Bar line chart widget: invalid bar width or baseline.");
+        return false;
+    }
+    const LineChartSeries series[] = {
+        {bars, pointCount, options.lineColor},
+        {line, pointCount, lineColor},
+    };
+    return drawChartWidget(options, series, 2, barWidth, 0, false, false, true);
 }
 
 bool drawPressureTrendChartWidget(const LineChartWidgetOptions &options,

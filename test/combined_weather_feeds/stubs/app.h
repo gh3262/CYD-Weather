@@ -31,6 +31,7 @@ extern AppState state;
 static const uint16_t CYD_CYAN = 0x07ff;
 static const uint16_t CYD_GREEN = 0x07e0;
 static const uint16_t CYD_YELLOW = 0xffe0;
+static const uint16_t CYD_RED = 0xf800;
 static const uint16_t CYD_NAVY = 0x000f;
 static const uint16_t COLOR_TEXT = 0xffff;
 static const uint16_t COLOR_BACKGROUND = 0;

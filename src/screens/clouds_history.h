@@ -8,11 +8,10 @@ inline const char *parseCloudsHistory(
     ArduinoJson::Allocator *allocator = nullptr)
 {
     const SnapshotHistoryField fields[] = {
-        {"cc_min", HistoryAggregation::Minimum},
-        {"cc_max", HistoryAggregation::Maximum},
         {"pct_ss", HistoryAggregation::Average},
+        {"cc_mean", HistoryAggregation::Average},
     };
-    return parseDailyForecastHistory(json, fields, 3, results, true, allocator);
+    return parseDailyForecastHistory(json, fields, 2, results, true, allocator);
 }
 
 #endif

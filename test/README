@@ -179,13 +179,15 @@ History/Trend navigation. Widget tests verify strict 0.8/1.5 hPa color boundarie
 and exact average tick placement. Renderer tests cover all three series, bucket
 centers, the 25-bar footer, allocation retry, and stale/revision redraw behavior.
 
-Clouds checks preserve all 28 supplied cloud min/max and sunshine percentages,
+Clouds checks preserve all 28 sunshine percentages and fixture mean cloud values,
 including forecast dates. They cover nulls/zeros, empty snapshots, invalid
-percentages/ranges/dates/order, capacity bounds, allocation failures and recovery,
+percentages/dates/order, ignored min/max fields, capacity bounds, allocation failures and recovery,
 exclusive hourly feed polling (including the exact one-hour boundary),
 immediate entry fetch, two-hour receipt staleness, and Back navigation. Renderer checks
-verify fixed 0-100% bounds, full daily width, gray/yellow colors, exact endpoints,
+verify fixed 0-100% bounds, full daily width, yellow bars/red line, exact values,
 date labels, day count, and stale/revision caching.
+Bar/line widget tests verify zero-anchored sunshine heights, independent red
+cloud lines, null gaps/zeros, validation before clearing, and divider layering.
 Cloud divider renderer checks verify local calendar midnight and redraw on a
 local date change even without a new feed revision.
 

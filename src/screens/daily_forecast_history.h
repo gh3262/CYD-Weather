@@ -25,7 +25,9 @@ inline const char *parseDailyForecastHistory(
                 validationError = "too many daily forecast dates";
             else if (count && timestamp <= last)
                 validationError = "daily forecast dates must be ordered and unique";
-            else if (values[0] > values[1])
+            else if (fields[0].aggregation == HistoryAggregation::Minimum &&
+                     fields[1].aggregation == HistoryAggregation::Maximum &&
+                     values[0] > values[1])
                 validationError = "daily forecast minimum exceeds maximum";
             for (size_t s = 0; percentages && s < seriesCount; ++s)
                 if (!std::isnan(values[s]) && (values[s] < 0 || values[s] > 100))

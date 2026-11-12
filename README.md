@@ -449,11 +449,12 @@ The feed supplies 28 daily records covering 14 past days and
 [{"ts":"20261111","dld":10.43,"ssd":8.0,"pct_ss":76.72,"cc_mean":22.62,"cc_max":80.0,"cc_min":0.0}]
 ```
 
-`ts` is a local calendar date (`YYYYMMDD`). On a fixed 0-100% scale, gray
-floating bars span `cc_min` to `cc_max` and occupy the entire daily slot, with
-no gaps between adjacent dates. A yellow line overlays the supplied `pct_ss`
-(sunshine as a percentage of daylight hours); it is independent of the cloud
-range. `dld`, `ssd`, and `cc_mean` are not plotted or used to recalculate values.
+`ts` is a local calendar date (`YYYYMMDD`). On a fixed 0-100% scale, yellow
+bars rise from zero to the supplied `pct_ss` (sunshine as a percentage of
+daylight hours) and occupy the entire daily slot, with no gaps between adjacent
+nonzero dates. A red line overlays `cc_mean`, the supplied average daily cloud
+cover percentage. The two series are independent; neither is calculated from
+the other. `dld`, `ssd`, `cc_min`, and `cc_max` are ignored.
 All supplied dates are shown, including forecasts, with actual first/last date
 labels and a day count. The display does not sort, aggregate, or fill dates.
 A dashed white vertical divider marks the start of today in local time,
@@ -462,11 +463,11 @@ the forecast side. The divider follows the date, not the midpoint, and moves
 at local midnight even if the feed has not changed. Its labels occupy a row
 above the data; a label is omitted if its side is too narrow to fit. No divider
 is drawn when today falls outside the supplied window or the clock is unavailable.
-Equal cloud endpoints draw a one-pixel bar; null endpoints omit the range,
-and null sunshine breaks the line. Zero is a real reading.
+Null sunshine omits its bar, and null mean cloud cover breaks the line.
+Zero sunshine has no bar height; zero cloud cover remains a real line reading.
 
-Invalid dates, missing/non-numeric fields, percentages outside 0-100, inverted
-cloud ranges, unordered/duplicate dates, or snapshots exceeding 72 records are
+Invalid dates, missing/non-numeric plotted fields, percentages outside 0-100,
+unordered/duplicate dates, or snapshots exceeding 72 records are
 logged and rejected atomically, retaining any previous data as stale.
 An empty array shows no readings. Loading, memory-failure, retry, and offline
 behavior use the shared snapshot-history page. Staleness uses feed receipt age

@@ -237,6 +237,8 @@ static const char *parsePayload(const std::string &key, const char *payload)
         return parseBarometerTrendHistory(payload, histories);
     if (key == "pages.om-temp")
         return parseDailyForecastHistory(payload, DAILY_TEMPERATURE_FIELDS, 2, histories);
+    if (key == "pages.om-sun")
+        return parseCloudsHistory(payload, histories);
     const SnapshotHistoryField fields[] = {
         {key == "pages.temp-line" ? "ftemp" : key == "pages.baro-line" ? "baro" :
          key == "pages.prcp-line" ? "prcp" : "speed", HistoryAggregation::Average},
@@ -794,34 +796,34 @@ int main(int argc, char **argv)
           parseSnapshotDate("20261124", cloudLast) &&
           displayed[0].startUtc == cloudFirst && displayed[0].endUtc == cloudLast + 86400,
           "Clouds includes all past and forecast dates with no leading empty window");
-    for (size_t s = 0; s < 3; ++s)
+    for (size_t s = 0; s < 2; ++s)
         check(displayed[s].buckets.size() == 28 && displayed[s].sampleCount == 28,
-              "all three cloud series preserve 28 supplied dates");
+              "both cloud series preserve 28 supplied dates");
     for (size_t i = 0; i < 28; ++i)
     {
         check(displayed[0].buckets[i].startUtc == cloudFirst + static_cast<int64_t>(i) * 86400,
               "cloud dates retain producer order");
-        checkNear(displayed[0].buckets[i].latest, CLOUDS_MIN[i], "exact cloud minimum");
-        checkNear(displayed[1].buckets[i].latest, CLOUDS_MAX[i], "exact cloud maximum");
-        checkNear(displayed[2].buckets[i].latest, CLOUDS_SUNSHINE[i], "exact sunshine percent");
+        checkNear(displayed[0].buckets[i].latest, CLOUDS_SUNSHINE[i], "exact sunshine percent");
+        checkNear(displayed[1].buckets[i].latest, CLOUDS_MEAN[i], "exact average cloud cover");
     }
     const uint32_t cloudRevision = displayedStatus.revision;
     refreshCloudsResults();
     check(displayedStatus.revision == cloudRevision, "unchanged cloud data is not reparsed");
     const char *invalidClouds[] = {
-        "[{\"ts\":\"20260230\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50}]",
-        "[{\"ts\":\"20261111\",\"cc_min\":101,\"cc_max\":100,\"pct_ss\":50}]",
-        "[{\"ts\":\"20261111\",\"cc_min\":-1,\"cc_max\":100,\"pct_ss\":50}]",
-        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":101,\"pct_ss\":50}]",
-        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":101}]",
-        "[{\"ts\":\"20261111\",\"cc_min\":60,\"cc_max\":40,\"pct_ss\":50}]",
-        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100}]",
-        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":\"50\"}]",
-        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50}] trailing",
-        "[{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50},"
-        "{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50}]",
-        "[{\"ts\":\"20261112\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50},"
-        "{\"ts\":\"20261111\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50}]",
+        "[{\"ts\":\"20260230\",\"cc_mean\":20,\"pct_ss\":50}]",
+        "[{\"ts\":\"20261111\",\"cc_mean\":101,\"pct_ss\":50}]",
+        "[{\"ts\":\"20261111\",\"cc_mean\":-1,\"pct_ss\":50}]",
+        "[{\"ts\":\"20261111\",\"cc_mean\":20,\"pct_ss\":-1}]",
+        "[{\"ts\":\"20261111\",\"cc_mean\":20,\"pct_ss\":101}]",
+        "[{\"ts\":\"20261111\",\"pct_ss\":50}]",
+        "[{\"ts\":\"20261111\",\"cc_mean\":20}]",
+        "[{\"ts\":\"20261111\",\"cc_mean\":20,\"pct_ss\":\"50\"}]",
+        "[{\"ts\":\"20261111\",\"cc_mean\":\"20\",\"pct_ss\":50}]",
+        "[{\"ts\":\"20261111\",\"cc_mean\":20,\"pct_ss\":50}] trailing",
+        "[{\"ts\":\"20261111\",\"cc_mean\":20,\"pct_ss\":50},"
+        "{\"ts\":\"20261111\",\"cc_mean\":20,\"pct_ss\":50}]",
+        "[{\"ts\":\"20261112\",\"cc_mean\":20,\"pct_ss\":50},"
+        "{\"ts\":\"20261111\",\"cc_mean\":20,\"pct_ss\":50}]",
     };
     for (const char *invalid : invalidClouds)
     {
@@ -829,8 +831,9 @@ int main(int argc, char **argv)
         refreshCloudsResults();
         check(displayedStatus.state == NumericHistoryState::Failed && displayedStale &&
               displayed[0].buckets.size() == 28 &&
-              std::fabs(displayed[2].buckets.back().latest - 96.4) < 0.00001,
-              "invalid clouds update retains all three previous series as stale");
+              std::fabs(displayed[0].buckets.back().latest - 96.4) < 0.00001 &&
+              displayed[1].buckets.back().latest == 0,
+              "invalid clouds update retains both previous series as stale");
     }
     BudgetJsonAllocator cloudAllocator;
     check(!parseCloudsHistory(CLOUDS_SNAPSHOT, displayed, &cloudAllocator) &&
@@ -846,7 +849,7 @@ int main(int argc, char **argv)
               std::strftime(day, sizeof(day), "%Y%m%d", &calendar),
               "format cloud capacity fixture date");
         std::snprintf(record, sizeof(record),
-            "%s{\"ts\":\"%s\",\"cc_min\":0,\"cc_max\":100,\"pct_ss\":50}",
+            "%s{\"ts\":\"%s\",\"cc_mean\":20,\"pct_ss\":50}",
             i ? "," : "", day);
         oversizedClouds += record;
     }
@@ -878,15 +881,16 @@ int main(int argc, char **argv)
     refreshCloudsResults();
     check(displayedStale, "Clouds becomes stale after two hours without a successful receipt");
     cache("pages.om-sun",
-        "[{\"ts\":\"20261111\",\"cc_min\":null,\"cc_max\":100,\"pct_ss\":0},"
-        "{\"ts\":\"20261113\",\"cc_min\":0,\"cc_max\":0,\"pct_ss\":null}]");
+        "[{\"ts\":\"20261111\",\"cc_mean\":null,\"pct_ss\":0,\"cc_min\":999,\"cc_max\":\"ignored\"},"
+        "{\"ts\":\"20261113\",\"cc_mean\":0,\"pct_ss\":null}]");
     refreshCloudsResults();
     check(displayedStatus.state == NumericHistoryState::Ready &&
-          displayed[0].buckets.size() == 2 && !displayed[0].buckets[0].count &&
-          displayed[2].buckets[0].count && displayed[2].buckets[0].latest == 0 &&
-          !displayed[2].buckets[1].count &&
+          displayed[0].buckets.size() == 2 && !displayed[1].buckets[0].count &&
+          displayed[0].buckets[0].count && displayed[0].buckets[0].latest == 0 &&
+          !displayed[0].buckets[1].count && displayed[1].buckets[1].count &&
+          displayed[1].buckets[1].latest == 0 &&
           displayed[0].buckets[1].startUtc - displayed[0].buckets[0].startUtc == 2 * 86400,
-          "cloud nulls remain missing, zeros remain real, and missing dates are not filled");
+          "cloud series are independent, zeros remain real, min/max are ignored, dates are not filled");
     cache("pages.om-sun", "[]");
     refreshCloudsResults();
     check(displayedStatus.state == NumericHistoryState::Ready && displayed[0].buckets.empty(),

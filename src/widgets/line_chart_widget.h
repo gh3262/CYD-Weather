@@ -67,6 +67,12 @@ bool drawBarChartWidget(const LineChartWidgetOptions &options,
                         const LineChartPoint *points, size_t pointCount,
                         double barWidth, int zeroBarHeight = 0);
 
+// Zero-based bars with an independent line drawn above them. Series share X.
+// Null bars are omitted; null line values break the line.
+bool drawBarLineChartWidget(const LineChartWidgetOptions &options,
+                            const LineChartPoint *bars, const LineChartPoint *line,
+                            size_t pointCount, double barWidth, uint16_t lineColor);
+
 // Paired points must share X; each bar spans lower.y to upper.y, including
 // negative values. NaN at either endpoint omits that day; equal values draw
 // a one-pixel bar. Uses options.lineColor.

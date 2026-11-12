@@ -118,11 +118,10 @@ bool drawFloatingBarChartWidget(const LineChartWidgetOptions &chart, const LineC
 }
 static HistoryChartScale scale(double, double) { return {1, 5}; }
 
-bool drawFloatingBarLineChartWidget(const LineChartWidgetOptions &chart,
-                                    const LineChartPoint *lows,
-                                    const LineChartPoint *highs,
-                                    const LineChartPoint *sunshine, size_t count,
-                                    double width, uint16_t lineColor)
+bool drawBarLineChartWidget(const LineChartWidgetOptions &chart,
+                            const LineChartPoint *sunshine,
+                            const LineChartPoint *cloudCover, size_t count,
+                            double width, uint16_t lineColor)
 {
     ++cloudDraws;
     int64_t today = 0;
@@ -132,15 +131,15 @@ bool drawFloatingBarLineChartWidget(const LineChartWidgetOptions &chart,
     cloudDivider = chart.pastForecastX;
     check(count == 28 && chart.maximumX - chart.minimumX == 28 * 86400 &&
           chart.minimumY == 0 && chart.maximumY == 100 && width == 86400 &&
-          chart.lineColor == CYD_GRAY && lineColor == CYD_YELLOW &&
+          chart.lineColor == CYD_YELLOW && lineColor == CYD_RED &&
           chart.forecastBarInterval == 0,
-          "Clouds uses full day gray ranges and a yellow line on a fixed 0-100 scale");
+          "Clouds uses full day yellow bars and a red line on a fixed 0-100 scale");
     for (size_t i = 0; i < count; ++i)
-        check(lows[i].x == chart.minimumX + i * 86400 + 43200 &&
-              highs[i].x == lows[i].x && sunshine[i].x == lows[i].x &&
-              lows[i].y == CLOUDS_MIN[i] && highs[i].y == CLOUDS_MAX[i] &&
+        check(sunshine[i].x == chart.minimumX + i * 86400 + 43200 &&
+              cloudCover[i].x == sunshine[i].x &&
+              std::fabs(cloudCover[i].y - CLOUDS_MEAN[i]) < 0.00001 &&
               std::fabs(sunshine[i].y - CLOUDS_SUNSHINE[i]) < 0.00001,
-              "cloud renderer preserves all supplied min/max/sunshine values and centers");
+              "cloud renderer preserves supplied sunshine and mean cover values and centers");
     return true;
 }
 
@@ -336,13 +335,12 @@ int main()
     refreshHistoryChartData(trendPage, trends, status, true);
     check(trendDraws == 2, "stale trend redraws all three series");
     static const HistoryChartSeries cloudSeries[] = {
-        {"pages.om-sun", HistoryAggregation::Minimum, CYD_GRAY, "Cloud cover"},
-        {"pages.om-sun", HistoryAggregation::Maximum, CYD_GRAY, "Cloud cover"},
         {"pages.om-sun", HistoryAggregation::Average, CYD_YELLOW, "Sunshine"},
+        {"pages.om-sun", HistoryAggregation::Average, CYD_RED, "Cloud cover"},
     };
     const HistoryChartPage cloudPage = {
-        "Clouds", cloudSeries, 3, 28 * 86400, 86400, "28 days", "%",
-        0, 0, true, scale, HistoryChartStyle::CloudRangeLine,
+        "Clouds", cloudSeries, 2, 28 * 86400, 86400, "28 days", "%",
+        0, 0, true, scale, HistoryChartStyle::CloudBarsLine,
     };
     check(!parseCloudsHistory(CLOUDS_SNAPSHOT, trends), "parse cloud renderer fixture");
     setTestTimezone("UTC12");

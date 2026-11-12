@@ -559,6 +559,76 @@ int main()
           graphics.rectangles.size() == 1, "empty pressure chart does not invent bars");
 
     options = testOptions();
+    options.maximumX = 3;
+    options.maximumY = 100;
+    options.lineColor = CYD_YELLOW;
+    LineChartPoint sunshineBars[] = {{0.5, 0}, {1.5, 50}, {2.5, 100}};
+    LineChartPoint meanClouds[] = {{0.5, 100}, {1.5, 0}, {2.5, 75}};
+    graphics.reset();
+    check(drawBarLineChartWidget(options, sunshineBars, meanClouds, 3, 1, CYD_RED) &&
+          graphics.rectangles.size() == 3 && graphics.lines.size() == 2 &&
+          graphics.pixels.size() == 3,
+          "yellow sunshine bars and independent red cloud line share one background clear");
+    check(graphics.rectangles[1].color == CYD_YELLOW &&
+          graphics.rectangles[1].y == 92 && graphics.rectangles[1].height == 50 &&
+          graphics.rectangles[2].color == CYD_YELLOW &&
+          graphics.rectangles[2].y == 42 && graphics.rectangles[2].height == 100,
+          "sunshine bars rise from zero to exact percentages; zero has no fabricated height");
+    for (const auto &line : graphics.lines)
+        check(line.color == CYD_RED, "mean cloud cover is a red line, not another bar");
+    check(graphics.rectangles[2].x <=
+          graphics.rectangles[1].x + graphics.rectangles[1].width,
+          "full-slot sunshine bars have no pixel gap between nonzero dates");
+    sunshineBars[1].y = NAN;
+    graphics.reset();
+    check(drawBarLineChartWidget(options, sunshineBars, meanClouds, 3, 1, CYD_RED) &&
+          graphics.rectangles.size() == 2 && graphics.lines.size() == 2,
+          "missing sunshine does not omit the mean cloud cover line");
+    meanClouds[1].y = NAN;
+    graphics.reset();
+    check(drawBarLineChartWidget(options, sunshineBars, meanClouds, 3, 1, CYD_RED) &&
+          graphics.rectangles.size() == 2 && graphics.lines.empty() &&
+          graphics.pixels.size() == 2,
+          "null sunshine omits a bar and null mean cover breaks the line independently");
+    sunshineBars[1].y = 50;
+    graphics.reset();
+    check(drawBarLineChartWidget(options, sunshineBars, meanClouds, 3, 1, CYD_RED) &&
+          graphics.rectangles.size() == 3 && graphics.lines.empty(),
+          "missing mean cloud cover does not omit the sunshine bar");
+    meanClouds[1].y = 0;
+    meanClouds[1].x = 1.6;
+    graphics.reset();
+    check(!drawBarLineChartWidget(options, sunshineBars, meanClouds, 3, 1, CYD_RED) &&
+          graphics.rectangles.empty(), "mismatched bar/line dates reject before clearing");
+    meanClouds[1].x = 1.5;
+    meanClouds[1].y = INFINITY;
+    graphics.reset();
+    check(!drawBarLineChartWidget(options, sunshineBars, meanClouds, 3, 1, CYD_RED) &&
+          graphics.rectangles.empty(), "invalid cloud line rejects before drawing sunshine bars");
+    meanClouds[1].y = 0;
+    sunshineBars[1].y = -1;
+    check(!drawBarLineChartWidget(options, sunshineBars, meanClouds, 3, 1, CYD_RED) &&
+          graphics.rectangles.empty(), "negative sunshine bars reject before clearing");
+    sunshineBars[1].y = 50;
+    check(!drawBarLineChartWidget(options, sunshineBars, nullptr, 3, 1, CYD_RED) &&
+          !drawBarLineChartWidget(options, sunshineBars, meanClouds, 3, 0, CYD_RED) &&
+          graphics.rectangles.empty(), "missing line buffer and invalid bar width reject safely");
+    options.minimumY = 1;
+    check(!drawBarLineChartWidget(options, sunshineBars, meanClouds, 3, 1, CYD_RED) &&
+          graphics.rectangles.empty(), "sunshine bars require a zero baseline");
+    options.minimumY = 0;
+    graphics.reset();
+    check(drawBarLineChartWidget(options, nullptr, nullptr, 0, 1, CYD_RED) &&
+          graphics.rectangles.size() == 1, "empty bar/line chart draws no invented values");
+    options.pastForecastX = 1;
+    graphics.reset();
+    check(drawBarLineChartWidget(options, sunshineBars, meanClouds, 3, 1, CYD_RED) &&
+          graphics.texts.size() == 2 && graphics.texts[0].value == "Past" &&
+          graphics.texts[1].value == "Forecast" &&
+          graphics.lines.back().color == options.labelColor,
+          "bar/line chart draws today's white divider above both series");
+
+    options = testOptions();
     options.maximumX = 28;
     options.maximumY = 100;
     options.lineColor = CYD_DARK_GRAY;

@@ -50,12 +50,12 @@ static void drawHistorySummary(const HistoryChartPage &page,
                                double minimum, double maximum)
 {
     gfx->setCursor(4, HEADER_HEIGHT + 3);
-    if (page.style == HistoryChartStyle::CloudRangeLine)
+    if (page.style == HistoryChartStyle::CloudBarsLine)
     {
         gfx->setTextColor(page.series[0].color);
-        gfx->print("Cloud cover  ");
-        gfx->setTextColor(page.series[2].color);
-        gfx->print("Sunshine (%)");
+        gfx->print("Sunshine  ");
+        gfx->setTextColor(page.series[1].color);
+        gfx->print("Cloud cover (%)");
         gfx->setTextColor(COLOR_TEXT);
         return;
     }
@@ -146,7 +146,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     const bool floatingBars = page.style == HistoryChartStyle::DailyFloatingBars ||
         page.style == HistoryChartStyle::DailyForecastFloatingBars;
     const bool trendBars = page.style == HistoryChartStyle::PressureTrendBars;
-    const bool clouds = page.style == HistoryChartStyle::CloudRangeLine;
+    const bool clouds = page.style == HistoryChartStyle::CloudBarsLine;
     const bool forecast = clouds || page.style == HistoryChartStyle::DailyForecastFloatingBars;
     const bool daily = dailyBars || floatingBars || clouds;
     int64_t forecastDay = 0;
@@ -263,7 +263,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
             }
             series[s] = {points[s].get(), history.buckets.size(), page.series[s].color};
         }
-        if (floatingBars || clouds)
+        if (floatingBars)
         {
             for (size_t i = 0; i < window.buckets.size(); ++i)
             {
@@ -296,9 +296,9 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
                 Serial.printf("%s: local date unavailable for Past/Forecast divider.\n", page.title);
         }
         const bool drawn = clouds
-            ? drawFloatingBarLineChartWidget(chart, points[0].get(), points[1].get(),
-                                             points[2].get(), window.buckets.size(),
-                                             window.bucketSeconds, page.series[2].color)
+            ? drawBarLineChartWidget(chart, points[0].get(), points[1].get(),
+                                     window.buckets.size(), window.bucketSeconds,
+                                     page.series[1].color)
             : trendBars
             ? drawPressureTrendChartWidget(chart, points[0].get(), points[1].get(),
                                             points[2].get(), window.buckets.size(),

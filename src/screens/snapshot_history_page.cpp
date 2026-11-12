@@ -23,7 +23,7 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
     const bool daily = page.style == HistoryChartStyle::DailyBars ||
         page.style == HistoryChartStyle::DailyFloatingBars;
     const bool trend = page.style == HistoryChartStyle::PressureTrendBars;
-    const bool clouds = page.style == HistoryChartStyle::CloudRangeLine;
+    const bool clouds = page.style == HistoryChartStyle::CloudBarsLine;
     const bool dailyForecast = page.style == HistoryChartStyle::DailyForecastFloatingBars;
     if (available && (!snapshotParsed || feedRevision != lastSnapshotRevision ||
         (snapshotStatus.state == NumericHistoryState::Failed &&
