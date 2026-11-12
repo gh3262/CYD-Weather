@@ -512,23 +512,35 @@ stale until the new window loads. Back returns to Precipitation; Home returns
 Home. Leaving deactivates snapshot polling when the next page selects its feeds.
 
 Temperatures has a **Daily** button in navigation position 2, alongside the
-existing **History** button in position 3. Daily opens **Daily Temps - 30 Days**,
-a floating cyan bar chart using only the latest `pages.dailytemp-bar` snapshot.
-The feed contains `[{"ts":"20261104","mintemp":51.3,"maxtemp":68.1}, ...]`,
+existing **History** button in position 3. Daily opens **Daily Temps - 28 Days**,
+a floating bar chart using only the latest `pages.om-temp` snapshot.
+Past bars are cyan, today's bar is yellow, and future bars are green.
+Colors follow the local date at midnight along with the divider; if the clock
+is unavailable, all bars remain cyan.
+The feed contains `[{"ts":"20261111","t2m_min":47.42,"t2m_max":75.06,"at_min":45.04,"at_max":72.36}, ...]`,
 with local `YYYYMMDD` dates and daily minimum/maximum Fahrenheit temperatures.
-It shows 30 calendar dates ending on the newest supplied date, with date-only labels
-encoded as UTC midnight. Older entries are discarded. Values are already
-aggregated, ordered earliest to latest, and zero-filled by the producer; the
-display does not aggregate, sort, or fill them. Supplied zeros are plotted as
-real values. Each bar spans `mintemp` to `maxtemp`, with 75% slot width and a
+It shows all 28 supplied dates: 14 past days and 14 forecast days, including
+today on the forecast side. Date-only labels are encoded as UTC midnight,
+with actual first/last date labels and no leading empty window. Values are already
+aggregated and ordered earliest to latest by the producer; the
+display does not aggregate, sort, or fill them. Apparent temperatures
+(`at_min` and `at_max`) are ignored. Supplied zeros are plotted as
+real values. Each bar spans `t2m_min` to `t2m_max`, with 75% slot width and a
 gap between dates. Negative temperatures
 are supported; equal high/low values draw a one-pixel bar. Dates missing either
-endpoint are left blank, not treated as zero; inverted low/high pairs are logged
-and omitted. The summary shows the lowest low and highest high among paired
+endpoint via explicit null are left blank, not treated as zero. Invalid dates,
+missing/non-numeric fields, inverted ranges, unordered/duplicate dates, or snapshots
+exceeding 72 records are logged and rejected atomically, retaining prior data as stale.
+The summary shows the lowest low and highest high among paired
 dates, and the footer counts paired dates. Both series are decoded atomically
 from the same snapshot, with the shared loading, empty, stale, and cancellation
-behavior. The feed refreshes once per minute while active; no individual
-temperature history feeds are requested.
+behavior. The feed is fetched on entry and refreshes hourly while active; no individual
+temperature history feeds are requested. Staleness uses feed receipt age
+(two hours, or two polling intervals), not forecast dates. Like Clouds, a dashed white vertical line
+marks the start of today with **Past** on the left and **Forecast** on the right.
+The divider moves at local midnight without requiring a feed change; it is
+omitted outside the supplied window or when the clock is unavailable.
+Labels sit above the data and are omitted on sides too narrow to fit.
 Back returns to Temperatures, Home returns Home, and **History** in position 3
 opens Temperature History. Temperature History has **Daily** in position 2
 to switch back. Sunshine and daylight feeds are not used by this page.

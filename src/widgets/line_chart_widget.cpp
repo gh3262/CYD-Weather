@@ -27,7 +27,8 @@ LineChartWidgetOptions::LineChartWidgetOptions()
       gridColor(CYD_DARK_GRAY),
       labelColor(COLOR_TEXT),
       zeroBarColor(CYD_DARK_GRAY),
-      pastForecastX(NAN)
+      pastForecastX(NAN),
+      forecastBarInterval(0.0)
 {
 }
 
@@ -261,6 +262,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
         !isfinite(options.minimumX) || !isfinite(options.maximumX) ||
         !isfinite(options.minimumY) || !isfinite(options.maximumY) ||
         isinf(options.pastForecastX) ||
+        !isfinite(options.forecastBarInterval) || options.forecastBarInterval < 0 ||
         !isfinite(rangeX) || !isfinite(rangeY) ||
         rangeX <= 0.0 || rangeY <= 0.0 ||
         !validBuffers)
@@ -432,6 +434,9 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
             const int y1 = chartPixel((options.maximumY - lower.y) / rangeY,
                                      top, bottom);
             uint16_t color = options.lineColor;
+            if (options.forecastBarInterval > 0 && lower.x >= options.pastForecastX)
+                color = lower.x - options.pastForecastX < options.forecastBarInterval
+                    ? CYD_YELLOW : CYD_GREEN;
             if (seriesCount == 3 && !rangeLine)
             {
                 color = upper.y > lower.y + 1.5 ? CYD_ORANGE :

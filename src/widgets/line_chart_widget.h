@@ -35,6 +35,8 @@ struct LineChartWidgetOptions
     uint16_t zeroBarColor;
     // NaN disables the dashed Past/Forecast divider; otherwise an X-axis value.
     double pastForecastX;
+    // Positive interval colors this slot yellow and later slots green; zero disables.
+    double forecastBarInterval;
 
     LineChartWidgetOptions();
 };

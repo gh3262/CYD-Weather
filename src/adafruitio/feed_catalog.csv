@@ -102,7 +102,7 @@ omp-daylighthours,Daily hours between sunrise and sunset,Light,float,Hrs,FALSE,o
 pages.p01-temp,Temperature Page Values,Temperature,long_text,F,TRUE,page_periodic,1
 pages.p02-precipitation,Precipitation Page Values,Precipitation,long_text,,TRUE,page_periodic,1
 pages.temp-line,Hourly Temperature History,Temperature,long_text,F,TRUE,page_periodic,1
-pages.dailytemp-bar,Daily Temperature History,Temperature,long_text,F,TRUE,page_periodic,1
+pages.om-temp,Daily Temperatures and Forecast,Temperature,long_text,F,TRUE,page_periodic,60
 pages.p03-wind,Wind Page Values,Wind,long_text,mph,TRUE,page_periodic,1
 pages.p04-baro,Barometer Page Values,Barometer,long_text,hPa,TRUE,page_periodic,1
 pages.p05-astro,Astronomical Page Values,Light,long_text,,TRUE,page_periodic,1

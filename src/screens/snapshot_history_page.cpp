@@ -24,6 +24,7 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
         page.style == HistoryChartStyle::DailyFloatingBars;
     const bool trend = page.style == HistoryChartStyle::PressureTrendBars;
     const bool clouds = page.style == HistoryChartStyle::CloudRangeLine;
+    const bool dailyForecast = page.style == HistoryChartStyle::DailyForecastFloatingBars;
     if (available && (!snapshotParsed || feedRevision != lastSnapshotRevision ||
         (snapshotStatus.state == NumericHistoryState::Failed &&
          updatedAt != lastSnapshotAttemptAt)))
@@ -36,6 +37,9 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
             error = parseBarometerTrendHistory(payload.c_str(), snapshotHistories);
         else if (clouds)
             error = parseCloudsHistory(payload.c_str(), snapshotHistories);
+        else if (dailyForecast)
+            error = parseDailyForecastHistory(
+                payload.c_str(), snapshotFields, page.seriesCount, snapshotHistories);
         else
             error = parseWeatherSnapshotHistory(
                 payload.c_str(), snapshotFields, page.seriesCount, daily, snapshotHistories);
@@ -58,7 +62,7 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
     const int64_t now = static_cast<int64_t>(time(nullptr));
     const bool oldWindow = daily
         ? !completedHistoryEndUtc(now, dailyEnd) || dailyEnd > snapshotHistories[0].endUtc
-        : !clouds && snapshotHistories[0].endUtc &&
+        : !clouds && !dailyForecast && snapshotHistories[0].endUtc &&
             now > snapshotHistories[0].endUtc + page.bucketSeconds;
     const bool stale = snapshotStatus.state == NumericHistoryState::Failed ||
         WiFi.status() != WL_CONNECTED ||

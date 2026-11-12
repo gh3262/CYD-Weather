@@ -11,6 +11,7 @@
 #include "screens/barometer_trend_history.h"
 #include "screens/clouds_history.h"
 #include "clouds_fixture.h"
+#include "temperature_daily_fixture.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -218,40 +219,6 @@ static const char *baroPage =
     "\"1014.04\",\"rising\",\"1015.74\",\"steady\",\"1019.44\",\"steady\"]";
 static const char *astroPage =
     "[\"6:23 AM\",\"5:01 PM\",\"3:49 AM\",\"3:19 PM\",\"Waning Crescent\"]";
-static const char *dailyTemperatures =
-    "[{\"ts\":\"20261004\",\"mintemp\":56.4,\"maxtemp\":83.4},"
-    "{\"ts\":\"20261005\",\"mintemp\":55.2,\"maxtemp\":83.4},"
-    "{\"ts\":\"20261006\",\"mintemp\":56.2,\"maxtemp\":87.2},"
-    "{\"ts\":\"20261007\",\"mintemp\":55.2,\"maxtemp\":89.0},"
-    "{\"ts\":\"20261008\",\"mintemp\":62.6,\"maxtemp\":89.3},"
-    "{\"ts\":\"20261009\",\"mintemp\":63.5,\"maxtemp\":71.7},"
-    "{\"ts\":\"20261010\",\"mintemp\":54.8,\"maxtemp\":86.9},"
-    "{\"ts\":\"20261011\",\"mintemp\":61.3,\"maxtemp\":90.8},"
-    "{\"ts\":\"20261012\",\"mintemp\":65.7,\"maxtemp\":90.9},"
-    "{\"ts\":\"20261013\",\"mintemp\":73.6,\"maxtemp\":88.5},"
-    "{\"ts\":\"20261014\",\"mintemp\":70.4,\"maxtemp\":91.0},"
-    "{\"ts\":\"20261015\",\"mintemp\":53.6,\"maxtemp\":72.1},"
-    "{\"ts\":\"20261016\",\"mintemp\":46.4,\"maxtemp\":64.7},"
-    "{\"ts\":\"20261017\",\"mintemp\":39.0,\"maxtemp\":71.2},"
-    "{\"ts\":\"20261018\",\"mintemp\":42.2,\"maxtemp\":73.2},"
-    "{\"ts\":\"20261019\",\"mintemp\":45.1,\"maxtemp\":77.4},"
-    "{\"ts\":\"20261020\",\"mintemp\":47.3,\"maxtemp\":79.6},"
-    "{\"ts\":\"20261021\",\"mintemp\":46.6,\"maxtemp\":79.7},"
-    "{\"ts\":\"20261022\",\"mintemp\":48.0,\"maxtemp\":79.3},"
-    "{\"ts\":\"20261023\",\"mintemp\":46.9,\"maxtemp\":80.9},"
-    "{\"ts\":\"20261024\",\"mintemp\":46.8,\"maxtemp\":77.4},"
-    "{\"ts\":\"20261025\",\"mintemp\":49.9,\"maxtemp\":75.4},"
-    "{\"ts\":\"20261026\",\"mintemp\":48.1,\"maxtemp\":76.3},"
-    "{\"ts\":\"20261027\",\"mintemp\":48.1,\"maxtemp\":80.7},"
-    "{\"ts\":\"20261028\",\"mintemp\":50.7,\"maxtemp\":81.8},"
-    "{\"ts\":\"20261029\",\"mintemp\":51.1,\"maxtemp\":81.8},"
-    "{\"ts\":\"20261030\",\"mintemp\":51.1,\"maxtemp\":80.2},"
-    "{\"ts\":\"20261031\",\"mintemp\":59.1,\"maxtemp\":75.6},"
-    "{\"ts\":\"20261101\",\"mintemp\":59.1,\"maxtemp\":63.6},"
-    "{\"ts\":\"20261102\",\"mintemp\":62.6,\"maxtemp\":73.2},"
-    "{\"ts\":\"20261103\",\"mintemp\":65.6,\"maxtemp\":72.7},"
-    "{\"ts\":\"20261104\",\"mintemp\":51.3,\"maxtemp\":68.1}]";
-
 static const char *parsePayload(const std::string &key, const char *payload)
 {
     TemperaturePageValues temperatures;
@@ -268,14 +235,8 @@ static const char *parsePayload(const std::string &key, const char *payload)
     SnapshotHistoryResult histories[3];
     if (key == "pages.baro-trend")
         return parseBarometerTrendHistory(payload, histories);
-    if (key == "pages.dailytemp-bar")
-    {
-        const SnapshotHistoryField fields[] = {
-            {"mintemp", HistoryAggregation::Minimum},
-            {"maxtemp", HistoryAggregation::Maximum},
-        };
-        return parseWeatherSnapshotHistory(payload, fields, 2, true, histories);
-    }
+    if (key == "pages.om-temp")
+        return parseDailyForecastHistory(payload, DAILY_TEMPERATURE_FIELDS, 2, histories);
     const SnapshotHistoryField fields[] = {
         {key == "pages.temp-line" ? "ftemp" : key == "pages.baro-line" ? "baro" :
          key == "pages.prcp-line" ? "prcp" : "speed", HistoryAggregation::Average},
@@ -467,36 +428,108 @@ int main(int argc, char **argv)
     check(state.currentScreen == SCREEN_TEMPERATURES, "Temps history Back route");
     handleTemperaturesTouch(2, 0);
     check(state.currentScreen == SCREEN_TEMPERATURE_DAILY, "Temps Daily route preserved");
-    assertOnlyFeed("pages.dailytemp-bar");
-    check(displayedWindow == 30 * 86400 && displayedBucket == 86400,
-          "daily temperature uses a 30-day daily frame");
-    cache("pages.dailytemp-bar", dailyTemperatures);
+    assertOnlyFeed("pages.om-temp", 60);
+    {
+        const int feed = adafruitIOManager.findFeed("pages.om-temp");
+        size_t historyCount = 0;
+        check(!adafruitIOManager._feedCache[feed].attempted,
+              "daily forecast fetch is immediately due on entry");
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+        {
+            auto &entry = adafruitIOManager._feedCache[i];
+            entry.attempted = true;
+            entry.failed = false;
+            entry.lastAttempt = testMillis;
+        }
+        check(adafruitIOManager.findDueFeed(testMillis + 3599999U, historyCount) != feed,
+              "daily forecast does not refresh before one hour");
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+            if (static_cast<int>(i) != feed)
+                adafruitIOManager._feedCache[i].lastAttempt = testMillis + 3600000U;
+        check(adafruitIOManager.findDueFeed(testMillis + 3600000U, historyCount) == feed,
+              "daily forecast refresh is due at exactly one hour");
+    }
+    check(displayedWindow == 28 * 86400 && displayedBucket == 86400,
+          "daily temperature uses a 28-day daily frame");
+    cache("pages.om-temp", DAILY_TEMPERATURE_SNAPSHOT);
     refreshTemperatureDailyResults();
     int64_t firstDay, lastDay;
-    check(parseSnapshotDate("20261006", firstDay) && parseSnapshotDate("20261104", lastDay),
+    check(parseSnapshotDate("20261028", firstDay) && parseSnapshotDate("20261124", lastDay),
           "prepare supplied daily temperature endpoints");
     check(displayedStatus.state == NumericHistoryState::Ready &&
-          displayed[0].buckets.size() == 30 && displayed[1].buckets.size() == 30 &&
-          displayed[0].sampleCount == 30 && displayed[1].sampleCount == 30 &&
+          !displayedStale &&
+          displayed[0].buckets.size() == 28 && displayed[1].buckets.size() == 28 &&
+          displayed[0].sampleCount == 28 && displayed[1].sampleCount == 28 &&
           displayed[0].startUtc == firstDay && displayed[0].endUtc == lastDay + 86400 &&
           displayed[0].buckets.front().startUtc == firstDay &&
           displayed[1].buckets.back().startUtc == lastDay &&
-          displayed[0].minimum == 39 && displayed[1].maximum == 91,
-          "supplied 32-day snapshot trims to October 6 through November 4 with paired extrema");
-    checkNear(displayed[0].buckets.front().latest, 56.2, "first retained low is unchanged");
-    checkNear(displayed[1].buckets.back().latest, 68.1, "last supplied high is unchanged");
+          std::fabs(displayed[0].minimum - 32.36) < 0.00001 &&
+          std::fabs(displayed[1].maximum - 81.73) < 0.00001,
+          "supplied snapshot preserves all past/forecast dates and paired extrema");
+    for (size_t i = 0; i < 28; ++i)
+    {
+        check(displayed[0].buckets[i].startUtc == firstDay + static_cast<int64_t>(i) * 86400 &&
+              displayed[1].buckets[i].startUtc == displayed[0].buckets[i].startUtc,
+              "temperature series retain exact matching supplied dates");
+        checkNear(displayed[0].buckets[i].latest, DAILY_TEMPERATURE_MIN[i], "exact daily low");
+        checkNear(displayed[1].buckets[i].latest, DAILY_TEMPERATURE_MAX[i], "exact daily high");
+    }
     const uint32_t dailyRevision = displayedStatus.revision;
     refreshTemperatureDailyResults();
     check(displayedStatus.revision == dailyRevision, "unchanged daily snapshot is not rebuilt");
-    cache("pages.dailytemp-bar", "[{\"ts\":\"20261104\",\"mintemp\":5}]");
+    testMillis += 120000;
+    refreshTemperatureDailyResults();
+    check(!displayedStale, "daily forecasts stay fresh beyond the old two-minute timeout");
+    testMillis += 7200000U - 120000U;
+    refreshTemperatureDailyResults();
+    check(!displayedStale, "daily forecasts remain fresh through two polling intervals");
+    ++testMillis;
+    refreshTemperatureDailyResults();
+    check(displayedStale, "daily forecasts use receipt age rather than future endpoints");
+    const char *invalidTemperatures[] = {
+        "[{\"ts\":\"20261104\",\"t2m_min\":5}]",
+        "[{\"ts\":\"20260230\",\"t2m_min\":0,\"t2m_max\":10}]",
+        "[{\"ts\":\"20261104\",\"t2m_min\":20,\"t2m_max\":10}]",
+        "[{\"ts\":\"20261104\",\"t2m_min\":0,\"t2m_max\":\"10\"}]",
+        "[{\"ts\":\"20261104\",\"t2m_min\":0,\"t2m_max\":10}] trailing",
+        "[{\"ts\":\"20261104\",\"t2m_min\":0,\"t2m_max\":10},"
+        "{\"ts\":\"20261104\",\"t2m_min\":0,\"t2m_max\":10}]",
+        "[{\"ts\":\"20261105\",\"t2m_min\":0,\"t2m_max\":10},"
+        "{\"ts\":\"20261104\",\"t2m_min\":0,\"t2m_max\":10}]",
+    };
+    for (const char *invalid : invalidTemperatures)
+    {
+        cache("pages.om-temp", invalid);
+        refreshTemperatureDailyResults();
+        check(displayedStatus.state == NumericHistoryState::Failed && displayedStale &&
+              displayed[0].sampleCount == 28 &&
+              std::fabs(displayed[1].maximum - 81.73) < 0.00001,
+              "invalid daily snapshot retains both previous series as stale");
+    }
+    BudgetJsonAllocator dailyAllocator;
+    check(!parseDailyForecastHistory(DAILY_TEMPERATURE_SNAPSHOT, DAILY_TEMPERATURE_FIELDS,
+                                    2, displayed, false, &dailyAllocator) &&
+          dailyAllocator.peak <= 8192 && dailyAllocator.live == 0,
+          "daily forecast JSON uses bounded live memory");
+    dailyAllocator.limit = 1;
+    check(parseDailyForecastHistory(DAILY_TEMPERATURE_SNAPSHOT, DAILY_TEMPERATURE_FIELDS,
+                                   2, displayed, false, &dailyAllocator) &&
+          dailyAllocator.failures && displayed[0].buckets.size() == 28,
+          "daily forecast JSON allocation failure retains data atomically");
+    cache("pages.om-temp", DAILY_TEMPERATURE_SNAPSHOT);
+    failNothrowAllocation = 1;
     refreshTemperatureDailyResults();
     check(displayedStatus.state == NumericHistoryState::Failed && displayedStale &&
-          displayed[0].sampleCount == 30 && displayed[1].maximum == 91,
-          "invalid daily snapshot retains both previous series as stale");
-    cache("pages.dailytemp-bar",
-        "[{\"ts\":\"20261102\",\"mintemp\":-5,\"maxtemp\":-1},"
-        "{\"ts\":\"20261103\",\"mintemp\":0,\"maxtemp\":0},"
-        "{\"ts\":\"20261104\",\"mintemp\":2.5,\"maxtemp\":2.5}]");
+          displayed[0].buckets.size() == 28, "daily staging failure retains data");
+    ++testMillis;
+    adafruitIOManager._feedCache[adafruitIOManager.findFeed("pages.om-temp")].updatedAt = testMillis;
+    refreshTemperatureDailyResults();
+    check(displayedStatus.state == NumericHistoryState::Ready && !displayedStale,
+          "daily forecast recovers on an unchanged later feed poll");
+    cache("pages.om-temp",
+        "[{\"ts\":\"20261102\",\"t2m_min\":-5,\"t2m_max\":-1},"
+        "{\"ts\":\"20261103\",\"t2m_min\":0,\"t2m_max\":0},"
+        "{\"ts\":\"20261104\",\"t2m_min\":2.5,\"t2m_max\":2.5}]");
     refreshTemperatureDailyResults();
     check(displayedStatus.state == NumericHistoryState::Ready &&
           displayed[0].sampleCount == 3 && displayed[1].sampleCount == 3 &&
@@ -504,7 +537,17 @@ int main(int argc, char **argv)
           displayed[0].buckets[1].latest == 0 && displayed[1].buckets[1].latest == 0 &&
           displayed[0].minimum == -5 && displayed[1].maximum == 2.5,
           "daily recovery preserves negatives, producer-filled zeros, and equal endpoints");
-    cache("pages.dailytemp-bar", "[]");
+    cache("pages.om-temp",
+        "[{\"ts\":\"20261102\",\"t2m_min\":null,\"t2m_max\":110,\"at_min\":\"ignored\"},"
+        "{\"ts\":\"20261104\",\"t2m_min\":0,\"t2m_max\":null}]");
+    refreshTemperatureDailyResults();
+    check(displayedStatus.state == NumericHistoryState::Ready &&
+          displayed[0].buckets.size() == 2 && !displayed[0].buckets[0].count &&
+          displayed[1].buckets[0].latest == 110 && !displayed[1].buckets[1].count &&
+          displayed[0].buckets[1].latest == 0 &&
+          displayed[0].buckets[1].startUtc - displayed[0].buckets[0].startUtc == 2 * 86400,
+          "daily nulls/gaps are not zero-filled, temperatures are unbounded, apparent temps ignored");
+    cache("pages.om-temp", "[]");
     refreshTemperatureDailyResults();
     check(displayedStatus.state == NumericHistoryState::Ready &&
           displayedStatus.hasData && displayed[0].buckets.empty() && displayed[1].buckets.empty(),
@@ -513,7 +556,7 @@ int main(int argc, char **argv)
     check(state.currentScreen == SCREEN_TEMPERATURE_HISTORY, "daily History route");
     assertOnlyFeed("pages.temp-line");
     handleTemperatureHistoryTouch(2, 0);
-    assertOnlyFeed("pages.dailytemp-bar");
+    assertOnlyFeed("pages.om-temp", 60);
     handleTemperatureDailyTouch(1, 0);
     check(state.currentScreen == SCREEN_TEMPERATURES, "daily Back returns to Temperatures");
 

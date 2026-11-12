@@ -7,29 +7,29 @@ static HistoryChartScale dailyTemperatureScale(double, double)
 }
 
 static const HistoryChartSeries DAILY_TEMPERATURE_SERIES[] = {
-    {"pages.dailytemp-bar", HistoryAggregation::Minimum, CYD_CYAN, "Low"},
-    {"pages.dailytemp-bar", HistoryAggregation::Maximum, CYD_CYAN, "High"},
+    {"pages.om-temp", HistoryAggregation::Minimum, CYD_CYAN, "Low"},
+    {"pages.om-temp", HistoryAggregation::Maximum, CYD_CYAN, "High"},
 };
 static const SnapshotHistoryField DAILY_TEMPERATURE_FIELDS[] = {
-    {"mintemp", HistoryAggregation::Minimum},
-    {"maxtemp", HistoryAggregation::Maximum},
+    {"t2m_min", HistoryAggregation::Minimum},
+    {"t2m_max", HistoryAggregation::Maximum},
 };
 
 static HistoryChartPage dailyTemperaturePage()
 {
     return {
-        "Daily Temps - 30 Days",
+        "Daily Temps - 28 Days",
         DAILY_TEMPERATURE_SERIES,
         2,
-        30U * 86400U,
+        28U * 86400U,
         86400,
-        "30 days",
+        "28 days",
         " F",
         1,
         10.0,
         false,
         dailyTemperatureScale,
-        HistoryChartStyle::DailyFloatingBars,
+        HistoryChartStyle::DailyForecastFloatingBars,
     };
 }
 
@@ -40,7 +40,7 @@ void refreshTemperatureDailyResults()
 
 void drawTemperatureDailyScreen()
 {
-    drawSnapshotHistoryPage(dailyTemperaturePage(), "pages.dailytemp-bar",
+    drawSnapshotHistoryPage(dailyTemperaturePage(), "pages.om-temp",
                             DAILY_TEMPERATURE_FIELDS);
     drawNav3("History");
 }

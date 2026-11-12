@@ -14,7 +14,7 @@ static bool historyActive = false;
 static uint32_t renderedRevision = UINT32_MAX;
 static bool renderedStale = false;
 static bool renderedHasData = false;
-static int64_t renderedCloudDay = 0;
+static int64_t renderedForecastDay = 0;
 
 static void drawHistoryMessage(const char *message)
 {
@@ -60,6 +60,7 @@ static void drawHistorySummary(const HistoryChartPage &page,
         return;
     }
     if (page.style == HistoryChartStyle::DailyFloatingBars ||
+        page.style == HistoryChartStyle::DailyForecastFloatingBars ||
         page.style == HistoryChartStyle::PressureTrendBars)
     {
         gfx->setTextColor(COLOR_TEXT);
@@ -142,15 +143,17 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     const bool hasData = status.hasData;
     const History &window = histories[0];
     const bool dailyBars = page.style == HistoryChartStyle::DailyBars;
-    const bool floatingBars = page.style == HistoryChartStyle::DailyFloatingBars;
+    const bool floatingBars = page.style == HistoryChartStyle::DailyFloatingBars ||
+        page.style == HistoryChartStyle::DailyForecastFloatingBars;
     const bool trendBars = page.style == HistoryChartStyle::PressureTrendBars;
     const bool clouds = page.style == HistoryChartStyle::CloudRangeLine;
+    const bool forecast = clouds || page.style == HistoryChartStyle::DailyForecastFloatingBars;
     const bool daily = dailyBars || floatingBars || clouds;
-    int64_t cloudDay = 0;
-    if (clouds && !completedHistoryEndUtc(static_cast<int64_t>(time(nullptr)), cloudDay))
-        cloudDay = 0;
+    int64_t forecastDay = 0;
+    if (forecast && !completedHistoryEndUtc(static_cast<int64_t>(time(nullptr)), forecastDay))
+        forecastDay = 0;
     if (status.revision == renderedRevision && stale == renderedStale &&
-        hasData == renderedHasData && (!clouds || cloudDay == renderedCloudDay))
+        hasData == renderedHasData && (!forecast || forecastDay == renderedForecastDay))
         return;
 
     uint32_t sampleCount = 0;
@@ -283,12 +286,14 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         chart.yLabelDecimalPlaces = dailyBars ? 2 : 0;
         chart.lineColor = page.series[0].color;
         chart.zeroBarColor = CYD_YELLOW;
-        if (clouds)
+        if (page.style == HistoryChartStyle::DailyForecastFloatingBars)
+            chart.forecastBarInterval = window.bucketSeconds;
+        if (forecast)
         {
-            if (cloudDay)
-                chart.pastForecastX = static_cast<double>(cloudDay);
+            if (forecastDay)
+                chart.pastForecastX = static_cast<double>(forecastDay);
             else
-                Serial.println("Clouds: local date unavailable for Past/Forecast divider.");
+                Serial.printf("%s: local date unavailable for Past/Forecast divider.\n", page.title);
         }
         const bool drawn = clouds
             ? drawFloatingBarLineChartWidget(chart, points[0].get(), points[1].get(),
@@ -334,7 +339,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     renderedRevision = status.revision;
     renderedStale = stale;
     renderedHasData = hasData;
-    renderedCloudDay = cloudDay;
+    renderedForecastDay = forecastDay;
 }
 
 void refreshHistoryChartData(const HistoryChartPage &page,

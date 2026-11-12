@@ -645,6 +645,43 @@ int main()
           graphics.texts[0].color == options.labelColor &&
           graphics.texts[1].color == options.labelColor,
           "white labels sit on the appropriate sides in a separate row above the data");
+    graphics.reset();
+    check(drawFloatingBarChartWidget(options, cloudLows, cloudHighs, 28, 0.75) &&
+          graphics.texts.size() == 2 && graphics.texts[0].value == "Past" &&
+          graphics.texts[1].value == "Forecast" && graphics.lines.size() == dashCount,
+          "temperature-style floating bars also draw the dashed divider and both labels");
+    for (const auto &line : graphics.lines)
+        check(line.x0 == dividerX && line.x1 == dividerX && line.color == options.labelColor,
+              "floating bar divider is white and uses today's date coordinate");
+    options.forecastBarInterval = 1;
+    const LineChartPoint temperatureLows[] = {{9.5, 10}, {10.5, 20}, {11.5, 30}};
+    const LineChartPoint temperatureHighs[] = {{9.5, 40}, {10.5, 50}, {11.5, 60}};
+    graphics.reset();
+    check(drawFloatingBarChartWidget(options, temperatureLows, temperatureHighs, 3, 0.75) &&
+          graphics.rectangles.size() == 4 &&
+          graphics.rectangles[1].color == options.lineColor &&
+          graphics.rectangles[2].color == CYD_YELLOW &&
+          graphics.rectangles[3].color == CYD_GREEN,
+          "past bars retain their color, today's slot is yellow, later slots are green");
+    options.pastForecastX = 11;
+    graphics.reset();
+    check(drawFloatingBarChartWidget(options, temperatureLows, temperatureHighs, 3, 0.75) &&
+          graphics.rectangles[1].color == options.lineColor &&
+          graphics.rectangles[2].color == options.lineColor &&
+          graphics.rectangles[3].color == CYD_YELLOW,
+          "bar colors move with the local date divider");
+    options.pastForecastX = NAN;
+    graphics.reset();
+    check(drawFloatingBarChartWidget(options, temperatureLows, temperatureHighs, 3, 0.75) &&
+          graphics.rectangles[1].color == options.lineColor &&
+          graphics.rectangles[2].color == options.lineColor &&
+          graphics.rectangles[3].color == options.lineColor,
+          "unavailable local date leaves all bars in their base color");
+    options.forecastBarInterval = -1;
+    expectInvalid(options, diagonal, 2);
+    options.forecastBarInterval = std::numeric_limits<double>::infinity();
+    expectInvalid(options, diagonal, 2);
+    options.forecastBarInterval = 0;
     options.pastForecastX = 0;
     graphics.reset();
     check(drawFloatingBarLineChartWidget(options, nullptr, nullptr, nullptr, 0, 1, CYD_YELLOW) &&

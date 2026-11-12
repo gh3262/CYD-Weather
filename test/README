@@ -154,10 +154,16 @@ fake manager. It checks exclusive combined-feed subscriptions, minute polling,
 row ordering, daylight/AM/PM boundaries, atomic rejection, exact 72-hour and
 30-day windows, aligned wind speed/gust series, explicit leading nulls,
 stale-result retention, and Back/Daily/Dir/History navigation.
-Daily-temperature checks use the supplied 32-date min/max snapshot to verify
-the newest 30 dates, exact endpoints/extrema, paired series, negative/equal
-temperatures, producer-filled zeros, empty snapshots, unchanged revisions,
-atomic stale retention, and recovery without raw-history requests.
+Daily-temperature checks use the supplied 28-date `pages.om-temp` snapshot to
+verify all past/forecast dates, exact endpoints/extrema, paired series, ignored
+apparent temperatures, negative/equal temperatures, zeros/nulls/gaps, empty snapshots,
+unchanged revisions, invalid dates/ranges/order, bounded allocations,
+hourly polling (including the exact one-hour boundary), immediate entry fetch,
+two-hour receipt-age staleness, atomic stale retention, and recovery without raw-history requests.
+Renderer checks verify 75%-width bars, the temperature Y scale, date labels,
+paired-day count, and a local-today Past/Forecast divider that moves without a
+feed revision. Widget tests verify the dashed line and labels on floating bars,
+cyan past/yellow today/green future colors, date rollover, and unavailable-clock behavior.
 Memory regression tests decode 1,000 supplied hours with no more than 8 KB of
 live JSON allocations, inject JSON/staging allocation failures, and verify
 retained-data recovery after a later unchanged feed poll. The manager suite
