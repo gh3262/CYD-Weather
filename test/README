@@ -196,7 +196,7 @@ local date change even without a new feed revision.
 Daily wind checks cover the supplied 28-day speed and gust snapshot, independent
 nulls, invalid updates, feed activation, and navigation. Renderer and widget
 checks cover line colors, date labels, and the moving Past/Forecast divider.
-Daily precipitation checks cover hourly feed activation and navigation, 28 dates,
+Daily precipitation checks cover hourly feed activation, reciprocal History/Daily navigation, 28 dates,
 mixed rain/showers/snow proportions, dry and unknown-type hours, invalid update
 retention, fixed 24-hour scale, date rollover, and stacked bar colors.
 

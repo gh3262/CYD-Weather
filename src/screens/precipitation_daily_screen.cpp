@@ -29,6 +29,7 @@ void refreshPrecipitationDailyResults()
 void drawPrecipitationDailyScreen()
 {
     drawSnapshotHistoryPage(precipitationDailyPage(), "pages.om-precip", nullptr);
+    drawNav3("History");
 }
 
 void enterPrecipitationDailyScreen()
@@ -41,4 +42,6 @@ void handlePrecipitationDailyTouch(int x, int y)
 {
     if (navPressed1(x, y))
         enterPrecipitationScreen();
+    else if (navPressed3(x, y))
+        enterPrecipitationHistoryScreen();
 }

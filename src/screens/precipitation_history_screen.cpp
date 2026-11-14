@@ -47,6 +47,7 @@ void drawPrecipitationHistoryScreen()
 {
     drawSnapshotHistoryPage(precipitationHistoryPage(), "pages.prcp-line",
                             PRECIPITATION_HISTORY_FIELDS);
+    drawNav2("Daily");
 }
 
 void enterPrecipitationHistoryScreen()
@@ -59,4 +60,6 @@ void handlePrecipitationHistoryTouch(int x, int y)
 {
     if (navPressed1(x, y))
         enterPrecipitationScreen();
+    else if (navPressed2(x, y))
+        enterPrecipitationDailyScreen();
 }

@@ -381,8 +381,9 @@ produces a logged error and an explanatory Details message, not a truncated list
 |---|---|---|---|---|
 | Home | Now | Forecast | Details | System |
 | Details | Back | — | — | Home |
-| Precipitation | Back | — | History | Home |
-| Precipitation History | Back | — | — | Home |
+| Precipitation | Back | Daily | History | Home |
+| Precipitation History | Back | Daily | — | Home |
+| Daily Precipitation | Back | — | History | Home |
 | Barometer | Back | — | History | Home |
 | Barometer History | Back | — | — | Home |
 | Wind | Back | Dir | Speed | Home |
@@ -509,8 +510,9 @@ The full snapshot is validated before displaying any result. A successfully empt
 array contains no plotted daily readings;
 loading and failed requests remain distinct. Refresh failures or WiFi loss mark
 retained data **Stale**; crossing local midnight also marks yesterday's window
-stale until the new window loads. Back returns to Precipitation; Home returns
-Home. Leaving deactivates snapshot polling when the next page selects its feeds.
+stale until the new window loads. Back returns to Precipitation; Daily opens
+Daily Precipitation; Home returns Home. Leaving deactivates snapshot polling
+when the next page selects its feeds.
 
 Precipitation also has a **Daily** button in navigation position 2. It opens
 **Daily Precip - 28 Days**, using only the latest `pages.om-precip` snapshot,
@@ -531,7 +533,7 @@ the date changes, even without a new feed value. With no local clock the bars
 remain cyan and the divider is omitted. Invalid dates, ordering, missing or
 non-numeric fields, negative amounts, and hours outside 0-24 are rejected
 atomically; the last valid data stays visible as stale. Back returns to
-Precipitation and Home returns Home.
+Precipitation, History opens Precipitation History, and Home returns Home.
 
 Temperatures has a **Daily** button in navigation position 2, alongside the
 existing **History** button in position 3. Daily opens **Daily Temps - 28 Days**,

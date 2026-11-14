@@ -584,8 +584,10 @@ int main(int argc, char **argv)
     check(std::find(graphics.printed.begin(), graphics.printed.end(), "15%") !=
           graphics.printed.end(), "promoted precipitation page preserves percent formatting");
     check(navLabels[1] == "Daily", "precipitation Daily button occupies position two");
+    navLabels[2].clear();
     handlePrecipitationTouch(2, 0);
     check(state.currentScreen == SCREEN_PRECIPITATION_DAILY, "precipitation Daily route");
+    check(navLabels[2] == "History", "daily precipitation shows History in position three");
     assertOnlyFeed("pages.om-precip", 60);
     check(std::isnan(displayedReferenceLineY), "other pages do not retain the freezing line");
     {
@@ -671,6 +673,16 @@ int main(int argc, char **argv)
           std::fabs(displayed[1].buckets[1].latest - 5.0) < 1e-5 &&
           !displayed[2].buckets[2].count,
           "supplied rounded amounts and null hours preserve the intended durations");
+    navLabels[1].clear();
+    handlePrecipitationDailyTouch(3, 0);
+    check(state.currentScreen == SCREEN_PRECIPITATION_HISTORY &&
+          navLabels[1] == "Daily", "daily History opens history with Daily in position two");
+    assertOnlyFeed("pages.prcp-line");
+    navLabels[2].clear();
+    handlePrecipitationHistoryTouch(2, 0);
+    check(state.currentScreen == SCREEN_PRECIPITATION_DAILY &&
+          navLabels[2] == "History", "history Daily returns to daily with History in position three");
+    assertOnlyFeed("pages.om-precip", 60);
     handlePrecipitationDailyTouch(1, 0);
     check(state.currentScreen == SCREEN_PRECIPITATION, "daily precipitation Back route");
     handlePrecipitationTouch(3, 0);
