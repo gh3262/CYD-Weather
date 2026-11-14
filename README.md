@@ -451,8 +451,8 @@ The feed supplies 28 daily records covering 14 past days and
 
 `ts` is a local calendar date (`YYYYMMDD`). On a fixed 0-100% scale, yellow
 bars rise from zero to the supplied `pct_ss` (sunshine as a percentage of
-daylight hours) and occupy the entire daily slot, with no gaps between adjacent
-nonzero dates. A red line overlays `cc_mean`, the supplied average daily cloud
+daylight hours) and occupy 75% of each daily slot, leaving gaps between days.
+A red line overlays `cc_mean`, the supplied average daily cloud
 cover percentage. The two series are independent; neither is calculated from
 the other. `dld`, `ssd`, `cc_min`, and `cc_max` are ignored.
 All supplied dates are shown, including forecasts, with actual first/last date
@@ -539,6 +539,9 @@ a floating bar chart using only the latest `pages.om-temp` snapshot.
 Past bars are cyan, today's bar is yellow, and future bars are green.
 Colors follow the local date at midnight along with the divider; if the clock
 is unavailable, all bars remain cyan.
+Both Daily and Temperature History include a dashed red horizontal line at
+32 F. Their automatic Y ranges expand when needed to keep that freezing line
+visible, without changing the displayed temperatures.
 The feed contains `[{"ts":"20261111","t2m_min":47.42,"t2m_max":75.06,"at_min":45.04,"at_max":72.36}, ...]`,
 with local `YYYYMMDD` dates and daily minimum/maximum Fahrenheit temperatures.
 It shows all 28 supplied dates: 14 past days and 14 forecast days, including

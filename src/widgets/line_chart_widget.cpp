@@ -28,7 +28,9 @@ LineChartWidgetOptions::LineChartWidgetOptions()
       labelColor(COLOR_TEXT),
       zeroBarColor(CYD_DARK_GRAY),
       pastForecastX(NAN),
-      forecastBarInterval(0.0)
+      forecastBarInterval(0.0),
+      referenceLineY(NAN),
+      referenceLineColor(CYD_RED)
 {
 }
 
@@ -243,6 +245,19 @@ static void drawPastForecastDivider(const LineChartWidgetOptions &options,
     gfx->setTextSize(2);
 }
 
+static void drawReferenceLine(const LineChartWidgetOptions &options,
+                              int left, int top, int right, int bottom)
+{
+    if (isnan(options.referenceLineY) ||
+        options.referenceLineY < options.minimumY ||
+        options.referenceLineY > options.maximumY)
+        return;
+    const int y = chartPixel((options.maximumY - options.referenceLineY) /
+                             (options.maximumY - options.minimumY), top, bottom);
+    for (int x = left; x <= right; x += 7)
+        gfx->drawLine(x, y, min(x + 3, right), y, options.referenceLineColor);
+}
+
 static bool drawChartWidget(const LineChartWidgetOptions &options,
                              const LineChartSeries *series, size_t seriesCount,
                              double barWidth, int zeroBarHeight,
@@ -262,7 +277,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
         options.y > SCREEN_HEIGHT - options.height ||
         !isfinite(options.minimumX) || !isfinite(options.maximumX) ||
         !isfinite(options.minimumY) || !isfinite(options.maximumY) ||
-        isinf(options.pastForecastX) ||
+        isinf(options.pastForecastX) || isinf(options.referenceLineY) ||
         !isfinite(options.forecastBarInterval) || options.forecastBarInterval < 0 ||
         !isfinite(rangeX) || !isfinite(rangeY) ||
         rangeX <= 0.0 || rangeY <= 0.0 ||
@@ -476,6 +491,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
             if (wetY < showersY)
                 gfx->fillRect(x0, wetY, x1 - x0 + 1, showersY - wetY, CYD_WHITE);
         }
+        drawReferenceLine(options, left, top, right, bottom);
         drawPastForecastDivider(options, left, top, right, bottom);
         return true;
     }
@@ -522,6 +538,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
         }
         if (rangeLine)
             drawSeries(options, series[2], rangeX, rangeY, left, top, right, bottom);
+        drawReferenceLine(options, left, top, right, bottom);
         drawPastForecastDivider(options, left, top, right, bottom);
         return true;
     }
@@ -533,6 +550,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
         else
             drawSeries(options, series[s], rangeX, rangeY, left, top, right, bottom);
     }
+    drawReferenceLine(options, left, top, right, bottom);
     drawPastForecastDivider(options, left, top, right, bottom);
     return true;
 }

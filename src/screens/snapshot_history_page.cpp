@@ -13,6 +13,7 @@ static uint32_t lastSnapshotAttemptAt = 0;
 static bool snapshotParsed = false;
 static bool snapshotFeedActive = false;
 static uint32_t snapshotStaleAfterMs = 120000U;
+static double snapshotReferenceLineY = NAN;
 
 void refreshSnapshotHistoryPage(const HistoryChartPage &page)
 {
@@ -74,11 +75,12 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
         (snapshotStatus.hasData &&
          (!available ||
           millis() - updatedAt > snapshotStaleAfterMs || oldWindow));
-    refreshHistoryChartData(page, snapshotHistories, snapshotStatus, stale);
+    refreshHistoryChartData(page, snapshotHistories, snapshotStatus, stale,
+                            snapshotReferenceLineY);
 }
 
 void drawSnapshotHistoryPage(const HistoryChartPage &page, const char *feedKey,
-                             const SnapshotHistoryField fields[])
+                             const SnapshotHistoryField fields[], double referenceLineY)
 {
     for (SnapshotHistoryResult &history : snapshotHistories)
     {
@@ -89,6 +91,7 @@ void drawSnapshotHistoryPage(const HistoryChartPage &page, const char *feedKey,
     snapshotStatus = {};
     snapshotStatus.state = NumericHistoryState::Loading;
     snapshotFeed = feedKey;
+    snapshotReferenceLineY = referenceLineY;
     for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
         if (strcmp(AIO_FEEDS[i].key, feedKey) == 0)
         {

@@ -2,6 +2,7 @@
 #define HISTORY_CHART_PAGE_H
 
 #include <Arduino.h>
+#include <math.h>
 
 #include "adafruitio/adafruitio_manager.h"
 
@@ -63,7 +64,8 @@ void refreshHistoryChartData(const HistoryChartPage &page,
                             const NumericHistoryStatus &status, bool stale);
 void refreshHistoryChartData(const HistoryChartPage &page,
                             const SnapshotHistoryResult histories[],
-                            const NumericHistoryStatus &status, bool stale);
+                            const NumericHistoryStatus &status, bool stale,
+                            double referenceLineY = NAN);
 // Redraws only when history status, data presence, or staleness changes.
 void refreshHistoryChartPage(const HistoryChartPage &page);
 void leaveHistoryChartPage();

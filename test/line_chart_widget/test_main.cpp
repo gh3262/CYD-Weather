@@ -629,6 +629,43 @@ int main()
           "bar/line chart draws today's white divider above both series");
 
     options = testOptions();
+    options.x = 0;
+    options.y = HEADER_HEIGHT + 16;
+    options.width = SCREEN_WIDTH;
+    options.height = NAV_Y - options.y - 14;
+    options.maximumX = 28;
+    options.maximumY = 100;
+    options.showYScale = true;
+    options.yTickInterval = 10;
+    options.yLabelInterval = 20;
+    options.lineColor = CYD_YELLOW;
+    options.pastForecastX = 14;
+    LineChartPoint dailySunshine[28], dailyClouds[28];
+    for (size_t i = 0; i < 28; ++i)
+    {
+        dailySunshine[i] = {i + 0.5, 50};
+        dailyClouds[i] = {i + 0.5, 75};
+    }
+    graphics.reset();
+    check(drawBarLineChartWidget(options, dailySunshine, dailyClouds, 28, 0.75, CYD_RED) &&
+          graphics.rectangles.size() == 29,
+          "all 28 sunshine bars render at the production chart dimensions");
+    for (size_t i = 1; i < 28; ++i)
+    {
+        const auto &previous = graphics.rectangles[i];
+        const auto &next = graphics.rectangles[i + 1];
+        check(previous.color == CYD_YELLOW &&
+              previous.x + previous.width < next.x,
+              "each adjacent pair of daily sunshine bars has a visible pixel gap");
+    }
+    size_t redCloudSegments = 0;
+    for (const auto &line : graphics.lines)
+        if (line.color == CYD_RED)
+            ++redCloudSegments;
+    check(redCloudSegments == 27 && graphics.lines.back().color == options.labelColor,
+          "all cloud-cover segments and the divider remain visible over gapped bars");
+
+    options = testOptions();
     options.maximumX = 28;
     options.maximumY = 100;
     options.lineColor = CYD_DARK_GRAY;
@@ -822,6 +859,41 @@ int main()
     graphics.reset();
     check(!drawPrecipitationChartWidget(options, rain, showers, wetHours, 3, 0.75) &&
           graphics.rectangles.empty(), "invalid precipitation stack rejected before clearing");
+
+    options = testOptions();
+    options.maximumY = 64;
+    options.referenceLineY = 32;
+    graphics.reset();
+    check(drawLineChartWidget(options, diagonal, 2) && graphics.lines.size() == 16 &&
+          graphics.lines[0].color == options.lineColor,
+          "temperature line and dashed reference both render");
+    for (size_t i = 1; i < graphics.lines.size(); ++i)
+    {
+        const auto &dash = graphics.lines[i];
+        check(dash.color == CYD_RED && dash.y0 == 92 && dash.y1 == 92 &&
+              dash.x0 == 12 + static_cast<int>(i - 1) * 7 &&
+              dash.x1 == std::min(dash.x0 + 3, 112),
+              "freezing dashes are red, mapped to 32 F and clipped to plot");
+    }
+    const LineChartPoint freezeLow[] = {{5, 20}};
+    const LineChartPoint freezeHigh[] = {{5, 45}};
+    options.pastForecastX = 5;
+    graphics.reset();
+    check(drawFloatingBarChartWidget(options, freezeLow, freezeHigh, 1, 1) &&
+          graphics.lines.front().color == CYD_RED &&
+          graphics.lines.front().y0 == 98 &&
+          graphics.lines.back().color == options.labelColor,
+          "freezing line overlays daily bars and stays below the past/forecast divider");
+    options.pastForecastX = NAN;
+    for (double outside : {-1.0, 65.0})
+    {
+        options.referenceLineY = outside;
+        graphics.reset();
+        check(drawLineChartWidget(options, diagonal, 2) && graphics.lines.size() == 1,
+              "out-of-range horizontal reference is omitted, not clipped to an edge");
+    }
+    options.referenceLineY = INFINITY;
+    expectInvalid(options, diagonal, 2);
     std::printf("PASS: %zu line-chart checks\n", checks);
     return 0;
 }

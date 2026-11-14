@@ -150,7 +150,8 @@ void refreshHistoryChartPage(const HistoryChartPage &page)
 template <typename History>
 static void refreshHistoryChartResults(const HistoryChartPage &page,
                                        const History histories[],
-                                       const NumericHistoryStatus &status, bool stale)
+                                       const NumericHistoryStatus &status, bool stale,
+                                       double referenceLineY)
 {
     if (!historyActive)
         return;
@@ -300,12 +301,18 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         chart.maximumX = static_cast<double>(window.endUtc);
         chart.minimumY = page.zeroBasedY ? 0.0 : minimum - page.yPadding;
         chart.maximumY = clouds ? 100.0 : precipitation ? 24.0 : maximum + page.yPadding;
+        if (isfinite(referenceLineY))
+        {
+            chart.minimumY = min(chart.minimumY, referenceLineY - page.yPadding);
+            chart.maximumY = max(chart.maximumY, referenceLineY + page.yPadding);
+        }
         const HistoryChartScale scale = page.scale(chart.minimumY, chart.maximumY);
         chart.showYScale = true;
         chart.yTickInterval = scale.tickInterval;
         chart.yLabelInterval = scale.labelInterval;
         chart.yLabelDecimalPlaces = dailyBars ? 2 : 0;
         chart.lineColor = page.series[0].color;
+        chart.referenceLineY = referenceLineY;
         chart.zeroBarColor = CYD_YELLOW;
         if (page.style == HistoryChartStyle::DailyForecastFloatingBars)
             chart.forecastBarInterval = window.bucketSeconds;
@@ -324,7 +331,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
                                            window.bucketSeconds * 0.75)
             : clouds
             ? drawBarLineChartWidget(chart, points[0].get(), points[1].get(),
-                                     window.buckets.size(), window.bucketSeconds,
+                                     window.buckets.size(), window.bucketSeconds * 0.75,
                                      page.series[1].color)
             : trendBars
             ? drawPressureTrendChartWidget(chart, points[0].get(), points[1].get(),
@@ -373,14 +380,15 @@ void refreshHistoryChartData(const HistoryChartPage &page,
                             const NumericHistoryResult histories[],
                             const NumericHistoryStatus &status, bool stale)
 {
-    refreshHistoryChartResults(page, histories, status, stale);
+    refreshHistoryChartResults(page, histories, status, stale, NAN);
 }
 
 void refreshHistoryChartData(const HistoryChartPage &page,
                             const SnapshotHistoryResult histories[],
-                            const NumericHistoryStatus &status, bool stale)
+                            const NumericHistoryStatus &status, bool stale,
+                            double referenceLineY)
 {
-    refreshHistoryChartResults(page, histories, status, stale);
+    refreshHistoryChartResults(page, histories, status, stale, referenceLineY);
 }
 
 void drawHistoryChartFrame(const HistoryChartPage &page)

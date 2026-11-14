@@ -5,7 +5,8 @@
 #include "screens/weather_snapshot_history.h"
 
 void drawSnapshotHistoryPage(const HistoryChartPage &page, const char *feedKey,
-                             const SnapshotHistoryField fields[]);
+                             const SnapshotHistoryField fields[],
+                             double referenceLineY = NAN);
 void refreshSnapshotHistoryPage(const HistoryChartPage &page);
 
 #endif

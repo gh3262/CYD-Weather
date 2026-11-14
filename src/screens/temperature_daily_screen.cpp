@@ -41,7 +41,7 @@ void refreshTemperatureDailyResults()
 void drawTemperatureDailyScreen()
 {
     drawSnapshotHistoryPage(dailyTemperaturePage(), "pages.om-temp",
-                            DAILY_TEMPERATURE_FIELDS);
+                            DAILY_TEMPERATURE_FIELDS, 32.0);
     drawNav3("History");
 }
 

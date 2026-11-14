@@ -37,6 +37,9 @@ struct LineChartWidgetOptions
     double pastForecastX;
     // Positive interval colors this slot yellow and later slots green; zero disables.
     double forecastBarInterval;
+    // NaN disables the dashed horizontal reference line.
+    double referenceLineY;
+    uint16_t referenceLineColor;
 
     LineChartWidgetOptions();
 };

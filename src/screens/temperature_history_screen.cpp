@@ -39,7 +39,7 @@ void refreshTemperatureHistoryResults()
 void drawTemperatureHistoryScreen()
 {
     drawSnapshotHistoryPage(temperatureHistoryPage(), "pages.temp-line",
-                            TEMPERATURE_HISTORY_FIELDS);
+                            TEMPERATURE_HISTORY_FIELDS, 32.0);
     drawNav2("Daily");
 }
 

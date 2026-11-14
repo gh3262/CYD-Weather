@@ -92,10 +92,20 @@ bool drawPrecipitationChartWidget(const LineChartWidgetOptions &chart,
 }
 
 LineChartWidgetOptions::LineChartWidgetOptions()
-    : pastForecastX(NAN), forecastBarInterval(0.0) {}
+    : pastForecastX(NAN), forecastBarInterval(0.0), referenceLineY(NAN),
+      referenceLineColor(CYD_RED) {}
 bool drawLineChartSeriesWidget(const LineChartWidgetOptions &chart,
                                const LineChartSeries *series, size_t count)
 {
+    if (chart.referenceLineY == 32)
+    {
+        ++draws;
+        check(count == 1 && chart.referenceLineColor == CYD_RED &&
+              chart.minimumY == 22 && chart.maximumY == 75 &&
+              series[0].points[0].y == 60 && series[0].points[1].y == 65,
+              "hourly temperature expands scale to include red freezing reference");
+        return true;
+    }
     if (!std::isnan(chart.pastForecastX))
     {
         ++windDailyDraws;
@@ -141,8 +151,9 @@ bool drawFloatingBarChartWidget(const LineChartWidgetOptions &chart, const LineC
         dailyDivider = chart.pastForecastX;
         check(count == 28 && chart.maximumX - chart.minimumX == 28 * 86400 &&
               width == 86400 * 0.75 && chart.lineColor == CYD_CYAN &&
+              chart.referenceLineY == 32 && chart.referenceLineColor == CYD_RED &&
               chart.forecastBarInterval == 86400 &&
-              std::fabs(chart.minimumY - 22.36) < 0.00001 &&
+              std::fabs(chart.minimumY - 22.0) < 0.00001 &&
               std::fabs(chart.maximumY - 91.73) < 0.00001,
               "daily forecast retains cyan 75-percent floating bars and temperature Y scale");
         for (size_t i = 0; i < count; ++i)
@@ -176,10 +187,10 @@ bool drawBarLineChartWidget(const LineChartWidgetOptions &chart,
           "cloud divider uses local calendar midnight encoded on the date-only axis");
     cloudDivider = chart.pastForecastX;
     check(count == 28 && chart.maximumX - chart.minimumX == 28 * 86400 &&
-          chart.minimumY == 0 && chart.maximumY == 100 && width == 86400 &&
+          chart.minimumY == 0 && chart.maximumY == 100 && width == 86400 * 0.75 &&
           chart.lineColor == CYD_YELLOW && lineColor == CYD_RED &&
           chart.forecastBarInterval == 0,
-          "Clouds uses full day yellow bars and a red line on a fixed 0-100 scale");
+          "Clouds uses 75-percent day yellow bars and a red line on a fixed 0-100 scale");
     for (size_t i = 0; i < count; ++i)
         check(sunshine[i].x == chart.minimumX + i * 86400 + 43200 &&
               cloudCover[i].x == sunshine[i].x &&
@@ -266,6 +277,25 @@ int main()
     ++status.revision;
     refreshHistoryChartData(page, rawHistories, status, false);
     check(draws == 3, "legacy numeric histories still render with unchanged point values");
+    static const HistoryChartSeries temperatureSeries[] = {
+        {"pages.temp-line", HistoryAggregation::Average, CYD_CYAN, nullptr},
+    };
+    const HistoryChartPage temperaturePage = {
+        "Last 72 Hours", temperatureSeries, 1, 72 * 3600, 3600, "72 hours", " F",
+        1, 10, false, scale, HistoryChartStyle::Line,
+    };
+    const SnapshotHistoryField temperatureFields[] = {
+        {"ftemp", HistoryAggregation::Average},
+    };
+    static SnapshotHistoryResult temperatureHistory;
+    check(!parseWeatherSnapshotHistory(
+        "[{\"ts\":\"2026110500\",\"ftemp\":60},{\"ts\":\"2026110501\",\"ftemp\":65}]",
+        temperatureFields, 1, false, &temperatureHistory),
+        "parse warm hourly temperature fixture");
+    drawHistoryChartFrame(temperaturePage);
+    ++status.revision;
+    refreshHistoryChartData(temperaturePage, &temperatureHistory, status, false, 32);
+    check(draws == 4, "hourly chart renders the freezing reference");
     static const HistoryChartSeries dailySeries[] = {
         {"pages.om-temp", HistoryAggregation::Minimum, CYD_CYAN, "Low"},
         {"pages.om-temp", HistoryAggregation::Maximum, CYD_CYAN, "High"},
@@ -295,7 +325,7 @@ int main()
     drawHistoryChartFrame(dailyPage);
     ++status.revision;
     refreshHistoryChartData(dailyPage, histories, status, false);
-    check(draws == 4 &&
+    check(draws == 5 &&
           std::find(graphics.printed.begin(), graphics.printed.end(), "30/30 days") !=
               graphics.printed.end(),
           "30 paired daily bars render with a 30/30 footer");
@@ -309,10 +339,10 @@ int main()
     drawHistoryChartFrame(forecastPage);
     ++status.revision;
     failAllocation = true;
-    refreshHistoryChartData(forecastPage, histories, status, false);
+    refreshHistoryChartData(forecastPage, histories, status, false, 32);
     check(dailyForecastDraws == 0 && graphics.printed.back() == "Not enough memory for chart",
           "daily forecast allocation failure is visible");
-    refreshHistoryChartData(forecastPage, histories, status, false);
+    refreshHistoryChartData(forecastPage, histories, status, false, 32);
     check(dailyForecastDraws == 1 &&
           std::find(graphics.printed.begin(), graphics.printed.end(), "28/28 days") !=
               graphics.printed.end() &&
@@ -321,21 +351,21 @@ int main()
           std::find(graphics.printed.begin(), graphics.printed.end(), "11/24") !=
               graphics.printed.end(),
           "daily forecast retries and labels the actual date window and paired-day count");
-    refreshHistoryChartData(forecastPage, histories, status, false);
+    refreshHistoryChartData(forecastPage, histories, status, false, 32);
     check(dailyForecastDraws == 1, "unchanged daily forecast is not redrawn");
-    refreshHistoryChartData(forecastPage, histories, status, true);
+    refreshHistoryChartData(forecastPage, histories, status, true, 32);
     check(dailyForecastDraws == 2, "stale daily forecast redraws retained bars");
     const double previousDailyDivider = dailyDivider;
     setTestTimezone("UTC-12");
-    refreshHistoryChartData(forecastPage, histories, status, true);
+    refreshHistoryChartData(forecastPage, histories, status, true, 32);
     check(dailyForecastDraws == 3 && dailyDivider == previousDailyDivider + 86400,
           "daily divider follows local midnight without a new feed revision");
-    refreshHistoryChartData(forecastPage, histories, status, true);
+    refreshHistoryChartData(forecastPage, histories, status, true, 32);
     check(dailyForecastDraws == 3, "new daily divider date is cached");
     check(!parseDailyForecastHistory("[]", DAILY_TEMPERATURE_FIELDS, 2, histories),
           "parse empty daily forecast");
     ++status.revision;
-    refreshHistoryChartData(forecastPage, histories, status, false);
+    refreshHistoryChartData(forecastPage, histories, status, false, 32);
     check(dailyForecastDraws == 3 && graphics.printed.back() == "No paired daily readings",
           "empty daily forecast shows no fabricated bars");
     static const HistoryChartSeries windDailySeries[] = {

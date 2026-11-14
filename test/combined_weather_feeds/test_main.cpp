@@ -103,6 +103,7 @@ static NumericHistoryStatus displayedStatus;
 static bool displayedStale = false;
 static uint32_t displayedWindow = 0;
 static uint32_t displayedBucket = 0;
+static double displayedReferenceLineY = NAN;
 static std::vector<std::string> tableValues;
 static std::string navLabels[4];
 
@@ -184,8 +185,10 @@ void drawHistoryChartFrame(const HistoryChartPage &page)
 }
 void refreshHistoryChartData(const HistoryChartPage &page,
                             const SnapshotHistoryResult histories[],
-                            const NumericHistoryStatus &status, bool stale)
+                            const NumericHistoryStatus &status, bool stale,
+                            double referenceLineY)
 {
+    displayedReferenceLineY = referenceLineY;
     for (size_t i = 0; i < page.seriesCount; ++i)
         displayed[i] = histories[i];
     displayedStatus = status;
@@ -433,12 +436,14 @@ int main(int argc, char **argv)
     handleTemperaturesTouch(3, 0);
     check(state.currentScreen == SCREEN_TEMPERATURE_HISTORY, "Temps History route");
     assertOnlyFeed("pages.temp-line");
+    check(displayedReferenceLineY == 32, "hourly temperature enables the freezing line");
     check(displayedWindow == 72 * 3600 && displayedBucket == 3600, "Temps 72-hour hourly frame");
     handleTemperatureHistoryTouch(1, 0);
     check(state.currentScreen == SCREEN_TEMPERATURES, "Temps history Back route");
     handleTemperaturesTouch(2, 0);
     check(state.currentScreen == SCREEN_TEMPERATURE_DAILY, "Temps Daily route preserved");
     assertOnlyFeed("pages.om-temp", 60);
+    check(displayedReferenceLineY == 32, "daily temperature enables the freezing line");
     {
         const int feed = adafruitIOManager.findFeed("pages.om-temp");
         size_t historyCount = 0;
@@ -582,6 +587,7 @@ int main(int argc, char **argv)
     handlePrecipitationTouch(2, 0);
     check(state.currentScreen == SCREEN_PRECIPITATION_DAILY, "precipitation Daily route");
     assertOnlyFeed("pages.om-precip", 60);
+    check(std::isnan(displayedReferenceLineY), "other pages do not retain the freezing line");
     {
         const int feed = adafruitIOManager.findFeed("pages.om-precip");
         size_t historyCount = 0;

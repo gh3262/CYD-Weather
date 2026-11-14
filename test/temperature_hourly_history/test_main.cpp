@@ -23,6 +23,7 @@ static size_t originalCharts = 0;
 static SnapshotHistoryResult displayedHistory;
 static NumericHistoryStatus displayedStatus;
 static bool displayedStale = false;
+static double displayedReferenceLineY = NAN;
 
 static void check(bool condition, const char *message)
 {
@@ -63,8 +64,10 @@ void drawHistoryChartFrame(const HistoryChartPage &page)
 }
 void refreshHistoryChartData(const HistoryChartPage &,
                             const SnapshotHistoryResult histories[],
-                            const NumericHistoryStatus &status, bool stale)
+                            const NumericHistoryStatus &status, bool stale,
+                            double referenceLineY)
 {
+    displayedReferenceLineY = referenceLineY;
     displayedHistory = histories[0];
     displayedStatus = status;
     displayedStale = stale;
@@ -254,6 +257,7 @@ int main()
     refreshTemperatureHistoryResults();
     check(!displayedStale && displayedStatus.revision == freshRevision,
           "successful unchanged feed poll clears stale without rebuilding data");
+    check(displayedReferenceLineY == 32, "hourly temperature keeps its freezing line on refresh");
     cache.value = snapshot.c_str();
     ++cache.revision;
     refreshTemperatureHistoryResults();

@@ -31,6 +31,8 @@ missing endpoints/line values, and validation before clearing.
 Past/Forecast divider tests verify date-based (not midpoint) mapping, dashed
 white lines above the data, separate left/right labels, edge/outside-window
 handling, and invalid/tiny bounds without partial drawing.
+Horizontal reference checks cover 32 F mapping, red dashes, bar and line
+layering, clipping, outside-range omission, and invalid reference values.
 
 From the repository root, using an installed C++11 compiler (PowerShell):
 
@@ -184,10 +186,11 @@ including forecast dates. They cover nulls/zeros, empty snapshots, invalid
 percentages/dates/order, ignored min/max fields, capacity bounds, allocation failures and recovery,
 exclusive hourly feed polling (including the exact one-hour boundary),
 immediate entry fetch, two-hour receipt staleness, and Back navigation. Renderer checks
-verify fixed 0-100% bounds, full daily width, yellow bars/red line, exact values,
+verify fixed 0-100% bounds, 75%-width yellow bars/red line, exact values,
 date labels, day count, and stale/revision caching.
-Bar/line widget tests verify zero-anchored sunshine heights, independent red
-cloud lines, null gaps/zeros, validation before clearing, and divider layering.
+Bar/line widget tests verify zero-anchored sunshine heights, gaps between all
+28 daily bars at display resolution, independent red cloud lines, null gaps/zeros,
+validation before clearing, and divider layering.
 Cloud divider renderer checks verify local calendar midnight and redraw on a
 local date change even without a new feed revision.
 Daily wind checks cover the supplied 28-day speed and gust snapshot, independent
