@@ -18,6 +18,7 @@ enum Screen
     SCREEN_FORECAST,
     SCREEN_DETAILS,
     SCREEN_PRECIPITATION,
+    SCREEN_PRECIPITATION_DAILY,
     SCREEN_PRECIPITATION_HISTORY,
     SCREEN_BAROMETER,
     SCREEN_BAROMETER_HISTORY,
@@ -118,6 +119,11 @@ void drawPrecipitationScreen();
 void enterPrecipitationScreen();
 void handlePrecipitationTouch(int x, int y);
 void refreshPrecipitationResults();
+
+void drawPrecipitationDailyScreen();
+void enterPrecipitationDailyScreen();
+void handlePrecipitationDailyTouch(int x, int y);
+void refreshPrecipitationDailyResults();
 
 // precipitation_history_screen.cpp
 void drawPrecipitationHistoryScreen();

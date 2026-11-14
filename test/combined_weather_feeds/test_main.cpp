@@ -8,6 +8,7 @@
 #include "screens/weather_page_values.h"
 #include "screens/temperature_page_values.h"
 #include "screens/precipitation_page_values.h"
+#include "screens/precipitation_daily_history.h"
 #include "screens/barometer_trend_history.h"
 #include "screens/clouds_history.h"
 #include "clouds_fixture.h"
@@ -145,6 +146,7 @@ void drawCurrentScreen()
     case SCREEN_TEMPERATURE_HISTORY: drawTemperatureHistoryScreen(); break;
     case SCREEN_TEMPERATURE_DAILY: drawTemperatureDailyScreen(); break;
     case SCREEN_PRECIPITATION: drawPrecipitationScreen(); break;
+    case SCREEN_PRECIPITATION_DAILY: drawPrecipitationDailyScreen(); break;
     case SCREEN_PRECIPITATION_HISTORY: drawPrecipitationHistoryScreen(); break;
     case SCREEN_WIND: drawWindScreen(); break;
     case SCREEN_WIND_HISTORY: drawWindHistoryScreen(); break;
@@ -241,6 +243,8 @@ static const char *parsePayload(const std::string &key, const char *payload)
         return parseDailyForecastHistory(payload, DAILY_TEMPERATURE_FIELDS, 2, histories);
     if (key == "pages.om-sun")
         return parseCloudsHistory(payload, histories);
+    if (key == "pages.om-precip")
+        return parsePrecipitationDailyHistory(payload, histories);
     if (key == "pages.om-wind")
         return parseDailyForecastHistory(payload, DAILY_WIND_FIELDS, 2, histories);
     const SnapshotHistoryField fields[] = {
@@ -574,6 +578,95 @@ int main(int argc, char **argv)
     assertOnlyFeed("pages.p02-precipitation");
     check(std::find(graphics.printed.begin(), graphics.printed.end(), "15%") !=
           graphics.printed.end(), "promoted precipitation page preserves percent formatting");
+    check(navLabels[1] == "Daily", "precipitation Daily button occupies position two");
+    handlePrecipitationTouch(2, 0);
+    check(state.currentScreen == SCREEN_PRECIPITATION_DAILY, "precipitation Daily route");
+    assertOnlyFeed("pages.om-precip", 60);
+    {
+        const int feed = adafruitIOManager.findFeed("pages.om-precip");
+        size_t historyCount = 0;
+        check(!adafruitIOManager._feedCache[feed].attempted,
+              "daily precipitation fetch is immediately due on entry");
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+        {
+            auto &entry = adafruitIOManager._feedCache[i];
+            entry.attempted = true;
+            entry.failed = false;
+            entry.lastAttempt = testMillis;
+        }
+        check(adafruitIOManager.findDueFeed(testMillis + 3599999U, historyCount) != feed,
+              "daily precipitation does not refresh before one hour");
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+            if (static_cast<int>(i) != feed)
+                adafruitIOManager._feedCache[i].lastAttempt = testMillis + 3600000U;
+        check(adafruitIOManager.findDueFeed(testMillis + 3600000U, historyCount) == feed,
+              "daily precipitation refresh is due at exactly one hour");
+    }
+    check(displayedWindow == 28 * 86400 && displayedBucket == 86400,
+          "daily precipitation uses daily forecast window");
+    std::string dailyPrecipitation = "[";
+    for (int i = 0; i < 28; ++i)
+    {
+        const time_t timestamp = 1793404800 + i * 86400;
+        char date[16];
+        std::strftime(date, sizeof(date), "%Y%m%d", std::gmtime(&timestamp));
+        dailyPrecipitation += std::string(i ? "," : "") + "{\"ts\":\"" + date +
+            "\",\"precip_hours\":" + (i == 0 ? "12" : i == 1 ? "1" : "0") +
+            ",\"rain_sum\":" + (i == 0 ? "2" : "0") +
+            ",\"showers_sum\":" + (i == 0 ? "1" : "0") +
+            ",\"snowfall_sum\":" + (i == 0 ? "1" : "0") + "}";
+    }
+    dailyPrecipitation += "]";
+    cache("pages.om-precip", dailyPrecipitation.c_str());
+    refreshPrecipitationDailyResults();
+    check(displayedStatus.hasData && !displayedStale &&
+          displayed[0].buckets.size() == 28 &&
+          displayed[0].buckets[0].latest == 6 &&
+          displayed[1].buckets[0].latest == 9 &&
+          displayed[2].buckets[0].latest == 12,
+          "daily snapshot preserves 28 dates and normalizes mixed types to wet hours");
+    check(!displayed[0].buckets[1].count && !displayed[1].buckets[1].count &&
+          displayed[2].buckets[1].latest == 1 &&
+          displayed[0].buckets[2].latest == 0 && displayed[2].buckets[2].latest == 0,
+          "rounded-zero amounts retain unknown wet duration and dry dates");
+    const uint32_t precipitationRevision = displayedStatus.revision;
+    refreshPrecipitationDailyResults();
+    check(displayedStatus.revision == precipitationRevision, "unchanged daily snapshot is not reparsed");
+    for (const char *invalid : {
+        "[{\"ts\":\"20261101\",\"precip_hours\":25,\"rain_sum\":0,\"showers_sum\":0,\"snowfall_sum\":0}]",
+        "[{\"ts\":\"20261101\",\"precip_hours\":1,\"rain_sum\":-1,\"showers_sum\":0,\"snowfall_sum\":0}]",
+        "[{\"ts\":\"20261101\",\"precip_hours\":1,\"rain_sum\":0,\"showers_sum\":0}]",
+        "[{\"ts\":\"20261101\",\"precip_hours\":1,\"rain_sum\":0,\"showers_sum\":0,\"snowfall_sum\":0},"
+        "{\"ts\":\"20261101\",\"precip_hours\":0,\"rain_sum\":0,\"showers_sum\":0,\"snowfall_sum\":0}]"})
+    {
+        cache("pages.om-precip", invalid);
+        refreshPrecipitationDailyResults();
+        check(displayedStale && displayedStatus.state == NumericHistoryState::Failed &&
+              displayed[2].buckets.size() == 28 && displayed[2].buckets[0].latest == 12,
+              "invalid daily snapshot retains the last valid data as stale");
+    }
+    cache("pages.om-precip", dailyPrecipitation.c_str());
+    refreshPrecipitationDailyResults();
+    check(!displayedStale && displayedStatus.state == NumericHistoryState::Ready,
+          "daily precipitation recovers after a valid snapshot");
+    testMillis += 7200001U;
+    refreshPrecipitationDailyResults();
+    check(displayedStale, "daily precipitation is stale after two polling intervals");
+    adafruitIOManager._feedCache[adafruitIOManager.findFeed("pages.om-precip")].updatedAt = testMillis;
+    refreshPrecipitationDailyResults();
+    check(!displayedStale, "a fresh receipt clears daily precipitation staleness");
+    cache("pages.om-precip",
+        "[{\"ts\":\"20261122\",\"precip_hours\":1,\"rain_sum\":0,\"showers_sum\":0,\"snowfall_sum\":0},"
+        "{\"ts\":\"20261125\",\"precip_hours\":5,\"rain_sum\":0.14,\"showers_sum\":0.01,\"snowfall_sum\":0},"
+        "{\"ts\":\"20261126\",\"precip_hours\":null,\"rain_sum\":0.03,\"showers_sum\":0,\"snowfall_sum\":0}]");
+    refreshPrecipitationDailyResults();
+    check(displayed[2].buckets[0].latest == 1 && !displayed[0].buckets[0].count &&
+          std::fabs(displayed[0].buckets[1].latest - 5.0 * 0.14 / 0.15) < 1e-5 &&
+          std::fabs(displayed[1].buckets[1].latest - 5.0) < 1e-5 &&
+          !displayed[2].buckets[2].count,
+          "supplied rounded amounts and null hours preserve the intended durations");
+    handlePrecipitationDailyTouch(1, 0);
+    check(state.currentScreen == SCREEN_PRECIPITATION, "daily precipitation Back route");
     handlePrecipitationTouch(3, 0);
     assertOnlyFeed("pages.prcp-line");
     check(displayedWindow == 30 * 86400 && displayedBucket == 86400, "precipitation 30-day frame");

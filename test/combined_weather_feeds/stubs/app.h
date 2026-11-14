@@ -15,6 +15,7 @@ enum Screen
     SCREEN_TEMPERATURE_HISTORY,
     SCREEN_TEMPERATURE_DAILY,
     SCREEN_PRECIPITATION,
+    SCREEN_PRECIPITATION_DAILY,
     SCREEN_PRECIPITATION_HISTORY,
     SCREEN_WIND,
     SCREEN_WIND_HISTORY,
@@ -39,6 +40,8 @@ static const uint16_t COLOR_BACKGROUND = 0;
 static const uint16_t COLOR_WARNING = 0xffe0;
 static const uint16_t CYD_DARK_GRAY = 0x4208;
 static const uint16_t CYD_GRAY = 0x8410;
+static const uint16_t CYD_MAGENTA = 0xf81f;
+static const uint16_t CYD_WHITE = 0xffff;
 static const int FONT_MONO_SMALL = 1;
 static const int SCREEN_WIDTH = 320;
 static const int HEADER_HEIGHT = 28;
@@ -100,6 +103,10 @@ void enterPrecipitationScreen();
 void drawPrecipitationScreen();
 void refreshPrecipitationResults();
 void handlePrecipitationTouch(int, int);
+void enterPrecipitationDailyScreen();
+void drawPrecipitationDailyScreen();
+void refreshPrecipitationDailyResults();
+void handlePrecipitationDailyTouch(int, int);
 void enterPrecipitationHistoryScreen();
 void drawPrecipitationHistoryScreen();
 void refreshPrecipitationHistoryResults();

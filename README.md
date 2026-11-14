@@ -512,6 +512,27 @@ retained data **Stale**; crossing local midnight also marks yesterday's window
 stale until the new window loads. Back returns to Precipitation; Home returns
 Home. Leaving deactivates snapshot polling when the next page selects its feeds.
 
+Precipitation also has a **Daily** button in navigation position 2. It opens
+**Daily Precip - 28 Days**, using only the latest `pages.om-precip` snapshot,
+fetched on entry and refreshed hourly while the page is open. The producer
+updates the feed every six hours. The supplied ordered local `YYYYMMDD` dates
+cover 14 past days and 14 forecast days, including today; they are not sorted,
+aggregated, or filled. Each bar spans 24 hours, with the dry portion cyan for
+past days, yellow for today, and green for later days. The wet portion occupies
+`precip_hours / 24` of the bar. Its stacked gray rain, magenta showers and
+white snow sections are proportional to `rain_sum`, `showers_sum` and
+`snowfall_sum`, normalized against their sum. Snow is already water-equivalent.
+If the hours are nonzero but the amounts are all zero (or any amount is null),
+dark gray marks wet hours of unknown type; null hours leave a date blank.
+The other feed fields are ignored.
+
+The dashed divider marks local midnight at the start of today and moves when
+the date changes, even without a new feed value. With no local clock the bars
+remain cyan and the divider is omitted. Invalid dates, ordering, missing or
+non-numeric fields, negative amounts, and hours outside 0-24 are rejected
+atomically; the last valid data stays visible as stale. Back returns to
+Precipitation and Home returns Home.
+
 Temperatures has a **Daily** button in navigation position 2, alongside the
 existing **History** button in position 3. Daily opens **Daily Temps - 28 Days**,
 a floating bar chart using only the latest `pages.om-temp` snapshot.

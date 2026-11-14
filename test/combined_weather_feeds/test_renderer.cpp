@@ -3,6 +3,7 @@
 #include "screens/snapshot_history_page.h"
 #include "widgets/line_chart_widget.h"
 #include "screens/clouds_history.h"
+#include "screens/precipitation_daily_history.h"
 #include "clouds_fixture.h"
 #include "temperature_daily_fixture.h"
 #include "wind_daily_fixture.h"
@@ -29,6 +30,8 @@ static size_t dailyForecastDraws = 0;
 static double dailyDivider = NAN;
 static size_t windDailyDraws = 0;
 static double windDailyDivider = NAN;
+static size_t precipitationDraws = 0;
+static double precipitationDivider = NAN;
 
 static void setTestTimezone(const char *zone)
 {
@@ -68,6 +71,25 @@ void setDefaultFont() {}
 void centerText(const char *text, int, uint16_t, int) { graphics.printed.emplace_back(text); }
 void drawNav1(const char *) {}
 void drawNav4(const char *) {}
+
+bool drawPrecipitationChartWidget(const LineChartWidgetOptions &chart,
+                                  const LineChartPoint *rain, const LineChartPoint *showers,
+                                  const LineChartPoint *hours, size_t count, double width)
+{
+    ++precipitationDraws;
+    int64_t today = 0;
+    check(completedHistoryEndUtc(static_cast<int64_t>(time(nullptr)), today) &&
+          chart.pastForecastX == static_cast<double>(today),
+          "precipitation divider follows local midnight");
+    precipitationDivider = chart.pastForecastX;
+    check(count == 2 && width == 86400 * 0.75 &&
+          chart.minimumY == 0 && chart.maximumY == 24 &&
+          chart.forecastBarInterval == 86400 &&
+          rain[0].y == 6 && showers[0].y == 9 && hours[0].y == 12 &&
+          std::isnan(rain[1].y) && std::isnan(showers[1].y) && hours[1].y == 1,
+          "renderer supplies proportional rain, showers and unknown wet hours");
+    return true;
+}
 
 LineChartWidgetOptions::LineChartWidgetOptions()
     : pastForecastX(NAN), forecastBarInterval(0.0) {}
@@ -430,6 +452,31 @@ int main()
     refreshHistoryChartData(cloudPage, trends, status, false);
     check(cloudDraws == 3 && graphics.printed.back() == "No cloud/sunshine readings",
           "empty Clouds shows an explicit message without claiming a past-only window");
+    static const HistoryChartSeries precipitationSeries[] = {
+        {"pages.om-precip", HistoryAggregation::Average, CYD_GRAY, "Rain"},
+        {"pages.om-precip", HistoryAggregation::Average, CYD_MAGENTA, "Showers"},
+        {"pages.om-precip", HistoryAggregation::Average, CYD_WHITE, "Snow"},
+    };
+    const HistoryChartPage precipitationPage = {
+        "Daily Precip", precipitationSeries, 3, 28 * 86400, 86400, "28 days", " hr",
+        0, 0, true, scale, HistoryChartStyle::DailyPrecipitationBars,
+    };
+    check(!parsePrecipitationDailyHistory(
+        "[{\"ts\":\"20261113\",\"precip_hours\":12,\"rain_sum\":2,\"showers_sum\":1,\"snowfall_sum\":1},"
+        "{\"ts\":\"20261114\",\"precip_hours\":1,\"rain_sum\":0,\"showers_sum\":0,\"snowfall_sum\":0}]",
+        trends), "parse daily precipitation renderer fixture");
+    setTestTimezone("UTC12");
+    drawHistoryChartFrame(precipitationPage);
+    ++status.revision;
+    refreshHistoryChartData(precipitationPage, trends, status, false);
+    check(precipitationDraws == 1 &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "2 days") != graphics.printed.end(),
+          "daily precipitation renders day count");
+    const double previousPrecipitationDivider = precipitationDivider;
+    setTestTimezone("UTC-12");
+    refreshHistoryChartData(precipitationPage, trends, status, false);
+    check(precipitationDraws == 2 && precipitationDivider == previousPrecipitationDivider + 86400,
+          "daily precipitation redraws day colors when the local date changes");
     std::printf("PASS: %zu history renderer memory checks\n", checks);
     return 0;
 }

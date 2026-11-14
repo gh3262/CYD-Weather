@@ -59,6 +59,20 @@ static void drawHistorySummary(const HistoryChartPage &page,
         gfx->setTextColor(COLOR_TEXT);
         return;
     }
+    if (page.style == HistoryChartStyle::DailyPrecipitationBars)
+    {
+        for (size_t i = 0; i < page.seriesCount; ++i)
+        {
+            gfx->setTextColor(page.series[i].color);
+            gfx->print(page.series[i].label);
+            gfx->print("  ");
+        }
+        gfx->setTextColor(CYD_DARK_GRAY);
+        gfx->print("? ");
+        gfx->setTextColor(COLOR_TEXT);
+        gfx->print("(hours)");
+        return;
+    }
     if (page.style == HistoryChartStyle::DailyFloatingBars ||
         page.style == HistoryChartStyle::DailyForecastFloatingBars ||
         page.style == HistoryChartStyle::PressureTrendBars)
@@ -147,10 +161,11 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         page.style == HistoryChartStyle::DailyForecastFloatingBars;
     const bool trendBars = page.style == HistoryChartStyle::PressureTrendBars;
     const bool clouds = page.style == HistoryChartStyle::CloudBarsLine;
+    const bool precipitation = page.style == HistoryChartStyle::DailyPrecipitationBars;
     const bool forecastLine = page.style == HistoryChartStyle::DailyForecastLine;
-    const bool forecast = clouds || forecastLine ||
+    const bool forecast = clouds || precipitation || forecastLine ||
         page.style == HistoryChartStyle::DailyForecastFloatingBars;
-    const bool daily = dailyBars || floatingBars || clouds || forecastLine;
+    const bool daily = dailyBars || floatingBars || clouds || precipitation || forecastLine;
     int64_t forecastDay = 0;
     if (forecast && !completedHistoryEndUtc(static_cast<int64_t>(time(nullptr)), forecastDay))
         forecastDay = 0;
@@ -224,6 +239,8 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     {
         const String message = clouds
             ? String(stale ? "No cloud/sunshine readings (stale)" : "No cloud/sunshine readings")
+            : precipitation
+            ? String(stale ? "No daily precipitation (stale)" : "No daily precipitation")
             : forecastLine
             ? String(stale ? "No daily readings (stale)" : "No daily readings")
             : stale ? String("No readings (stale history)") :
@@ -282,7 +299,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         chart.minimumX = static_cast<double>(window.startUtc);
         chart.maximumX = static_cast<double>(window.endUtc);
         chart.minimumY = page.zeroBasedY ? 0.0 : minimum - page.yPadding;
-        chart.maximumY = clouds ? 100.0 : maximum + page.yPadding;
+        chart.maximumY = clouds ? 100.0 : precipitation ? 24.0 : maximum + page.yPadding;
         const HistoryChartScale scale = page.scale(chart.minimumY, chart.maximumY);
         chart.showYScale = true;
         chart.yTickInterval = scale.tickInterval;
@@ -292,6 +309,8 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         chart.zeroBarColor = CYD_YELLOW;
         if (page.style == HistoryChartStyle::DailyForecastFloatingBars)
             chart.forecastBarInterval = window.bucketSeconds;
+        if (precipitation)
+            chart.forecastBarInterval = window.bucketSeconds;
         if (forecast)
         {
             if (forecastDay)
@@ -299,7 +318,11 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
             else
                 Serial.printf("%s: local date unavailable for Past/Forecast divider.\n", page.title);
         }
-        const bool drawn = clouds
+        const bool drawn = precipitation
+            ? drawPrecipitationChartWidget(chart, points[0].get(), points[1].get(),
+                                           points[2].get(), window.buckets.size(),
+                                           window.bucketSeconds * 0.75)
+            : clouds
             ? drawBarLineChartWidget(chart, points[0].get(), points[1].get(),
                                      window.buckets.size(), window.bucketSeconds,
                                      page.series[1].color)
@@ -335,7 +358,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         const String count = trendBars ? String(window.buckets.size()) + " bars" :
             floatingBars ? String(pairedDays) + "/" +
                 String(window.buckets.size()) + " days" :
-            dailyBars || clouds || forecastLine ? String(window.buckets.size()) + " days" :
+            dailyBars || clouds || precipitation || forecastLine ? String(window.buckets.size()) + " days" :
                         String(sampleCount) + " pts";
         centerText(count.c_str(), NAV_Y - 11, COLOR_TEXT, 1);
         gfx->setTextSize(2);

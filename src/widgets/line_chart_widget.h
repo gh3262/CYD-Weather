@@ -73,6 +73,14 @@ bool drawBarLineChartWidget(const LineChartWidgetOptions &options,
                             const LineChartPoint *bars, const LineChartPoint *line,
                             size_t pointCount, double barWidth, uint16_t lineColor);
 
+// Cumulative rain, rain+showers, and total wet hours on a 0-24 hour scale.
+// Missing composition is shown in dark gray; missing hours omit the day.
+bool drawPrecipitationChartWidget(const LineChartWidgetOptions &options,
+                                  const LineChartPoint *rain,
+                                  const LineChartPoint *showers,
+                                  const LineChartPoint *hours, size_t pointCount,
+                                  double barWidth);
+
 // Paired points must share X; each bar spans lower.y to upper.y, including
 // negative values. NaN at either endpoint omits that day; equal values draw
 // a one-pixel bar. Uses options.lineColor.

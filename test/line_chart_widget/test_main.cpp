@@ -788,6 +788,40 @@ int main()
     options.pastForecastX = 10;
     options.height = 15;
     expectInvalid(options, diagonal, 2);
+
+    options = testOptions();
+    options.maximumX = 3;
+    options.maximumY = 24;
+    options.pastForecastX = 1;
+    options.forecastBarInterval = 1;
+    LineChartPoint rain[] = {{0.5, 6}, {1.5, 0}, {2.5, NAN}};
+    LineChartPoint showers[] = {{0.5, 9}, {1.5, 0}, {2.5, NAN}};
+    LineChartPoint wetHours[] = {{0.5, 12}, {1.5, 0}, {2.5, 6}};
+    graphics.reset();
+    check(drawPrecipitationChartWidget(options, rain, showers, wetHours, 3, 0.75) &&
+          graphics.rectangles.size() == 8,
+          "daily precipitation draws full-day backgrounds and stacked wet hours");
+    check(graphics.rectangles[1].color == CYD_CYAN &&
+          graphics.rectangles[2].color == CYD_GRAY && graphics.rectangles[2].height == 22 &&
+          graphics.rectangles[3].color == CYD_MAGENTA && graphics.rectangles[3].height == 11 &&
+          graphics.rectangles[4].color == CYD_WHITE && graphics.rectangles[4].height == 11 &&
+          graphics.rectangles[5].color == CYD_YELLOW &&
+          graphics.rectangles[6].color == CYD_GREEN &&
+          graphics.rectangles[7].color == CYD_DARK_GRAY && graphics.rectangles[7].height == 22,
+          "past, today and future colors and proportional rain, showers, snow and unknown");
+    check(!graphics.lines.empty() && graphics.lines.back().color == options.labelColor,
+          "precipitation divider is drawn above bars");
+    options.pastForecastX = NAN;
+    graphics.reset();
+    check(drawPrecipitationChartWidget(options, rain, showers, wetHours, 3, 0.75) &&
+          graphics.rectangles[1].color == CYD_CYAN &&
+          graphics.rectangles[5].color == CYD_CYAN &&
+          graphics.rectangles[6].color == CYD_CYAN,
+          "unavailable local date leaves all dry portions cyan");
+    showers[0].y = 5;
+    graphics.reset();
+    check(!drawPrecipitationChartWidget(options, rain, showers, wetHours, 3, 0.75) &&
+          graphics.rectangles.empty(), "invalid precipitation stack rejected before clearing");
     std::printf("PASS: %zu line-chart checks\n", checks);
     return 0;
 }

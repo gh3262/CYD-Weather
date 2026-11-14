@@ -105,6 +105,7 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"pages.p02-precipitation", "Precipitation Page Values", "Precipitation", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.temp-line", "Hourly Temperature History", "Temperature", AdafruitIOValueType::LongText, "F", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.om-temp", "Daily Temperatures and Forecast", "Temperature", AdafruitIOValueType::LongText, "F", true, AdafruitIORefreshPolicy::PagePeriodic, 60},
+    {"pages.om-precip", "Daily Precipitation and Forecast", "Precipitation", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::PagePeriodic, 60},
     {"pages.p03-wind", "Wind Page Values", "Wind", AdafruitIOValueType::LongText, "mph", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.p04-baro", "Barometer Page Values", "Barometer", AdafruitIOValueType::LongText, "hPa", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.p05-astro", "Astronomical Page Values", "Light", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::PagePeriodic},

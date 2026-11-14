@@ -247,7 +247,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
                              const LineChartSeries *series, size_t seriesCount,
                              double barWidth, int zeroBarHeight,
                              bool floatingBars = false, bool rangeLine = false,
-                             bool barLine = false)
+                             bool barLine = false, bool precipitationBars = false)
 {
     const double rangeX = options.maximumX - options.minimumX;
     const double rangeY = options.maximumY - options.minimumY;
@@ -299,6 +299,23 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
                 Serial.println("Bar line chart widget: mismatched X.");
                 return false;
             }
+
+    if (precipitationBars)
+        for (size_t i = 0; i < series[0].pointCount; ++i)
+        {
+            const auto &rain = series[0].points[i];
+            const auto &showers = series[1].points[i];
+            const auto &hours = series[2].points[i];
+            if (rain.x != showers.x || rain.x != hours.x ||
+                (!isnan(hours.y) && (hours.y < 0 || hours.y > 24)) ||
+                (isnan(rain.y) != isnan(showers.y)) ||
+                (!isnan(rain.y) && (isnan(hours.y) || rain.y < 0 ||
+                  rain.y > showers.y || showers.y > hours.y)))
+            {
+                Serial.println("Precipitation chart widget: invalid or mismatched values.");
+                return false;
+            }
+        }
 
     if (floatingBars)
     {
@@ -423,6 +440,45 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
         gfx->setTextSize(2);
     }
 
+    if (precipitationBars)
+    {
+        const double halfWidth = barWidth / rangeX / 2.0;
+        for (size_t i = 0; i < series[0].pointCount; ++i)
+        {
+            const auto &rain = series[0].points[i];
+            const auto &showers = series[1].points[i];
+            const auto &hours = series[2].points[i];
+            if (isnan(hours.y))
+                continue;
+            const double center = (hours.x - options.minimumX) / rangeX;
+            if (center + halfWidth < 0 || center - halfWidth > 1)
+                continue;
+            const int x0 = chartPixel(center - halfWidth, left, right);
+            const int x1 = chartPixel(center + halfWidth, left, right);
+            uint16_t color = CYD_CYAN;
+            if (!isnan(options.pastForecastX) && hours.x >= options.pastForecastX)
+                color = hours.x - options.pastForecastX < options.forecastBarInterval
+                    ? CYD_YELLOW : CYD_GREEN;
+            gfx->fillRect(x0, top, x1 - x0 + 1, bottom - top, color);
+            const int wetY = chartPixel(1.0 - hours.y / 24.0, top, bottom);
+            if (isnan(rain.y))
+            {
+                if (wetY < bottom)
+                    gfx->fillRect(x0, wetY, x1 - x0 + 1, bottom - wetY, CYD_DARK_GRAY);
+                continue;
+            }
+            const int rainY = chartPixel(1.0 - rain.y / 24.0, top, bottom);
+            const int showersY = chartPixel(1.0 - showers.y / 24.0, top, bottom);
+            if (rainY < bottom)
+                gfx->fillRect(x0, rainY, x1 - x0 + 1, bottom - rainY, CYD_GRAY);
+            if (showersY < rainY)
+                gfx->fillRect(x0, showersY, x1 - x0 + 1, rainY - showersY, CYD_MAGENTA);
+            if (wetY < showersY)
+                gfx->fillRect(x0, wetY, x1 - x0 + 1, showersY - wetY, CYD_WHITE);
+        }
+        drawPastForecastDivider(options, left, top, right, bottom);
+        return true;
+    }
     if (floatingBars)
     {
         const double halfWidth = barWidth / rangeX / 2.0;
@@ -535,6 +591,27 @@ bool drawBarLineChartWidget(const LineChartWidgetOptions &options,
         {line, pointCount, lineColor},
     };
     return drawChartWidget(options, series, 2, barWidth, 0, false, false, true);
+}
+
+bool drawPrecipitationChartWidget(const LineChartWidgetOptions &options,
+                                  const LineChartPoint *rain,
+                                  const LineChartPoint *showers,
+                                  const LineChartPoint *hours, size_t pointCount,
+                                  double barWidth)
+{
+    if (!isfinite(barWidth) || barWidth <= 0 ||
+        options.minimumY != 0 || options.maximumY != 24 ||
+        !isfinite(barWidth / (options.maximumX - options.minimumX)))
+    {
+        Serial.println("Precipitation chart widget: invalid width or scale.");
+        return false;
+    }
+    const LineChartSeries series[] = {
+        {rain, pointCount, CYD_GRAY},
+        {showers, pointCount, CYD_MAGENTA},
+        {hours, pointCount, CYD_WHITE},
+    };
+    return drawChartWidget(options, series, 3, barWidth, 0, false, false, false, true);
 }
 
 bool drawPressureTrendChartWidget(const LineChartWidgetOptions &options,

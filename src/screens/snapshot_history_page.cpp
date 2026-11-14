@@ -2,6 +2,7 @@
 #include "screens/snapshot_history_page.h"
 #include "screens/barometer_trend_history.h"
 #include "screens/clouds_history.h"
+#include "screens/precipitation_daily_history.h"
 
 static SnapshotHistoryResult snapshotHistories[PRESSURE_TREND_SERIES_COUNT];
 static NumericHistoryStatus snapshotStatus;
@@ -24,6 +25,7 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
         page.style == HistoryChartStyle::DailyFloatingBars;
     const bool trend = page.style == HistoryChartStyle::PressureTrendBars;
     const bool clouds = page.style == HistoryChartStyle::CloudBarsLine;
+    const bool precipitation = page.style == HistoryChartStyle::DailyPrecipitationBars;
     const bool dailyForecast = page.style == HistoryChartStyle::DailyForecastFloatingBars ||
         page.style == HistoryChartStyle::DailyForecastLine;
     if (available && (!snapshotParsed || feedRevision != lastSnapshotRevision ||
@@ -38,6 +40,8 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
             error = parseBarometerTrendHistory(payload.c_str(), snapshotHistories);
         else if (clouds)
             error = parseCloudsHistory(payload.c_str(), snapshotHistories);
+        else if (precipitation)
+            error = parsePrecipitationDailyHistory(payload.c_str(), snapshotHistories);
         else if (dailyForecast)
             error = parseDailyForecastHistory(
                 payload.c_str(), snapshotFields, page.seriesCount, snapshotHistories);
@@ -63,7 +67,7 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
     const int64_t now = static_cast<int64_t>(time(nullptr));
     const bool oldWindow = daily
         ? !completedHistoryEndUtc(now, dailyEnd) || dailyEnd > snapshotHistories[0].endUtc
-        : !clouds && !dailyForecast && snapshotHistories[0].endUtc &&
+        : !clouds && !dailyForecast && !precipitation && snapshotHistories[0].endUtc &&
             now > snapshotHistories[0].endUtc + page.bucketSeconds;
     const bool stale = snapshotStatus.state == NumericHistoryState::Failed ||
         WiFi.status() != WL_CONNECTED ||
