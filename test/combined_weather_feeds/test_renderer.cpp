@@ -4,8 +4,10 @@
 #include "widgets/line_chart_widget.h"
 #include "screens/clouds_history.h"
 #include "screens/precipitation_daily_history.h"
+#include "screens/temperature_hourly_forecast.h"
 #include "clouds_fixture.h"
 #include "temperature_daily_fixture.h"
+#include "temperature_hourly_fixture.h"
 #include "wind_daily_fixture.h"
 
 #include <cstdlib>
@@ -32,6 +34,8 @@ static size_t windDailyDraws = 0;
 static double windDailyDivider = NAN;
 static size_t precipitationDraws = 0;
 static double precipitationDivider = NAN;
+static size_t hourlyTemperatureDraws = 0;
+static double hourlyTemperatureCutoff = NAN;
 
 static void setTestTimezone(const char *zone)
 {
@@ -93,7 +97,8 @@ bool drawPrecipitationChartWidget(const LineChartWidgetOptions &chart,
 
 LineChartWidgetOptions::LineChartWidgetOptions()
     : pastForecastX(NAN), forecastBarInterval(0.0), referenceLineY(NAN),
-      referenceLineColor(CYD_RED) {}
+      referenceLineColor(CYD_RED), futureLineStartX(NAN), futureLineColor(CYD_GREEN),
+      rangeBarsStartAtX(false) {}
 bool drawLineChartSeriesWidget(const LineChartWidgetOptions &chart,
                                const LineChartSeries *series, size_t count)
 {
@@ -216,6 +221,36 @@ bool drawPressureTrendChartWidget(const LineChartWidgetOptions &chart,
               highs[i].y == 1020.0 + i * 0.1 &&
               averages[i].y == 1018.25 + i * 0.1,
               "trend renderer preserves min/max/average and bucket centers");
+    return true;
+}
+
+bool drawFloatingBarLineChartWidget(const LineChartWidgetOptions &chart,
+                                    const LineChartPoint *lower,
+                                    const LineChartPoint *upper,
+                                    const LineChartPoint *temperature, size_t count,
+                                    double width, uint16_t color)
+{
+    ++hourlyTemperatureDraws;
+    int64_t hour = 0;
+    check(currentTemperatureForecastHour(static_cast<int64_t>(time(nullptr)), hour) &&
+          chart.futureLineStartX == static_cast<double>(hour),
+          "hourly color cutoff follows the current local hour");
+    hourlyTemperatureCutoff = chart.futureLineStartX;
+    check(count == 24 && width == 3600 && chart.maximumX - chart.minimumX == 86400 &&
+          chart.rangeBarsStartAtX && chart.lineColor == CYD_LIGHT_GRAY &&
+          color == CYD_CYAN && chart.futureLineColor == CYD_GREEN &&
+          chart.referenceLineY == 32 && chart.referenceLineColor == CYD_RED &&
+          std::isnan(chart.pastForecastX) &&
+          std::fabs(chart.minimumY - 20.71) < 1e-5 &&
+          std::fabs(chart.maximumY - 83.1) < 1e-5,
+          "hourly chart uses gray statistical band, cyan/green temperature and red freezing line");
+    for (size_t i = 0; i < count; ++i)
+        check(lower[i].x == chart.minimumX + i * 3600 && upper[i].x == lower[i].x &&
+              temperature[i].x == lower[i].x &&
+              std::fabs(lower[i].y - HOURLY_LOWER_BOUNDS[i]) < 1e-5 &&
+              std::fabs(upper[i].y - HOURLY_UPPER_BOUNDS[i]) < 1e-5 &&
+              std::fabs(temperature[i].y - HOURLY_TEMPERATURES[i]) < 1e-5,
+              "hourly renderer preserves exact hour endpoints and all three supplied values");
     return true;
 }
 
@@ -507,6 +542,45 @@ int main()
     refreshHistoryChartData(precipitationPage, trends, status, false);
     check(precipitationDraws == 2 && precipitationDivider == previousPrecipitationDivider + 86400,
           "daily precipitation redraws day colors when the local date changes");
+    static const HistoryChartSeries hourlySeries[] = {
+        {"pages.om-temp-avg", HistoryAggregation::Minimum, CYD_LIGHT_GRAY, "Lower"},
+        {"pages.om-temp-avg", HistoryAggregation::Maximum, CYD_LIGHT_GRAY, "Upper"},
+        {"pages.om-temp-avg", HistoryAggregation::Average, CYD_CYAN, "Temperature"},
+    };
+    const HistoryChartPage hourlyPage = {
+        "Hourly Temps", hourlySeries, 3, 86400, 3600, "24 hours", " F",
+        1, 10, false, scale, HistoryChartStyle::HourlyTemperatureBand,
+    };
+    check(!parseTemperatureHourlyForecast(HOURLY_TEMPERATURE_SNAPSHOT, trends),
+          "parse hourly temperature renderer fixture");
+    setTestTimezone("UTC0");
+    drawHistoryChartFrame(hourlyPage);
+    ++status.revision;
+    failAllocation = true;
+    refreshHistoryChartData(hourlyPage, trends, status, false, 32);
+    check(hourlyTemperatureDraws == 0 && graphics.printed.back() == "Not enough memory for chart",
+          "hourly renderer allocation failure is visible");
+    refreshHistoryChartData(hourlyPage, trends, status, false, 32);
+    check(hourlyTemperatureDraws == 1 &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "11/16 00:00") != graphics.printed.end() &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "24:00") != graphics.printed.end() &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "24 hours") != graphics.printed.end() &&
+          std::find(graphics.printed.begin(), graphics.printed.end(), "Temperature ") != graphics.printed.end(),
+          "hourly page labels temperature and the local midnight-to-midnight axis");
+    refreshHistoryChartData(hourlyPage, trends, status, false, 32);
+    check(hourlyTemperatureDraws == 1, "unchanged hourly chart is not redrawn");
+    const double previousHour = hourlyTemperatureCutoff;
+    setTestTimezone("UTC-1");
+    refreshHistoryChartData(hourlyPage, trends, status, false, 32);
+    check(hourlyTemperatureDraws == 2 && hourlyTemperatureCutoff == previousHour + 3600,
+          "color cutoff advances on local hour rollover without a feed revision");
+    refreshHistoryChartData(hourlyPage, trends, status, true, 32);
+    check(hourlyTemperatureDraws == 3, "hourly stale data remains drawable");
+    check(!parseTemperatureHourlyForecast("[]", trends), "parse empty hourly renderer fixture");
+    ++status.revision;
+    refreshHistoryChartData(hourlyPage, trends, status, false, 32);
+    check(hourlyTemperatureDraws == 3 && graphics.printed.back() == "No hourly temperatures",
+          "empty hourly chart has an explicit message");
     std::printf("PASS: %zu history renderer memory checks\n", checks);
     return 0;
 }

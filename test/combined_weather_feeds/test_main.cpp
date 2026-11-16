@@ -9,10 +9,12 @@
 #include "screens/temperature_page_values.h"
 #include "screens/precipitation_page_values.h"
 #include "screens/precipitation_daily_history.h"
+#include "screens/temperature_hourly_forecast.h"
 #include "screens/barometer_trend_history.h"
 #include "screens/clouds_history.h"
 #include "clouds_fixture.h"
 #include "temperature_daily_fixture.h"
+#include "temperature_hourly_fixture.h"
 #include "wind_daily_fixture.h"
 
 #include <cstdlib>
@@ -146,6 +148,7 @@ void drawCurrentScreen()
     case SCREEN_TEMPERATURES: drawTemperaturesScreen(); break;
     case SCREEN_TEMPERATURE_HISTORY: drawTemperatureHistoryScreen(); break;
     case SCREEN_TEMPERATURE_DAILY: drawTemperatureDailyScreen(); break;
+    case SCREEN_TEMPERATURE_HOURLY: drawTemperatureHourlyScreen(); break;
     case SCREEN_PRECIPITATION: drawPrecipitationScreen(); break;
     case SCREEN_PRECIPITATION_DAILY: drawPrecipitationDailyScreen(); break;
     case SCREEN_PRECIPITATION_HISTORY: drawPrecipitationHistoryScreen(); break;
@@ -244,6 +247,8 @@ static const char *parsePayload(const std::string &key, const char *payload)
         return parseBarometerTrendHistory(payload, histories);
     if (key == "pages.om-temp")
         return parseDailyForecastHistory(payload, DAILY_TEMPERATURE_FIELDS, 2, histories);
+    if (key == "pages.om-temp-avg")
+        return parseTemperatureHourlyForecast(payload, histories);
     if (key == "pages.om-sun")
         return parseCloudsHistory(payload, histories);
     if (key == "pages.om-precip")
@@ -257,6 +262,84 @@ static const char *parsePayload(const std::string &key, const char *payload)
     };
     return parseWeatherSnapshotHistory(payload, fields, key == "pages.wind-line" ? 2 : 1,
                                        key == "pages.prcp-line", histories);
+}
+
+static void testHourlyTemperatureParser()
+{
+    static SnapshotHistoryResult hourly[3];
+    BudgetJsonAllocator budget;
+    check(!parseTemperatureHourlyForecast(HOURLY_TEMPERATURE_SNAPSHOT, hourly, &budget) &&
+          budget.live == 0 && budget.peak <= 8192,
+          "hourly forecast streams the supplied day within the JSON memory budget");
+    int64_t midnight = 0;
+    check(parseSnapshotDate("20261116", midnight), "hourly fixture midnight");
+    check(hourly[0].startUtc == midnight && hourly[0].endUtc == midnight + 86400 &&
+          hourly[0].buckets.size() == 24, "hourly chart spans exactly one wall-clock day");
+    for (size_t i = 0; i < 24; ++i)
+    {
+        check(hourly[0].buckets[i].startUtc == midnight + static_cast<int64_t>(i) * 3600 &&
+              hourly[1].buckets[i].startUtc == hourly[0].buckets[i].startUtc &&
+              hourly[2].buckets[i].startUtc == hourly[0].buckets[i].startUtc,
+              "all hourly series share the exact supplied hour, without timezone shifts");
+        checkNear(hourly[0].buckets[i].latest, HOURLY_LOWER_BOUNDS[i], "supplied lower bound");
+        checkNear(hourly[1].buckets[i].latest, HOURLY_UPPER_BOUNDS[i], "supplied upper bound");
+        checkNear(hourly[2].buckets[i].latest, HOURLY_TEMPERATURES[i], "supplied temperature");
+    }
+    for (const char *invalid : {
+        "[{\"ts\":\"2026023000\",\"temperature_2m\":1,\"lower_bound\":0,\"upper_bound\":2}]",
+        "[{\"ts\":\"2026111624\",\"temperature_2m\":1,\"lower_bound\":0,\"upper_bound\":2}]",
+        "[{\"ts\":\"2026111600\",\"temperature_2m\":1,\"lower_bound\":3,\"upper_bound\":2}]",
+        "[{\"ts\":\"2026111600\",\"temperature_2m\":\"1\",\"lower_bound\":0,\"upper_bound\":2}]",
+        "[{\"ts\":\"2026111600\",\"temperature_2m\":1,\"lower_bound\":0}]",
+        "[{\"ts\":\"2026111600\",\"temperature_2m\":1e999,\"lower_bound\":0,\"upper_bound\":2}]",
+        "[{\"ts\":\"2026111601\",\"temperature_2m\":1,\"lower_bound\":0,\"upper_bound\":2},"
+        "{\"ts\":\"2026111600\",\"temperature_2m\":1,\"lower_bound\":0,\"upper_bound\":2}]",
+        "[{\"ts\":\"2026111600\",\"temperature_2m\":1,\"lower_bound\":0,\"upper_bound\":2},"
+        "{\"ts\":\"2026111600\",\"temperature_2m\":1,\"lower_bound\":0,\"upper_bound\":2}]",
+        "[{\"ts\":\"2026111600\",\"temperature_2m\":1,\"lower_bound\":0,\"upper_bound\":2},"
+        "{\"ts\":\"2026111700\",\"temperature_2m\":1,\"lower_bound\":0,\"upper_bound\":2}]",
+        "[] trailing",
+        "[{\"ts\":\"2026111600\",\"temperature_2m\":1,\"lower_bound\":0,\"upper_bound\":2},]"})
+        check(parseTemperatureHourlyForecast(invalid, hourly) &&
+              hourly[2].buckets.size() == 24 && hourly[2].buckets[0].latest > 39,
+              "invalid hourly snapshot is rejected atomically");
+    std::string tooMany = HOURLY_TEMPERATURE_SNAPSHOT;
+    tooMany.erase(tooMany.rfind(']'));
+    tooMany += ",{\"ts\":\"2026111623\",\"temperature_2m\":1,\"lower_bound\":0,\"upper_bound\":2}]";
+    check(parseTemperatureHourlyForecast(tooMany.c_str(), hourly) &&
+          hourly[2].buckets.size() == 24, "more than 24 hourly records rejected without partial writes");
+    budget.limit = 0;
+    check(parseTemperatureHourlyForecast(HOURLY_TEMPERATURE_SNAPSHOT, hourly, &budget) &&
+          budget.live == 0 && hourly[2].buckets.size() == 24,
+          "hourly JSON allocation failure retains the full day");
+    failNothrowAllocation = 1;
+    check(parseTemperatureHourlyForecast(HOURLY_TEMPERATURE_SNAPSHOT, hourly) &&
+          hourly[2].buckets.size() == 24, "hourly staging failure retains the full day");
+    check(!parseTemperatureHourlyForecast(
+        "[{\"ts\":\"2026111601\",\"temperature_2m\":-4,\"lower_bound\":null,\"upper_bound\":2},"
+        "{\"ts\":\"2026111603\",\"temperature_2m\":null,\"lower_bound\":0,\"upper_bound\":0}]",
+        hourly) && hourly[0].startUtc == midnight && hourly[0].endUtc == midnight + 86400 &&
+        hourly[0].buckets.size() == 2 && !hourly[0].buckets[0].count &&
+        hourly[2].buckets[0].latest == -4 && !hourly[2].buckets[1].count &&
+        hourly[0].buckets[1].latest == 0,
+        "null bounds, null temperature, negative values, zeros and missing hours stay independent");
+    check(!parseTemperatureHourlyForecast("[]", hourly) && hourly[0].buckets.empty(),
+          "empty hourly snapshot replaces the previous day without invented readings");
+    int64_t utcMilliseconds = 0, currentHour = 0;
+    check(parseHistoryTimestamp("2026-11-16T16:30:00Z", utcMilliseconds) &&
+          currentTemperatureForecastHour(utcMilliseconds / 1000, currentHour) &&
+          currentHour == midnight + 10 * 3600,
+          "current-hour coloring uses local time, not UTC or the minutes within the hour");
+    check(parseHistoryTimestamp("2026-11-17T05:59:59Z", utcMilliseconds) &&
+          currentTemperatureForecastHour(utcMilliseconds / 1000, currentHour) &&
+          currentHour == midnight + 23 * 3600 &&
+          currentTemperatureForecastHour(utcMilliseconds / 1000 + 1, currentHour) &&
+          currentHour == midnight + 86400,
+          "forecast cutoff changes local date at midnight, not at UTC midnight");
+    check(!currentTemperatureForecastHour(0, currentHour), "unavailable clock has no forecast cutoff");
+    int64_t springHour = 0;
+    check(parseSnapshotCalendarHour("2026030802", springHour),
+          "fixed wall-clock axis represents DST hours without reordering or shifting");
 }
 
 int main(int argc, char **argv)
@@ -282,6 +365,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    testHourlyTemperatureParser();
     WindPageValues wind;
     BarometerPageValues barometer;
     AstronomicalPageValues astronomical;
@@ -574,6 +658,84 @@ int main(int argc, char **argv)
     assertOnlyFeed("pages.om-temp", 60);
     handleTemperatureDailyTouch(1, 0);
     check(state.currentScreen == SCREEN_TEMPERATURES, "daily Back returns to Temperatures");
+
+    enterTemperatureDailyScreen();
+    check(navLabels[1] == "Hourly", "Daily Temps shows Hourly in its open second slot");
+    handleTemperatureDailyTouch(2, 0);
+    check(state.currentScreen == SCREEN_TEMPERATURE_HOURLY &&
+          navLabels[1] == "Daily" && navLabels[2] == "History",
+          "Daily Hourly opens hourly chart with reciprocal Daily and History buttons");
+    assertOnlyFeed("pages.om-temp-avg", 60);
+    check(displayedWindow == 86400 && displayedBucket == 3600 && displayedReferenceLineY == 32 &&
+          adafruitIOManager._numericSeriesCount == 0,
+          "hourly forecast uses a 24-hour snapshot and freezing line, not raw history");
+    {
+        const int feed = adafruitIOManager.findFeed("pages.om-temp-avg");
+        size_t historyCount = 0;
+        check(!adafruitIOManager._feedCache[feed].attempted,
+              "hourly temperature forecast fetch is immediately due on entry");
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+        {
+            auto &entry = adafruitIOManager._feedCache[i];
+            entry.attempted = true;
+            entry.failed = false;
+            entry.lastAttempt = testMillis;
+        }
+        check(adafruitIOManager.findDueFeed(testMillis + 3599999U, historyCount) != feed,
+              "hourly temperature forecast does not poll early");
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+            if (static_cast<int>(i) != feed)
+                adafruitIOManager._feedCache[i].lastAttempt = testMillis + 3600000U;
+        check(adafruitIOManager.findDueFeed(testMillis + 3600000U, historyCount) == feed,
+              "hourly temperature forecast polls at the exact one-hour boundary");
+    }
+    cache("pages.om-temp-avg", HOURLY_TEMPERATURE_SNAPSHOT);
+    refreshTemperatureHourlyResults();
+    check(displayedStatus.hasData && displayed[2].buckets.size() == 24 &&
+          displayed[0].buckets[0].latest > 34 && displayed[1].buckets[0].latest > 50,
+          "hourly temperature snapshot reaches the shared renderer");
+    uint32_t hourlyRevision = displayedStatus.revision;
+    refreshTemperatureHourlyResults();
+    check(displayedStatus.revision == hourlyRevision, "unchanged hourly forecast is not reparsed");
+    cache("pages.om-temp-avg", "bad");
+    refreshTemperatureHourlyResults();
+    check(displayedStatus.state == NumericHistoryState::Failed && displayedStale &&
+          displayed[2].buckets.size() == 24, "bad hourly update retains the day as stale");
+    const time_t hourlyNow = time(nullptr);
+    char hourlyDate[16], freshHourly[160];
+    std::strftime(hourlyDate, sizeof(hourlyDate), "%Y%m%d", std::localtime(&hourlyNow));
+    std::snprintf(freshHourly, sizeof(freshHourly),
+        "[{\"ts\":\"%s00\",\"temperature_2m\":60,\"lower_bound\":40,\"upper_bound\":70}]", hourlyDate);
+    cache("pages.om-temp-avg", freshHourly);
+    refreshTemperatureHourlyResults();
+    check(!displayedStale && displayedStatus.state == NumericHistoryState::Ready,
+          "fresh current-day hourly forecast recovers from malformed update");
+    testMillis += 7200001U;
+    refreshTemperatureHourlyResults();
+    check(displayedStale, "hourly forecast receipt becomes stale after two polling intervals");
+    adafruitIOManager._feedCache[adafruitIOManager.findFeed("pages.om-temp-avg")].updatedAt = testMillis;
+    refreshTemperatureHourlyResults();
+    check(!displayedStale, "fresh unchanged hourly receipt clears staleness");
+    cache("pages.om-temp-avg",
+        "[{\"ts\":\"2020010100\",\"temperature_2m\":60,\"lower_bound\":40,\"upper_bound\":70}]");
+    refreshTemperatureHourlyResults();
+    check(displayedStale, "an old local forecast day remains stale despite a fresh receipt");
+    cache("pages.om-temp-avg", "[]");
+    refreshTemperatureHourlyResults();
+    check(displayedStatus.state == NumericHistoryState::Ready && displayed[2].buckets.empty(),
+          "empty hourly update clears prior readings successfully");
+    handleTemperatureHourlyTouch(3, 0);
+    check(state.currentScreen == SCREEN_TEMPERATURE_HISTORY && navLabels[2] == "Hourly",
+          "hourly History opens History with Hourly in its open third slot");
+    assertOnlyFeed("pages.temp-line");
+    handleTemperatureHistoryTouch(3, 0);
+    check(state.currentScreen == SCREEN_TEMPERATURE_HOURLY, "History Hourly opens hourly forecast");
+    assertOnlyFeed("pages.om-temp-avg", 60);
+    handleTemperatureHourlyTouch(2, 0);
+    check(state.currentScreen == SCREEN_TEMPERATURE_DAILY, "hourly Daily opens Daily Temps");
+    handleTemperatureDailyTouch(2, 0);
+    handleTemperatureHourlyTouch(1, 0);
+    check(state.currentScreen == SCREEN_TEMPERATURES, "hourly Back returns to Temperatures");
 
     cache("pages.p02-precipitation",
         "[\"0\",\"clear\",\"0.00\",\"0\",\"clear\",\"0.00\",\"0\",\"clear\",\"0.00\","

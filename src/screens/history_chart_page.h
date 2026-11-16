@@ -31,7 +31,8 @@ enum class HistoryChartStyle
     DailyForecastLine,
     PressureTrendBars,
     CloudBarsLine,
-    DailyPrecipitationBars
+    DailyPrecipitationBars,
+    HourlyTemperatureBand
 };
 
 struct HistoryChartPage

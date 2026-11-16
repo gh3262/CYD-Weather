@@ -894,6 +894,75 @@ int main()
     }
     options.referenceLineY = INFINITY;
     expectInvalid(options, diagonal, 2);
+
+    options = testOptions();
+    options.maximumX = 24;
+    options.maximumY = 100;
+    options.lineColor = CYD_LIGHT_GRAY;
+    options.futureLineStartX = 10;
+    options.rangeBarsStartAtX = true;
+    options.referenceLineY = 32;
+    LineChartPoint hourlyLower[24], hourlyUpper[24], hourlyTemperature[24];
+    for (size_t i = 0; i < 24; ++i)
+    {
+        hourlyLower[i] = {static_cast<double>(i), 20};
+        hourlyUpper[i] = {static_cast<double>(i), 60};
+        hourlyTemperature[i] = {static_cast<double>(i), i % 2 ? 80.0 : 10.0};
+    }
+    graphics.reset();
+    check(drawFloatingBarLineChartWidget(options, hourlyLower, hourlyUpper, hourlyTemperature,
+                                         24, 1, CYD_CYAN) && graphics.rectangles.size() == 25,
+          "hourly statistical band and independent temperature line draw together");
+    for (size_t i = 0; i < 24; ++i)
+    {
+        const auto &band = graphics.rectangles[i + 1];
+        check(band.color == CYD_LIGHT_GRAY && band.y == 82 && band.height == 41 &&
+              band.x == 12 + static_cast<int>(std::floor(i / 24.0 * 100 + 0.5)),
+              "light-gray band starts at its exact hour with supplied lower/upper endpoints");
+        if (i)
+            check(band.x <= graphics.rectangles[i].x + graphics.rectangles[i].width,
+                  "statistical band has no gaps between consecutive hours");
+    }
+    check(graphics.rectangles.back().x + graphics.rectangles.back().width - 1 == 112,
+          "last hourly band reaches midnight at the right edge");
+    check(graphics.pixels.size() == 24 && graphics.pixels.front().x == 12 &&
+          graphics.pixels[10].color == CYD_CYAN && graphics.pixels[11].color == CYD_GREEN,
+          "temperature starts at midnight and the current hour is cyan, later hours green");
+    check(graphics.lines.size() == 38, "23 temperature segments plus dashed freezing line");
+    for (size_t i = 0; i < 23; ++i)
+        check(graphics.lines[i].color == (i < 10 ? CYD_CYAN : CYD_GREEN),
+              "line is solid cyan through current hour then solid green for forecasts");
+    check(graphics.lines[23].color == CYD_RED && graphics.lines[23].y0 == 110,
+          "red 32 F dashes overlay the statistical band and temperature");
+    options.futureLineStartX = 10.5;
+    graphics.reset();
+    check(drawFloatingBarLineChartWidget(options, hourlyLower, hourlyUpper, hourlyTemperature,
+                                         24, 1, CYD_CYAN) && graphics.lines.size() == 39 &&
+          graphics.lines[10].color == CYD_CYAN && graphics.lines[11].color == CYD_GREEN &&
+          graphics.lines[10].x1 == graphics.lines[11].x0 &&
+          graphics.lines[10].y1 == graphics.lines[11].y0,
+          "color transition splits an intersected segment with no gap or slope change");
+    for (double cutoff : {0.0, 23.0})
+    {
+        options.futureLineStartX = cutoff;
+        graphics.reset();
+        check(drawFloatingBarLineChartWidget(options, hourlyLower, hourlyUpper, hourlyTemperature,
+                                             24, 1, CYD_CYAN) &&
+              graphics.lines[0].color == (cutoff == 0 ? CYD_GREEN : CYD_CYAN) &&
+              graphics.lines[22].color == (cutoff == 0 ? CYD_GREEN : CYD_CYAN),
+              "midnight leaves later hours green and the last hour leaves the entire line cyan");
+    }
+    options.futureLineStartX = NAN;
+    hourlyLower[0].y = NAN;
+    hourlyTemperature[1].y = NAN;
+    graphics.reset();
+    check(drawFloatingBarLineChartWidget(options, hourlyLower, hourlyUpper, hourlyTemperature,
+                                         24, 1, CYD_CYAN) && graphics.rectangles.size() == 24 &&
+          graphics.pixels.size() == 23 && graphics.lines[0].color == CYD_CYAN &&
+          graphics.pixels.back().color == CYD_CYAN,
+          "null band and temperature readings remain independent; unavailable clock keeps cyan");
+    options.futureLineStartX = INFINITY;
+    expectInvalid(options, diagonal, 2);
     std::printf("PASS: %zu line-chart checks\n", checks);
     return 0;
 }

@@ -14,6 +14,7 @@ enum Screen
     SCREEN_TEMPERATURES,
     SCREEN_TEMPERATURE_HISTORY,
     SCREEN_TEMPERATURE_DAILY,
+    SCREEN_TEMPERATURE_HOURLY,
     SCREEN_PRECIPITATION,
     SCREEN_PRECIPITATION_DAILY,
     SCREEN_PRECIPITATION_HISTORY,
@@ -40,6 +41,7 @@ static const uint16_t COLOR_BACKGROUND = 0;
 static const uint16_t COLOR_WARNING = 0xffe0;
 static const uint16_t CYD_DARK_GRAY = 0x4208;
 static const uint16_t CYD_GRAY = 0x8410;
+static const uint16_t CYD_LIGHT_GRAY = 0xc618;
 static const uint16_t CYD_MAGENTA = 0xf81f;
 static const uint16_t CYD_WHITE = 0xffff;
 static const int FONT_MONO_SMALL = 1;
@@ -85,6 +87,10 @@ void enterTemperatureDailyScreen();
 void drawTemperatureDailyScreen();
 void refreshTemperatureDailyResults();
 void handleTemperatureDailyTouch(int, int);
+void enterTemperatureHourlyScreen();
+void drawTemperatureHourlyScreen();
+void refreshTemperatureHourlyResults();
+void handleTemperatureHourlyTouch(int, int);
 void enterWindDirectionScreen();
 void enterCloudsScreen();
 void drawCloudsScreen();

@@ -30,7 +30,10 @@ LineChartWidgetOptions::LineChartWidgetOptions()
       pastForecastX(NAN),
       forecastBarInterval(0.0),
       referenceLineY(NAN),
-      referenceLineColor(CYD_RED)
+      referenceLineColor(CYD_RED),
+      futureLineStartX(NAN),
+      futureLineColor(CYD_GREEN),
+      rangeBarsStartAtX(false)
 {
 }
 
@@ -168,21 +171,36 @@ static void drawSeries(const LineChartWidgetOptions &options,
         const double y = (points[i].y - options.minimumY) / rangeY;
         if (previousValid)
         {
-            drawChartSegment(previousX, previousY, x, y,
-                             left, top, right, bottom, series.color);
+            const double split = (options.futureLineStartX - options.minimumX) / rangeX;
+            if (!isnan(split) && previousX < split && x > split)
+            {
+                const double splitY = previousY + (y - previousY) *
+                    (split - previousX) / (x - previousX);
+                drawChartSegment(previousX, previousY, split, splitY,
+                                 left, top, right, bottom, series.color);
+                drawChartSegment(split, splitY, x, y,
+                                 left, top, right, bottom, options.futureLineColor);
+            }
+            else
+                drawChartSegment(previousX, previousY, x, y,
+                                 left, top, right, bottom,
+                                 !isnan(split) && x > split
+                                     ? options.futureLineColor : series.color);
         }
         if (x >= 0.0 && x <= 1.0 && y >= 0.0 && y <= 1.0)
         {
             const int pixelX = chartPixel(x, left, right);
             const int pixelY = chartPixel(1.0 - y, top, bottom);
             // A single reading (or a reading beside a gap) remains visible.
-            gfx->drawPixel(pixelX, pixelY, series.color);
+            const uint16_t color = points[i].x > options.futureLineStartX
+                ? options.futureLineColor : series.color;
+            gfx->drawPixel(pixelX, pixelY, color);
             if (options.showPointMarkers)
             {
                 gfx->drawLine(max(left, pixelX - 1), pixelY,
-                              min(right, pixelX + 1), pixelY, series.color);
+                              min(right, pixelX + 1), pixelY, color);
                 gfx->drawLine(pixelX, max(top, pixelY - 1),
-                              pixelX, min(bottom, pixelY + 1), series.color);
+                              pixelX, min(bottom, pixelY + 1), color);
             }
         }
         previousX = x;
@@ -278,6 +296,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
         !isfinite(options.minimumX) || !isfinite(options.maximumX) ||
         !isfinite(options.minimumY) || !isfinite(options.maximumY) ||
         isinf(options.pastForecastX) || isinf(options.referenceLineY) ||
+        isinf(options.futureLineStartX) ||
         !isfinite(options.forecastBarInterval) || options.forecastBarInterval < 0 ||
         !isfinite(rangeX) || !isfinite(rangeY) ||
         rangeX <= 0.0 || rangeY <= 0.0 ||
@@ -505,7 +524,8 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
             if (isnan(lower.y) || isnan(upper.y) ||
                 upper.y < options.minimumY || lower.y > options.maximumY)
                 continue;
-            const double center = (lower.x - options.minimumX) / rangeX;
+            const double center = (lower.x - options.minimumX) / rangeX +
+                (options.rangeBarsStartAtX ? halfWidth : 0.0);
             if (center + halfWidth < 0.0 || center - halfWidth > 1.0)
                 continue;
             const int x0 = chartPixel(center - halfWidth, left, right);

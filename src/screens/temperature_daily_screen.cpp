@@ -42,6 +42,7 @@ void drawTemperatureDailyScreen()
 {
     drawSnapshotHistoryPage(dailyTemperaturePage(), "pages.om-temp",
                             DAILY_TEMPERATURE_FIELDS, 32.0);
+    drawNav2("Hourly");
     drawNav3("History");
 }
 
@@ -55,6 +56,8 @@ void handleTemperatureDailyTouch(int x, int y)
 {
     if (navPressed1(x, y))
         enterTemperaturesScreen();
+    else if (navPressed2(x, y))
+        enterTemperatureHourlyScreen();
     else if (navPressed3(x, y))
         enterTemperatureHistoryScreen();
 }

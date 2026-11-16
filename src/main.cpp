@@ -263,6 +263,7 @@ static const ScreenDef screens[] = {
     /* SCREEN_TEMPERATURES */ { drawTemperaturesScreen, handleTemperaturesTouch, nullptr,               refreshTemperaturesResults, true },
     /* SCREEN_TEMPERATURE_HISTORY */ { drawTemperatureHistoryScreen, handleTemperatureHistoryTouch, nullptr, refreshTemperatureHistoryResults, true },
     /* SCREEN_TEMPERATURE_DAILY */ { drawTemperatureDailyScreen, handleTemperatureDailyTouch, nullptr, refreshTemperatureDailyResults, true },
+    /* SCREEN_TEMPERATURE_HOURLY */ { drawTemperatureHourlyScreen, handleTemperatureHourlyTouch, nullptr, refreshTemperatureHourlyResults, true },
     /* SCREEN_ASTRONOMICAL */ { drawAstronomicalScreen, handleAstronomicalTouch, nullptr,               refreshAstronomicalResults, true },
     /* SCREEN_ALERTS      */ { drawAlertsScreen,     handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
     /* SCREEN_ALERT_DETAILS */ { drawAlertsScreen,   handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
@@ -283,6 +284,7 @@ static bool isHistoryChartScreen(Screen screen)
 {
     return screen == SCREEN_TEMPERATURE_HISTORY ||
         screen == SCREEN_TEMPERATURE_DAILY ||
+        screen == SCREEN_TEMPERATURE_HOURLY ||
         screen == SCREEN_BAROMETER_HISTORY ||
         screen == SCREEN_BAROMETER_TREND ||
         screen == SCREEN_CLOUDS ||

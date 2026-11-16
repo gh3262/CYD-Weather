@@ -391,8 +391,9 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Wind History | Back | Dir | — | Home |
 | Clouds | Back | — | — | Home |
 | Temperatures | Back | Daily | History | Home |
-| Temperature History (72 hours) | Back | Daily | — | Home |
-| Daily Temperatures (30 days) | Back | — | History | Home |
+| Temperature History (72 hours) | Back | Daily | Hourly | Home |
+| Daily Temperatures (28 days) | Back | Hourly | History | Home |
+| Hourly Temperatures (24 hours) | Back | Daily | History | Home |
 | Astronomical | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
 | Summary | Back | More/Up* | Forecast | Home |
@@ -541,7 +542,7 @@ a floating bar chart using only the latest `pages.om-temp` snapshot.
 Past bars are cyan, today's bar is yellow, and future bars are green.
 Colors follow the local date at midnight along with the divider; if the clock
 is unavailable, all bars remain cyan.
-Both Daily and Temperature History include a dashed red horizontal line at
+Daily, Temperature History, and Hourly include a dashed red horizontal line at
 32 F. Their automatic Y ranges expand when needed to keep that freezing line
 visible, without changing the displayed temperatures.
 The feed contains `[{"ts":"20261111","t2m_min":47.42,"t2m_max":75.06,"at_min":45.04,"at_max":72.36}, ...]`,
@@ -570,7 +571,38 @@ omitted outside the supplied window or when the clock is unavailable.
 Labels sit above the data and are omitted on sides too narrow to fit.
 Back returns to Temperatures, Home returns Home, and **History** in position 3
 opens Temperature History. Temperature History has **Daily** in position 2
-to switch back. Sunshine and daylight feeds are not used by this page.
+to switch back. Daily has **Hourly** in position 2; History has **Hourly**
+in position 3. Sunshine and daylight feeds are not used by these pages.
+
+**Hourly Temps** reads only the latest `pages.om-temp-avg` snapshot, fetched on
+entry and refreshed hourly while active. It shows a local calendar day from
+midnight to 24:00. The feed supplies up to 24 ordered, unique `YYYYMMDDHH`
+timestamps on the same local date, for example:
+
+```json
+[{"ts":"2026111600","temperature_2m":39.42,"lower_bound":34.43,"upper_bound":50.82,"avg_by_hour":42.62,"std_dev":8.2,"deviation":-3.2}]
+```
+
+The **Temperature** line plots `temperature_2m` in Fahrenheit at each supplied
+hour, solid cyan through the current local-hour point and green afterward.
+The color boundary advances each hour without requiring a feed revision.
+A light-gray filled band behind it spans `lower_bound` to `upper_bound` for
+each hourly slot, showing the producer's seven-day, one-standard-deviation
+range. The bounds are used directly; `avg_by_hour`, `std_dev`, and `deviation`
+are not plotted or recomputed. Temperatures may lie outside the band.
+The Y scale includes all plotted values and the dashed red 32 F freezing line.
+
+Wall-clock hours are encoded without timezone shifts so the axis remains
+00:00–24:00 even on DST transition dates; the current hour uses the display's
+local timezone. With no valid clock the line remains cyan and the page is stale.
+Null temperature values break the line; null bounds omit only the affected
+hour's band. Missing hours are not filled. Invalid dates, duplicate/unordered
+hours, mixed dates, inverted bounds, missing/non-numeric plotted fields, or
+more than 24 records are logged and rejected atomically, retaining prior data
+as stale. Empty snapshots show an explicit no-readings message.
+A receipt older than two hours, WiFi loss, or a snapshot for a different local
+day also marks the chart stale. Back returns to Temperatures; Daily and History
+switch directly to those charts; Home returns Home.
 
 Barometer has a **History** button in navigation position 3. It opens
 **Last 72 Hours**, a `pages.baro-line` chart that uses the same shared history

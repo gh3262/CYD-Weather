@@ -166,6 +166,14 @@ Renderer checks verify 75%-width bars, the temperature Y scale, date labels,
 paired-day count, and a local-today Past/Forecast divider that moves without a
 feed revision. Widget tests verify the dashed line and labels on floating bars,
 cyan past/yellow today/green future colors, date rollover, and unavailable-clock behavior.
+Hourly forecast checks use the supplied 24-hour `pages.om-temp-avg` temperatures
+and bounds, verifying local midnight alignment, independent nulls, out-of-band
+temperatures, strict single-day ordering and capacity, atomic allocation/JSON
+failure retention, hourly polling, staleness and recovery, and reciprocal
+Hourly/Daily/History navigation. Renderer tests cover unchanged-revision
+hour rollover, fixed 24-hour labels, gray hourly bands and the freezing line.
+Widget tests check exact band endpoints, cyan/green segment transitions,
+split-segment continuity, null gaps, layering and unavailable-clock behavior.
 Memory regression tests decode 1,000 supplied hours with no more than 8 KB of
 live JSON allocations, inject JSON/staging allocation failures, and verify
 retained-data recovery after a later unchanged feed poll. The manager suite
@@ -200,7 +208,7 @@ Daily precipitation checks cover hourly feed activation, reciprocal History/Dail
 mixed rain/showers/snow proportions, dry and unknown-type hours, invalid update
 retention, fixed 24-hour scale, date rollover, and stacked bar colors.
 
-g++ -std=c++11 -Wall -Wextra -Werror -Itest\combined_weather_feeds\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\snapshot_history_page.cpp src\screens\temperatures_screen.cpp src\screens\temperature_history_screen.cpp src\screens\temperature_daily_screen.cpp src\screens\precipitation_screen.cpp src\screens\precipitation_daily_screen.cpp src\screens\precipitation_history_screen.cpp src\screens\wind_screen.cpp src\screens\wind_history_screen.cpp src\screens\barometer_screen.cpp src\screens\barometer_history_screen.cpp src\screens\barometer_trend_screen.cpp src\screens\clouds_screen.cpp src\screens\astronomical_screen.cpp test\combined_weather_feeds\test_main.cpp -o "$env:TEMP\cyd-combined-weather-tests.exe"
+g++ -std=c++11 -Wall -Wextra -Werror -Itest\combined_weather_feeds\stubs -Itest\numeric_history\stubs -Isrc -Isrc\adafruitio "-I.pio\libdeps\esp32dev\ArduinoJson\src" src\adafruitio\adafruitio_manager.cpp src\adafruitio\feed_catalog.cpp src\adafruitio\numeric_history.cpp src\screens\snapshot_history_page.cpp src\screens\temperatures_screen.cpp src\screens\temperature_history_screen.cpp src\screens\temperature_daily_screen.cpp src\screens\temperature_hourly_screen.cpp src\screens\precipitation_screen.cpp src\screens\precipitation_daily_screen.cpp src\screens\precipitation_history_screen.cpp src\screens\wind_screen.cpp src\screens\wind_history_screen.cpp src\screens\barometer_screen.cpp src\screens\barometer_history_screen.cpp src\screens\barometer_trend_screen.cpp src\screens\clouds_screen.cpp src\screens\astronomical_screen.cpp test\combined_weather_feeds\test_main.cpp -o "$env:TEMP\cyd-combined-weather-tests.exe"
 if ($LASTEXITCODE -eq 0) { & "$env:TEMP\cyd-combined-weather-tests.exe" }
 
 The executable can also validate a real producer payload from stdin, with its

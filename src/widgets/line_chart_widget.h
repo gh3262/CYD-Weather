@@ -40,6 +40,11 @@ struct LineChartWidgetOptions
     // NaN disables the dashed horizontal reference line.
     double referenceLineY;
     uint16_t referenceLineColor;
+    // NaN keeps each series' color; segments after this X use futureLineColor.
+    double futureLineStartX;
+    uint16_t futureLineColor;
+    // Floating ranges span [X, X + width] instead of being centered on X.
+    bool rangeBarsStartAtX;
 
     LineChartWidgetOptions();
 };

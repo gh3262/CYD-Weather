@@ -3,6 +3,7 @@
 #include "screens/barometer_trend_history.h"
 #include "screens/clouds_history.h"
 #include "screens/precipitation_daily_history.h"
+#include "screens/temperature_hourly_forecast.h"
 
 static SnapshotHistoryResult snapshotHistories[PRESSURE_TREND_SERIES_COUNT];
 static NumericHistoryStatus snapshotStatus;
@@ -27,6 +28,7 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
     const bool trend = page.style == HistoryChartStyle::PressureTrendBars;
     const bool clouds = page.style == HistoryChartStyle::CloudBarsLine;
     const bool precipitation = page.style == HistoryChartStyle::DailyPrecipitationBars;
+    const bool hourlyTemperature = page.style == HistoryChartStyle::HourlyTemperatureBand;
     const bool dailyForecast = page.style == HistoryChartStyle::DailyForecastFloatingBars ||
         page.style == HistoryChartStyle::DailyForecastLine;
     if (available && (!snapshotParsed || feedRevision != lastSnapshotRevision ||
@@ -43,6 +45,8 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
             error = parseCloudsHistory(payload.c_str(), snapshotHistories);
         else if (precipitation)
             error = parsePrecipitationDailyHistory(payload.c_str(), snapshotHistories);
+        else if (hourlyTemperature)
+            error = parseTemperatureHourlyForecast(payload.c_str(), snapshotHistories);
         else if (dailyForecast)
             error = parseDailyForecastHistory(
                 payload.c_str(), snapshotFields, page.seriesCount, snapshotHistories);
@@ -66,7 +70,10 @@ void refreshSnapshotHistoryPage(const HistoryChartPage &page)
     }
     int64_t dailyEnd = 0;
     const int64_t now = static_cast<int64_t>(time(nullptr));
-    const bool oldWindow = daily
+    const bool oldWindow = hourlyTemperature
+        ? !currentTemperatureForecastHour(now, dailyEnd) ||
+            dailyEnd < snapshotHistories[0].startUtc || dailyEnd >= snapshotHistories[0].endUtc
+        : daily
         ? !completedHistoryEndUtc(now, dailyEnd) || dailyEnd > snapshotHistories[0].endUtc
         : !clouds && !dailyForecast && !precipitation && snapshotHistories[0].endUtc &&
             now > snapshotHistories[0].endUtc + page.bucketSeconds;

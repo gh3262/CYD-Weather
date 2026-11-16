@@ -9,12 +9,14 @@
 
 #include "widgets/line_chart_widget.h"
 #include "screens/weather_snapshot_history.h"
+#include "screens/temperature_hourly_forecast.h"
 
 static bool historyActive = false;
 static uint32_t renderedRevision = UINT32_MAX;
 static bool renderedStale = false;
 static bool renderedHasData = false;
 static int64_t renderedForecastDay = 0;
+static int64_t renderedForecastHour = 0;
 
 static void drawHistoryMessage(const char *message)
 {
@@ -50,6 +52,15 @@ static void drawHistorySummary(const HistoryChartPage &page,
                                double minimum, double maximum)
 {
     gfx->setCursor(4, HEADER_HEIGHT + 3);
+    if (page.style == HistoryChartStyle::HourlyTemperatureBand)
+    {
+        gfx->setTextColor(CYD_CYAN);
+        gfx->print("Temperature ");
+        gfx->setTextColor(CYD_LIGHT_GRAY);
+        gfx->print("7d +/-1 SD (F)");
+        gfx->setTextColor(COLOR_TEXT);
+        return;
+    }
     if (page.style == HistoryChartStyle::CloudBarsLine)
     {
         gfx->setTextColor(page.series[0].color);
@@ -164,14 +175,20 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     const bool clouds = page.style == HistoryChartStyle::CloudBarsLine;
     const bool precipitation = page.style == HistoryChartStyle::DailyPrecipitationBars;
     const bool forecastLine = page.style == HistoryChartStyle::DailyForecastLine;
+    const bool hourlyTemperature = page.style == HistoryChartStyle::HourlyTemperatureBand;
     const bool forecast = clouds || precipitation || forecastLine ||
         page.style == HistoryChartStyle::DailyForecastFloatingBars;
     const bool daily = dailyBars || floatingBars || clouds || precipitation || forecastLine;
     int64_t forecastDay = 0;
     if (forecast && !completedHistoryEndUtc(static_cast<int64_t>(time(nullptr)), forecastDay))
         forecastDay = 0;
+    int64_t forecastHour = 0;
+    if (hourlyTemperature &&
+        !currentTemperatureForecastHour(static_cast<int64_t>(time(nullptr)), forecastHour))
+        forecastHour = 0;
     if (status.revision == renderedRevision && stale == renderedStale &&
-        hasData == renderedHasData && (!forecast || forecastDay == renderedForecastDay))
+        hasData == renderedHasData && (!forecast || forecastDay == renderedForecastDay) &&
+        (!hourlyTemperature || forecastHour == renderedForecastHour))
         return;
 
     uint32_t sampleCount = 0;
@@ -244,6 +261,8 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
             ? String(stale ? "No daily precipitation (stale)" : "No daily precipitation")
             : forecastLine
             ? String(stale ? "No daily readings (stale)" : "No daily readings")
+            : hourlyTemperature
+            ? String(stale ? "No hourly temperatures (stale)" : "No hourly temperatures")
             : stale ? String("No readings (stale history)") :
             String(invalidCount ? "No valid readings in last " :
                 "No readings in last ") + page.windowText;
@@ -278,7 +297,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
                 const int64_t end = min(
                     bucket.startUtc + history.bucketSeconds, history.endUtc);
                 points[s][index++] = {
-                    start + (end - start) / 2.0,
+                    hourlyTemperature ? static_cast<double>(start) : start + (end - start) / 2.0,
                     dailyBars && bucket.count == 0 ? 0.0 :
                         bucket.value(history.aggregation),
                 };
@@ -314,6 +333,14 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         chart.lineColor = page.series[0].color;
         chart.referenceLineY = referenceLineY;
         chart.zeroBarColor = CYD_YELLOW;
+        if (hourlyTemperature)
+        {
+            chart.rangeBarsStartAtX = true;
+            if (forecastHour)
+                chart.futureLineStartX = static_cast<double>(forecastHour);
+            else
+                Serial.printf("%s: local hour unavailable for forecast coloring.\n", page.title);
+        }
         if (page.style == HistoryChartStyle::DailyForecastFloatingBars)
             chart.forecastBarInterval = window.bucketSeconds;
         if (precipitation)
@@ -325,7 +352,11 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
             else
                 Serial.printf("%s: local date unavailable for Past/Forecast divider.\n", page.title);
         }
-        const bool drawn = precipitation
+        const bool drawn = hourlyTemperature
+            ? drawFloatingBarLineChartWidget(chart, points[0].get(), points[1].get(),
+                                             points[2].get(), window.buckets.size(),
+                                             window.bucketSeconds, page.series[2].color)
+            : precipitation
             ? drawPrecipitationChartWidget(chart, points[0].get(), points[1].get(),
                                            points[2].get(), window.buckets.size(),
                                            window.bucketSeconds * 0.75)
@@ -361,8 +392,22 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
             gfx->print("Stale");
         }
         gfx->setTextColor(COLOR_TEXT);
-        drawHistoryTimes(window, daily);
-        const String count = trendBars ? String(window.buckets.size()) + " bars" :
+        if (hourlyTemperature)
+        {
+            const time_t date = static_cast<time_t>(window.startUtc);
+            struct tm calendar;
+            char label[16];
+            gfx->setCursor(4, NAV_Y - 11);
+            if (gmtime_r(&date, &calendar) &&
+                strftime(label, sizeof(label), "%m/%d 00:00", &calendar))
+                gfx->print(label);
+            gfx->setCursor(SCREEN_WIDTH - 34, NAV_Y - 11);
+            gfx->print("24:00");
+        }
+        else
+            drawHistoryTimes(window, daily);
+        const String count = hourlyTemperature ? String(window.buckets.size()) + " hours" :
+            trendBars ? String(window.buckets.size()) + " bars" :
             floatingBars ? String(pairedDays) + "/" +
                 String(window.buckets.size()) + " days" :
             dailyBars || clouds || precipitation || forecastLine ? String(window.buckets.size()) + " days" :
@@ -374,6 +419,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
     renderedStale = stale;
     renderedHasData = hasData;
     renderedForecastDay = forecastDay;
+    renderedForecastHour = forecastHour;
 }
 
 void refreshHistoryChartData(const HistoryChartPage &page,

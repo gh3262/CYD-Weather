@@ -24,6 +24,7 @@ static const uint16_t CYD_RED = 8;
 static const uint16_t CYD_GRAY = 9;
 static const uint16_t CYD_MAGENTA = 10;
 static const uint16_t CYD_WHITE = 11;
+static const uint16_t CYD_LIGHT_GRAY = 12;
 
 struct RecordedLine
 {

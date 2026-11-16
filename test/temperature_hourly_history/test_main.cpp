@@ -44,10 +44,13 @@ static void checkNear(double value, double expected, const char *message)
 
 void drawCurrentScreen() { drawTemperatureHistoryScreen(); }
 void drawNav2(const char *) {}
+void drawNav3(const char *) {}
 bool navPressed1(int x, int) { return x == 1; }
 bool navPressed2(int x, int) { return x == 2; }
+bool navPressed3(int x, int) { return x == 3; }
 void enterTemperaturesScreen() { state.currentScreen = SCREEN_TEMPERATURES; }
 void enterTemperatureDailyScreen() { state.currentScreen = SCREEN_TEMPERATURE_DAILY; }
+void enterTemperatureHourlyScreen() { state.currentScreen = SCREEN_TEMPERATURE_HOURLY; }
 void drawHistoryChartPage(const HistoryChartPage &page)
 {
     ++originalCharts;

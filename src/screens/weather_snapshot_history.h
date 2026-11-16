@@ -15,8 +15,8 @@
 
 #include "adafruitio/numeric_history.h"
 
-// Local calendar hours cannot distinguish repeated DST hours.
-inline bool parseSnapshotLocalHour(const char *text, int64_t &timestamp)
+// Encode wall-clock hours without timezone shifts for a fixed 24-hour chart.
+inline bool parseSnapshotCalendarHour(const char *text, int64_t &timestamp)
 {
     if (!text || std::strlen(text) != 10)
         return false;
@@ -26,8 +26,18 @@ inline bool parseSnapshotLocalHour(const char *text, int64_t &timestamp)
     char iso[24];
     std::snprintf(iso, sizeof(iso), "%.4s-%.2s-%.2sT%.2s:00:00Z",
                   text, text + 4, text + 6, text + 8);
+    int64_t milliseconds;
+    if (!parseHistoryTimestamp(iso, milliseconds))
+        return false;
+    timestamp = milliseconds / 1000;
+    return true;
+}
+
+// Local calendar hours cannot distinguish repeated DST hours.
+inline bool parseSnapshotLocalHour(const char *text, int64_t &timestamp)
+{
     int64_t validated;
-    if (!parseHistoryTimestamp(iso, validated))
+    if (!parseSnapshotCalendarHour(text, validated))
         return false;
     struct tm hour = {};
     int year, month, day, h;
@@ -147,7 +157,8 @@ public:
 template <typename Visitor>
 inline const char *visitSnapshotReadings(
     const char *json, const SnapshotHistoryField fields[], size_t seriesCount,
-    bool daily, Visitor visit, ArduinoJson::Allocator *allocator)
+    bool daily, Visitor visit, ArduinoJson::Allocator *allocator,
+    bool calendarHours = false)
 {
     if (!fields || seriesCount == 0 || seriesCount > 4)
         return "invalid history fields";
@@ -175,6 +186,7 @@ inline const char *visitSnapshotReadings(
         int64_t timestamp;
         if (!document["ts"].is<const char *>() ||
             !(daily ? parseSnapshotDate(document["ts"].as<const char *>(), timestamp)
+                    : calendarHours ? parseSnapshotCalendarHour(document["ts"].as<const char *>(), timestamp)
                     : parseSnapshotLocalHour(document["ts"].as<const char *>(), timestamp)))
             return daily ? "invalid local YYYYMMDD date" : "invalid local YYYYMMDDHH hour";
         double values[4] = {};
