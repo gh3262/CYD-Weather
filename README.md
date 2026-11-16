@@ -575,7 +575,7 @@ to switch back. Daily has **Hourly** in position 2; History has **Hourly**
 in position 3. Sunshine and daylight feeds are not used by these pages.
 
 **Hourly Temps** reads only the latest `pages.om-temp-avg` snapshot, fetched on
-entry and refreshed hourly while active. It shows a local calendar day from
+entry and refreshed every 30 minutes while active. It shows a local calendar day from
 midnight to 24:00. The feed supplies up to 24 ordered, unique `YYYYMMDDHH`
 timestamps on the same local date, for example:
 
@@ -584,7 +584,7 @@ timestamps on the same local date, for example:
 ```
 
 The **Temperature** line plots `temperature_2m` in Fahrenheit at each supplied
-hour, solid cyan through the current local-hour point and green afterward.
+hour, thicker magenta through the current local-hour point and yellow afterward.
 The color boundary advances each hour without requiring a feed revision.
 A light-gray filled band behind it spans `lower_bound` to `upper_bound` for
 each hourly slot, showing the producer's seven-day, one-standard-deviation
@@ -600,7 +600,7 @@ hour's band. Missing hours are not filled. Invalid dates, duplicate/unordered
 hours, mixed dates, inverted bounds, missing/non-numeric plotted fields, or
 more than 24 records are logged and rejected atomically, retaining prior data
 as stale. Empty snapshots show an explicit no-readings message.
-A receipt older than two hours, WiFi loss, or a snapshot for a different local
+A receipt older than one hour, WiFi loss, or a snapshot for a different local
 day also marks the chart stale. Back returns to Temperatures; Daily and History
 switch directly to those charts; Home returns Home.
 

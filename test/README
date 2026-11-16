@@ -169,10 +169,10 @@ cyan past/yellow today/green future colors, date rollover, and unavailable-clock
 Hourly forecast checks use the supplied 24-hour `pages.om-temp-avg` temperatures
 and bounds, verifying local midnight alignment, independent nulls, out-of-band
 temperatures, strict single-day ordering and capacity, atomic allocation/JSON
-failure retention, hourly polling, staleness and recovery, and reciprocal
+failure retention, 30-minute polling, one-hour receipt staleness and recovery, and reciprocal
 Hourly/Daily/History navigation. Renderer tests cover unchanged-revision
 hour rollover, fixed 24-hour labels, gray hourly bands and the freezing line.
-Widget tests check exact band endpoints, cyan/green segment transitions,
+Widget tests check exact band endpoints, thick magenta/yellow segment transitions,
 split-segment continuity, null gaps, layering and unavailable-clock behavior.
 Memory regression tests decode 1,000 supplied hours with no more than 8 KB of
 live JSON allocations, inject JSON/staging allocation failures, and verify

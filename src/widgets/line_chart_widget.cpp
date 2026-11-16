@@ -33,7 +33,8 @@ LineChartWidgetOptions::LineChartWidgetOptions()
       referenceLineColor(CYD_RED),
       futureLineStartX(NAN),
       futureLineColor(CYD_GREEN),
-      rangeBarsStartAtX(false)
+      rangeBarsStartAtX(false),
+      lineWidth(1)
 {
 }
 
@@ -100,9 +101,34 @@ static int chartPixel(double fraction, int first, int last)
     return first + static_cast<int>(floor(fraction * (last - first) + 0.5));
 }
 
-static void drawChartSegment(double x0, double y0, double x1, double y1,
-                             int left, int top, int right, int bottom,
-                             uint16_t color)
+static void drawChartSegmentThin(double x0, double y0, double x1, double y1,
+                                 int left, int top, int right, int bottom,
+                                 uint16_t color);
+
+static void drawChartSegment(const LineChartWidgetOptions &options,
+                             double x0, double y0, double x1, double y1,
+                             int left, int top, int right, int bottom, uint16_t color)
+{
+    const double dx = (x1 - x0) * (right - left);
+    const double dy = -(y1 - y0) * (bottom - top);
+    const double length = sqrt(dx * dx + dy * dy);
+    const int radius = options.lineWidth / 2;
+    for (int offset = -radius; offset <= radius; ++offset)
+    {
+        const double offsetX = length > 0 ? -dy * offset / length : 0;
+        const double offsetY = length > 0 ? dx * offset / length : offset;
+        const double shiftedX0 = x0 + offsetX / (right - left);
+        const double shiftedY0 = y0 - offsetY / (bottom - top);
+        const double shiftedX1 = x1 + offsetX / (right - left);
+        const double shiftedY1 = y1 - offsetY / (bottom - top);
+        drawChartSegmentThin(shiftedX0, shiftedY0, shiftedX1, shiftedY1,
+                             left, top, right, bottom, color);
+    }
+}
+
+static void drawChartSegmentThin(double x0, double y0, double x1, double y1,
+                                 int left, int top, int right, int bottom,
+                                 uint16_t color)
 {
     const double dx = x1 - x0;
     const double dy = y1 - y0;
@@ -176,13 +202,13 @@ static void drawSeries(const LineChartWidgetOptions &options,
             {
                 const double splitY = previousY + (y - previousY) *
                     (split - previousX) / (x - previousX);
-                drawChartSegment(previousX, previousY, split, splitY,
+                drawChartSegment(options, previousX, previousY, split, splitY,
                                  left, top, right, bottom, series.color);
-                drawChartSegment(split, splitY, x, y,
+                drawChartSegment(options, split, splitY, x, y,
                                  left, top, right, bottom, options.futureLineColor);
             }
             else
-                drawChartSegment(previousX, previousY, x, y,
+                drawChartSegment(options, previousX, previousY, x, y,
                                  left, top, right, bottom,
                                  !isnan(split) && x > split
                                      ? options.futureLineColor : series.color);
@@ -297,6 +323,7 @@ static bool drawChartWidget(const LineChartWidgetOptions &options,
         !isfinite(options.minimumY) || !isfinite(options.maximumY) ||
         isinf(options.pastForecastX) || isinf(options.referenceLineY) ||
         isinf(options.futureLineStartX) ||
+        options.lineWidth < 1 || options.lineWidth > 5 || options.lineWidth % 2 == 0 ||
         !isfinite(options.forecastBarInterval) || options.forecastBarInterval < 0 ||
         !isfinite(rangeX) || !isfinite(rangeY) ||
         rangeX <= 0.0 || rangeY <= 0.0 ||

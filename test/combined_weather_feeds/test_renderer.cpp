@@ -97,8 +97,8 @@ bool drawPrecipitationChartWidget(const LineChartWidgetOptions &chart,
 
 LineChartWidgetOptions::LineChartWidgetOptions()
     : pastForecastX(NAN), forecastBarInterval(0.0), referenceLineY(NAN),
-      referenceLineColor(CYD_RED), futureLineStartX(NAN), futureLineColor(CYD_GREEN),
-      rangeBarsStartAtX(false) {}
+      referenceLineColor(CYD_RED), futureLineStartX(NAN), futureLineColor(CYD_YELLOW),
+      rangeBarsStartAtX(false), lineWidth(1) {}
 bool drawLineChartSeriesWidget(const LineChartWidgetOptions &chart,
                                const LineChartSeries *series, size_t count)
 {
@@ -238,12 +238,13 @@ bool drawFloatingBarLineChartWidget(const LineChartWidgetOptions &chart,
     hourlyTemperatureCutoff = chart.futureLineStartX;
     check(count == 24 && width == 3600 && chart.maximumX - chart.minimumX == 86400 &&
           chart.rangeBarsStartAtX && chart.lineColor == CYD_LIGHT_GRAY &&
-          color == CYD_CYAN && chart.futureLineColor == CYD_GREEN &&
+          chart.lineWidth == 3 && color == CYD_MAGENTA &&
+          chart.futureLineColor == CYD_YELLOW &&
           chart.referenceLineY == 32 && chart.referenceLineColor == CYD_RED &&
           std::isnan(chart.pastForecastX) &&
           std::fabs(chart.minimumY - 20.71) < 1e-5 &&
           std::fabs(chart.maximumY - 83.1) < 1e-5,
-          "hourly chart uses gray statistical band, cyan/green temperature and red freezing line");
+          "hourly chart uses gray statistical band, magenta/yellow temperature and red freezing line");
     for (size_t i = 0; i < count; ++i)
         check(lower[i].x == chart.minimumX + i * 3600 && upper[i].x == lower[i].x &&
               temperature[i].x == lower[i].x &&
@@ -545,7 +546,7 @@ int main()
     static const HistoryChartSeries hourlySeries[] = {
         {"pages.om-temp-avg", HistoryAggregation::Minimum, CYD_LIGHT_GRAY, "Lower"},
         {"pages.om-temp-avg", HistoryAggregation::Maximum, CYD_LIGHT_GRAY, "Upper"},
-        {"pages.om-temp-avg", HistoryAggregation::Average, CYD_CYAN, "Temperature"},
+        {"pages.om-temp-avg", HistoryAggregation::Average, CYD_MAGENTA, "Temperature"},
     };
     const HistoryChartPage hourlyPage = {
         "Hourly Temps", hourlySeries, 3, 86400, 3600, "24 hours", " F",

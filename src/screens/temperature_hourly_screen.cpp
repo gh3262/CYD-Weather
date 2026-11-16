@@ -4,7 +4,7 @@
 static const HistoryChartSeries HOURLY_TEMPERATURE_SERIES[] = {
     {"pages.om-temp-avg", HistoryAggregation::Minimum, CYD_LIGHT_GRAY, "Lower"},
     {"pages.om-temp-avg", HistoryAggregation::Maximum, CYD_LIGHT_GRAY, "Upper"},
-    {"pages.om-temp-avg", HistoryAggregation::Average, CYD_CYAN, "Temperature"},
+    {"pages.om-temp-avg", HistoryAggregation::Average, CYD_MAGENTA, "Temperature"},
 };
 
 static HistoryChartScale hourlyTemperatureScale(double, double)

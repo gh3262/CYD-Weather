@@ -45,6 +45,7 @@ struct LineChartWidgetOptions
     uint16_t futureLineColor;
     // Floating ranges span [X, X + width] instead of being centered on X.
     bool rangeBarsStartAtX;
+    int lineWidth;
 
     LineChartWidgetOptions();
 };

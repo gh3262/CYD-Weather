@@ -336,6 +336,7 @@ static void refreshHistoryChartResults(const HistoryChartPage &page,
         if (hourlyTemperature)
         {
             chart.rangeBarsStartAtX = true;
+            chart.lineWidth = 3;
             if (forecastHour)
                 chart.futureLineStartX = static_cast<double>(forecastHour);
             else

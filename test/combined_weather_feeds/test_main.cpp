@@ -665,7 +665,7 @@ int main(int argc, char **argv)
     check(state.currentScreen == SCREEN_TEMPERATURE_HOURLY &&
           navLabels[1] == "Daily" && navLabels[2] == "History",
           "Daily Hourly opens hourly chart with reciprocal Daily and History buttons");
-    assertOnlyFeed("pages.om-temp-avg", 60);
+    assertOnlyFeed("pages.om-temp-avg", 30);
     check(displayedWindow == 86400 && displayedBucket == 3600 && displayedReferenceLineY == 32 &&
           adafruitIOManager._numericSeriesCount == 0,
           "hourly forecast uses a 24-hour snapshot and freezing line, not raw history");
@@ -681,13 +681,13 @@ int main(int argc, char **argv)
             entry.failed = false;
             entry.lastAttempt = testMillis;
         }
-        check(adafruitIOManager.findDueFeed(testMillis + 3599999U, historyCount) != feed,
+        check(adafruitIOManager.findDueFeed(testMillis + 1799999U, historyCount) != feed,
               "hourly temperature forecast does not poll early");
         for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
             if (static_cast<int>(i) != feed)
-                adafruitIOManager._feedCache[i].lastAttempt = testMillis + 3600000U;
-        check(adafruitIOManager.findDueFeed(testMillis + 3600000U, historyCount) == feed,
-              "hourly temperature forecast polls at the exact one-hour boundary");
+                adafruitIOManager._feedCache[i].lastAttempt = testMillis + 1800000U;
+        check(adafruitIOManager.findDueFeed(testMillis + 1800000U, historyCount) == feed,
+              "hourly temperature forecast polls at the exact 30-minute boundary");
     }
     cache("pages.om-temp-avg", HOURLY_TEMPERATURE_SNAPSHOT);
     refreshTemperatureHourlyResults();
@@ -710,7 +710,7 @@ int main(int argc, char **argv)
     refreshTemperatureHourlyResults();
     check(!displayedStale && displayedStatus.state == NumericHistoryState::Ready,
           "fresh current-day hourly forecast recovers from malformed update");
-    testMillis += 7200001U;
+    testMillis += 3600001U;
     refreshTemperatureHourlyResults();
     check(displayedStale, "hourly forecast receipt becomes stale after two polling intervals");
     adafruitIOManager._feedCache[adafruitIOManager.findFeed("pages.om-temp-avg")].updatedAt = testMillis;
@@ -730,7 +730,7 @@ int main(int argc, char **argv)
     assertOnlyFeed("pages.temp-line");
     handleTemperatureHistoryTouch(3, 0);
     check(state.currentScreen == SCREEN_TEMPERATURE_HOURLY, "History Hourly opens hourly forecast");
-    assertOnlyFeed("pages.om-temp-avg", 60);
+    assertOnlyFeed("pages.om-temp-avg", 30);
     handleTemperatureHourlyTouch(2, 0);
     check(state.currentScreen == SCREEN_TEMPERATURE_DAILY, "hourly Daily opens Daily Temps");
     handleTemperatureDailyTouch(2, 0);

@@ -900,7 +900,9 @@ int main()
     options.maximumY = 100;
     options.lineColor = CYD_LIGHT_GRAY;
     options.futureLineStartX = 10;
+    options.futureLineColor = CYD_YELLOW;
     options.rangeBarsStartAtX = true;
+    options.lineWidth = 3;
     options.referenceLineY = 32;
     LineChartPoint hourlyLower[24], hourlyUpper[24], hourlyTemperature[24];
     for (size_t i = 0; i < 24; ++i)
@@ -911,7 +913,7 @@ int main()
     }
     graphics.reset();
     check(drawFloatingBarLineChartWidget(options, hourlyLower, hourlyUpper, hourlyTemperature,
-                                         24, 1, CYD_CYAN) && graphics.rectangles.size() == 25,
+                                         24, 1, CYD_MAGENTA) && graphics.rectangles.size() == 25,
           "hourly statistical band and independent temperature line draw together");
     for (size_t i = 0; i < 24; ++i)
     {
@@ -926,19 +928,31 @@ int main()
     check(graphics.rectangles.back().x + graphics.rectangles.back().width - 1 == 112,
           "last hourly band reaches midnight at the right edge");
     check(graphics.pixels.size() == 24 && graphics.pixels.front().x == 12 &&
-          graphics.pixels[10].color == CYD_CYAN && graphics.pixels[11].color == CYD_GREEN,
-          "temperature starts at midnight and the current hour is cyan, later hours green");
-    check(graphics.lines.size() == 38, "23 temperature segments plus dashed freezing line");
+          graphics.pixels[10].color == CYD_MAGENTA &&
+          graphics.pixels[11].color == CYD_YELLOW,
+          "temperature starts at midnight and the current hour is magenta, later hours yellow");
+    check(graphics.lines.size() == 84, "thick temperature segments plus dashed freezing line");
     for (size_t i = 0; i < 23; ++i)
-        check(graphics.lines[i].color == (i < 10 ? CYD_CYAN : CYD_GREEN),
-              "line is solid cyan through current hour then solid green for forecasts");
-    check(graphics.lines[23].color == CYD_RED && graphics.lines[23].y0 == 110,
+        for (size_t offset = 0; offset < 3; ++offset)
+            check(graphics.lines[i * 3 + offset].color ==
+                      (i < 10 ? CYD_MAGENTA : CYD_YELLOW),
+                  "thick line is magenta through current hour then yellow for forecasts");
+    check(graphics.lines[3].x0 != graphics.lines[4].x0 &&
+          graphics.lines[4].x0 != graphics.lines[5].x0,
+          "hourly temperature line uses three parallel strokes");
+    check(graphics.lines[69].color == CYD_RED && graphics.lines[69].y0 == 110,
           "red 32 F dashes overlay the statistical band and temperature");
+    options.lineWidth = 2;
+    graphics.reset();
+    check(!drawLineChartWidget(options, diagonal, 2) && graphics.rectangles.empty(),
+          "even line widths are rejected before clearing");
     options.futureLineStartX = 10.5;
+    options.lineWidth = 1;
     graphics.reset();
     check(drawFloatingBarLineChartWidget(options, hourlyLower, hourlyUpper, hourlyTemperature,
-                                         24, 1, CYD_CYAN) && graphics.lines.size() == 39 &&
-          graphics.lines[10].color == CYD_CYAN && graphics.lines[11].color == CYD_GREEN &&
+                                         24, 1, CYD_MAGENTA) && graphics.lines.size() == 39 &&
+          graphics.lines[10].color == CYD_MAGENTA &&
+          graphics.lines[11].color == CYD_YELLOW &&
           graphics.lines[10].x1 == graphics.lines[11].x0 &&
           graphics.lines[10].y1 == graphics.lines[11].y0,
           "color transition splits an intersected segment with no gap or slope change");
@@ -947,20 +961,20 @@ int main()
         options.futureLineStartX = cutoff;
         graphics.reset();
         check(drawFloatingBarLineChartWidget(options, hourlyLower, hourlyUpper, hourlyTemperature,
-                                             24, 1, CYD_CYAN) &&
-              graphics.lines[0].color == (cutoff == 0 ? CYD_GREEN : CYD_CYAN) &&
-              graphics.lines[22].color == (cutoff == 0 ? CYD_GREEN : CYD_CYAN),
-              "midnight leaves later hours green and the last hour leaves the entire line cyan");
+                                             24, 1, CYD_MAGENTA) &&
+              graphics.lines[0].color == (cutoff == 0 ? CYD_YELLOW : CYD_MAGENTA) &&
+              graphics.lines[22].color == (cutoff == 0 ? CYD_YELLOW : CYD_MAGENTA),
+              "midnight leaves later hours yellow and the last hour leaves the line magenta");
     }
     options.futureLineStartX = NAN;
     hourlyLower[0].y = NAN;
     hourlyTemperature[1].y = NAN;
     graphics.reset();
     check(drawFloatingBarLineChartWidget(options, hourlyLower, hourlyUpper, hourlyTemperature,
-                                         24, 1, CYD_CYAN) && graphics.rectangles.size() == 24 &&
-          graphics.pixels.size() == 23 && graphics.lines[0].color == CYD_CYAN &&
-          graphics.pixels.back().color == CYD_CYAN,
-          "null band and temperature readings remain independent; unavailable clock keeps cyan");
+                                         24, 1, CYD_MAGENTA) && graphics.rectangles.size() == 24 &&
+          graphics.pixels.size() == 23 && graphics.lines[0].color == CYD_MAGENTA &&
+          graphics.pixels.back().color == CYD_MAGENTA,
+          "null band and temperature readings remain independent; unavailable clock keeps magenta");
     options.futureLineStartX = INFINITY;
     expectInvalid(options, diagonal, 2);
     std::printf("PASS: %zu line-chart checks\n", checks);
