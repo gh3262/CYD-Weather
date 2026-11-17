@@ -110,6 +110,7 @@ const AdafruitIOFeedDefinition AIO_FEEDS[] = {
     {"pages.p03-wind", "Wind Page Values", "Wind", AdafruitIOValueType::LongText, "mph", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.p04-baro", "Barometer Page Values", "Barometer", AdafruitIOValueType::LongText, "hPa", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.p05-astro", "Astronomical Page Values", "Light", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::PagePeriodic},
+    {"pages.p06-aqi", "AQI Page Values", "Air Quality", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::PagePeriodic, 30},
     {"pages.wind-line", "Hourly Wind History", "Wind", AdafruitIOValueType::LongText, "mph", true, AdafruitIORefreshPolicy::PagePeriodic},
     {"pages.om-wind", "Daily Wind and Forecast", "Wind", AdafruitIOValueType::LongText, "mph", true, AdafruitIORefreshPolicy::PagePeriodic, 60},
     {"pages.winddir-graphic", "Wind Direction Graphic", "Wind", AdafruitIOValueType::LongText, "", true, AdafruitIORefreshPolicy::PagePeriodic},

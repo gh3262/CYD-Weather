@@ -108,6 +108,7 @@ pages.om-precip,Daily Precipitation and Forecast,Precipitation,long_text,,TRUE,p
 pages.p03-wind,Wind Page Values,Wind,long_text,mph,TRUE,page_periodic,1
 pages.p04-baro,Barometer Page Values,Barometer,long_text,hPa,TRUE,page_periodic,1
 pages.p05-astro,Astronomical Page Values,Light,long_text,,TRUE,page_periodic,1
+pages.p06-aqi,AQI Page Values,Air Quality,long_text,,TRUE,page_periodic,30
 pages.wind-line,Hourly Wind History,Wind,long_text,mph,TRUE,page_periodic,1
 pages.om-wind,Daily Wind and Forecast,Wind,long_text,mph,TRUE,page_periodic,60,1
 pages.winddir-graphic,Wind Direction Graphic,Wind,long_text,,TRUE,page_periodic,1

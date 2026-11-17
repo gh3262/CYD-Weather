@@ -33,6 +33,7 @@ enum Screen
     SCREEN_TEMPERATURE_DAILY,
     SCREEN_TEMPERATURE_HOURLY,
     SCREEN_ASTRONOMICAL,
+    SCREEN_AQI,
     SCREEN_ALERTS,
     SCREEN_ALERT_DETAILS,
     SCREEN_FULL_ALERT,
@@ -210,6 +211,12 @@ void drawAstronomicalScreen();
 void enterAstronomicalScreen();
 void handleAstronomicalTouch(int x, int y);
 void refreshAstronomicalResults();
+
+// aqi_screen.cpp
+void drawAqiScreen();
+void enterAqiScreen();
+void handleAqiTouch(int x, int y);
+void refreshAqiResults();
 
 // wifi_status_screen.cpp
 void drawWifiStatusScreen();

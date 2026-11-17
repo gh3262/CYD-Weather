@@ -395,6 +395,7 @@ produces a logged error and an explanatory Details message, not a truncated list
 | Daily Temperatures (28 days) | Back | Hourly | History | Home |
 | Hourly Temperatures (24 hours) | Back | Daily | History | Home |
 | Astronomical | Back | — | — | Home |
+| AQI | Back | — | — | Home |
 | Snapshot | Back | Summary | — | Home |
 | Summary | Back | More/Up* | Forecast | Home |
 | Forecast | Back | Next | Today | Home |
@@ -434,8 +435,8 @@ Details provides a two-column, four-row button grid in the left two-thirds
 of the content area. The left column contains **Temps**, **Baro**, **Precip**,
 and **Astro**, opening Temperatures, Barometer, Precipitation, and Astronomical,
 respectively. The top-right **Wind** button opens Wind; **Clouds** directly
-below it opens Clouds. The remaining two slots
-are inactive placeholders. The right third shows the
+below it opens Clouds. The bottom-right **AQI** button opens Air Quality;
+the slot above it remains inactive. The right third shows the
 thermometer using `feed-avg` in red and `currenttemperatureapparent` in cyan,
 on a 10 to 100 F scale. The tube is centered in its panel, with Fahrenheit
 ticks on the left and Celsius ticks on the right (enabled by
@@ -815,6 +816,18 @@ as hours and minutes (`10:38` for `6:23 AM` to `5:01 PM`). Invalid sunrise/sunse
 strings reject the snapshot with a logged error and show `--`.
 Blank rows separate Daylight
 from Moonrise and Moonset from Moon Phase.
+
+AQI reads `pages.p06-aqi` on entry and every 30 minutes while open. Its text
+array contains current AQI/category/`#RRGGBB` color, the data timestamp, today's
+forecast AQI/category/color, then tomorrow's forecast AQI/category/color.
+Any remaining strings are optional, already-labeled pollutant lines, displayed
+in supplied order while they fit above navigation. Now, Today, and Tomorrow
+appear in three colored rounded rectangles, with centered values and wrapped
+categories below. The feed timestamp appears in small text above navigation as
+`hh:mm mm/dd/yyyy` (24-hour time, preserving the feed's timezone). All seven
+sample pollutant lines still fit above it. Missing data shows
+placeholders; malformed data is logged and marked invalid. Back returns to
+Details; Home returns to Home.
 
 **Weather outlook:** derives a simple weather descriptor from
   current and forecast pressure. Depending on pressure and pressure

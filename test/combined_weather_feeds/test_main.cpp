@@ -6,6 +6,7 @@
 #undef private
 #include "screens/text_table_page.h"
 #include "screens/weather_page_values.h"
+#include "screens/aqi_page_values.h"
 #include "screens/temperature_page_values.h"
 #include "screens/precipitation_page_values.h"
 #include "screens/precipitation_daily_history.h"
@@ -160,6 +161,7 @@ void drawCurrentScreen()
     case SCREEN_BAROMETER_TREND: drawBarometerTrendScreen(); break;
     case SCREEN_CLOUDS: drawCloudsScreen(); break;
     case SCREEN_ASTRONOMICAL: drawAstronomicalScreen(); break;
+    case SCREEN_AQI: drawAqiScreen(); break;
     default: break;
     }
 }
@@ -237,6 +239,12 @@ static const char *parsePayload(const std::string &key, const char *payload)
     BarometerPageValues barometer;
     AstronomicalPageValues astronomical;
     int daylight = 0;
+    if (key == "pages.p06-aqi")
+    {
+        JsonDocument document;
+        const DeserializationError error = deserializeJson(document, payload);
+        return error ? error.c_str() : validateAqiPageValues(document);
+    }
     if (key == "pages.p01-temp") return parseTemperaturePageValues(payload, temperatures);
     if (key == "pages.p02-precipitation") return parsePrecipitationPageValues(payload, precipitation);
     if (key == "pages.p03-wind") return parseWindPageValues(payload, wind);
@@ -262,6 +270,158 @@ static const char *parsePayload(const std::string &key, const char *payload)
     };
     return parseWeatherSnapshotHistory(payload, fields, key == "pages.wind-line" ? 2 : 1,
                                        key == "pages.prcp-line", histories);
+}
+
+static void testAqiScreen()
+{
+    const char *sample =
+        "[\"30\",\"Good\",\"#00e400\",\"2026-11-16T21:00:00-05:00\","
+        "\"25\",\"Good\",\"#00e400\",\"24\",\"Good\",\"#00e400\","
+        "\"Primary: CO\",\"PM2.5: 5.4\",\"PM10:  5.6\",\"CO:    164.0\","
+        "\"O3:    44.0\",\"NO2:   6.9\",\"SO2:   0.5\"]";
+    enterAqiScreen();
+    assertOnlyFeed("pages.p06-aqi", 30);
+    {
+        const int feed = adafruitIOManager.findFeed("pages.p06-aqi");
+        size_t historyCount = 0;
+        check(!adafruitIOManager._feedCache[feed].attempted,
+              "AQI fetch is immediately due on entry");
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+        {
+            auto &entry = adafruitIOManager._feedCache[i];
+            entry.attempted = true;
+            entry.failed = false;
+            entry.lastAttempt = testMillis;
+        }
+        check(adafruitIOManager.findDueFeed(testMillis + 1799999U, historyCount) != feed,
+              "AQI does not poll before 30 minutes");
+        for (size_t i = 0; i < AIO_FEED_COUNT; ++i)
+            if (static_cast<int>(i) != feed)
+                adafruitIOManager._feedCache[i].lastAttempt = testMillis + 1800000U;
+        check(adafruitIOManager.findDueFeed(testMillis + 1800000U, historyCount) == feed,
+              "AQI polls at the exact 30-minute boundary");
+    }
+    check(std::find(graphics.printed.begin(), graphics.printed.end(),
+                    "Waiting for AQI data") != graphics.printed.end(),
+          "AQI waits for data rather than showing invented readings");
+
+    cache("pages.p06-aqi", sample);
+    graphics.textRecords.clear();
+    graphics.roundedRects.clear();
+    refreshAqiResults();
+    check(graphics.roundedRects.size() == 3 && graphics.textRecords.size() == 17,
+          "AQI draws three cards, three values/categories, all seven pollutants and timestamp");
+    const char *labels[] = {"Now", "Today", "Tomorrow"};
+    const char *readings[] = {"30", "25", "24"};
+    for (size_t i = 0; i < 3; ++i)
+    {
+        const auto &rect = graphics.roundedRects[i];
+        check(graphics.textRecords[i * 3].text == labels[i] &&
+              graphics.textRecords[i * 3 + 1].text == readings[i] &&
+              graphics.textRecords[i * 3 + 2].text == "Good",
+              "AQI uses the specified current/today/tomorrow indices and skips the timestamp");
+        check(rect.color == 0x0720 && rect.x >= 12 &&
+              rect.x + rect.width <= SCREEN_WIDTH - 12 && rect.y > HEADER_HEIGHT,
+              "AQI cards convert the supplied RGB color and respect margins");
+        if (i)
+            check(rect.x - (graphics.roundedRects[i - 1].x + rect.width) == 8,
+                  "AQI cards have equal spacing");
+        for (size_t j = 0; j < 3; ++j)
+        {
+            const auto &text = graphics.textRecords[i * 3 + j];
+            check(text.x == rect.x +
+                (rect.width - static_cast<int>(text.text.size()) * 6 * text.size) / 2,
+                "labels, readings and categories are centered on their card");
+        }
+    }
+    const char *pollutants[] = {"Primary: CO", "PM2.5: 5.4", "PM10:  5.6",
+        "CO:    164.0", "O3:    44.0", "NO2:   6.9", "SO2:   0.5"};
+    for (size_t i = 0; i < 7; ++i)
+    {
+        const auto &text = graphics.textRecords[9 + i];
+        check(text.text == pollutants[i] && text.y + 8 <= NAV_Y - 8 &&
+              text.y == HEADER_HEIGHT + 86 + static_cast<int>(i) * 11,
+              "all supplied pollutant lines preserve labels, spacing and order above navigation");
+    }
+    const auto &footer = graphics.textRecords.back();
+    check(footer.text == "21:00 11/16/2026" && footer.size == 1 &&
+          footer.y == NAV_Y - 8 &&
+          footer.x == (SCREEN_WIDTH - 16 * 6) / 2,
+          "AQI timestamp preserves the supplied offset time and is centered in a small footer");
+    refreshAqiResults();
+    check(graphics.textRecords.size() == 17, "unchanged AQI payload does not redraw");
+
+    char timestamp[17];
+    check(formatAqiTimestamp("2028-02-29T00:05:00+05:30", timestamp) &&
+          std::strcmp(timestamp, "00:05 02/29/2028") == 0 &&
+          formatAqiTimestamp("2026-12-31T23:59:59Z", timestamp) &&
+          std::strcmp(timestamp, "23:59 12/31/2026") == 0,
+          "AQI timestamp handles leap days, midnight, positive offsets and UTC");
+    for (const char *invalid : {"", "2026-02-29T12:00:00-05:00",
+        "2026-11-16T24:00:00-05:00", "2026-11-16T21:00:00+24:00",
+        "2026-11-16T21:00:00-05:60", "2026-11-16T21:00:00",
+        "2026-11-16T21:00:00Ztrailing"})
+        check(!formatAqiTimestamp(invalid, timestamp), "invalid AQI timestamp is rejected");
+
+    JsonDocument document;
+    deserializeJson(document, sample);
+    document[1] = "Unhealthy for Sensitive Groups";
+    document[2] = "#ff0000";
+    document[6] = "#FFFF00";
+    document[9] = "#800080";
+    while (document.size() > 10)
+        document.as<JsonArray>().remove(10);
+    document.as<JsonArray>().add("Only supplied pollutant");
+    std::string payload;
+    serializeJson(document, payload);
+    cache("pages.p06-aqi", payload.c_str());
+    graphics.textRecords.clear();
+    graphics.roundedRects.clear();
+    refreshAqiResults();
+    check(graphics.roundedRects[0].color == 0xf800 &&
+          graphics.roundedRects[1].color == 0xffe0 &&
+          graphics.roundedRects[2].color == 0x8010,
+          "each period independently uses its own case-insensitive feed color");
+    check(graphics.textRecords[2].text == "Unhealthy for" &&
+          graphics.textRecords[3].text == "Sensitive" &&
+          graphics.textRecords[4].text == "Groups" &&
+          graphics.textRecords[11].text == "Only supplied pollutant" &&
+          graphics.textRecords.size() == 13,
+          "long categories wrap without overlapping variable pollutant lines");
+    for (size_t i = 0; i < 12; ++i)
+        document.as<JsonArray>().add("Additional pollutant");
+    payload.clear();
+    serializeJson(document, payload);
+    cache("pages.p06-aqi", payload.c_str());
+    graphics.textRecords.clear();
+    refreshAqiResults();
+    check(graphics.textRecords.size() < 24 &&
+          graphics.textRecords[graphics.textRecords.size() - 2].y + 8 <=
+              graphics.textRecords.back().y &&
+          graphics.textRecords.back().text == "21:00 11/16/2026",
+          "excess pollutant lines stop before the timestamp footer");
+    for (const char *invalid : {"[]", "{}", "[1,2,3,4,5,6,7,8,9,10]",
+        "[\"1\",\"Good\",\"#00gg00\",\"ts\",\"2\",\"Good\",\"#00ff00\",\"3\",\"Good\",\"#00ff00\"]"})
+        check(parsePayload("pages.p06-aqi", invalid),
+              "AQI rejects malformed structure, types and hex colors");
+    for (const char *invalid : {"", "   ", "NaN", "inf", "-1", "3bad"})
+    {
+        document[0] = invalid;
+        check(validateAqiPageValues(document), "AQI rejects invalid numeric strings");
+    }
+    cache("pages.p06-aqi", "[]");
+    graphics.textRecords.clear();
+    refreshAqiResults();
+    check(graphics.textRecords.back().text == "Invalid AQI data",
+          "malformed AQI updates explicitly clear old values and report invalid data");
+    cache("pages.p06-aqi", sample);
+    graphics.textRecords.clear();
+    refreshAqiResults();
+    check(graphics.textRecords[15].text == "SO2:   0.5" &&
+          graphics.textRecords.back().text == "21:00 11/16/2026",
+          "AQI recovers after a malformed update");
+    handleAqiTouch(1, 0);
+    check(state.currentScreen == SCREEN_DETAILS, "AQI Back returns to Details");
 }
 
 static void testHourlyTemperatureParser()
@@ -1243,6 +1403,7 @@ int main(int argc, char **argv)
     check(tableValues[0] == "--" && tableValues[2] == "--", "bad Astro shows explicit missing values");
     handleAstronomicalTouch(1, 0);
     check(state.currentScreen == SCREEN_DETAILS, "Astro Back route");
+    testAqiScreen();
     check(adafruitIOManager._numericSeriesCount == 0 && testUrls.empty(),
           "all snapshot graphs avoid individual numeric-history requests");
     std::printf("PASS: %zu combined weather feed checks\n", checks);

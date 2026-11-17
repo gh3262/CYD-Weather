@@ -265,6 +265,7 @@ static const ScreenDef screens[] = {
     /* SCREEN_TEMPERATURE_DAILY */ { drawTemperatureDailyScreen, handleTemperatureDailyTouch, nullptr, refreshTemperatureDailyResults, true },
     /* SCREEN_TEMPERATURE_HOURLY */ { drawTemperatureHourlyScreen, handleTemperatureHourlyTouch, nullptr, refreshTemperatureHourlyResults, true },
     /* SCREEN_ASTRONOMICAL */ { drawAstronomicalScreen, handleAstronomicalTouch, nullptr,               refreshAstronomicalResults, true },
+    /* SCREEN_AQI         */ { drawAqiScreen, handleAqiTouch, nullptr, refreshAqiResults, true },
     /* SCREEN_ALERTS      */ { drawAlertsScreen,     handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
     /* SCREEN_ALERT_DETAILS */ { drawAlertsScreen,   handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },
     /* SCREEN_FULL_ALERT  */ { drawAlertsScreen,     handleAlertsTouch,     nullptr,                  refreshAlertsResults,   true  },

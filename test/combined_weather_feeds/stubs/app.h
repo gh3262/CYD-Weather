@@ -26,7 +26,8 @@ enum Screen
     SCREEN_BAROMETER,
     SCREEN_BAROMETER_HISTORY,
     SCREEN_BAROMETER_TREND,
-    SCREEN_ASTRONOMICAL
+    SCREEN_ASTRONOMICAL,
+    SCREEN_AQI
 };
 struct AppState { Screen currentScreen; };
 extern AppState state;
@@ -51,14 +52,27 @@ static const int NAV_Y = 210;
 
 struct TestGraphics
 {
+    struct Text { std::string text; int x, y, size; uint16_t color; };
+    struct RoundedRect { int x, y, width, height; uint16_t color; };
     std::vector<std::string> printed;
+    std::vector<Text> textRecords;
+    std::vector<RoundedRect> roundedRects;
+    int cursorX = 0, cursorY = 0, textSize = 1;
+    uint16_t textColor = 0;
     void setFont(int) {}
-    void setTextSize(int) {}
-    void setTextColor(uint16_t) {}
+    void setTextSize(int size) { textSize = size; }
+    void setTextColor(uint16_t color) { textColor = color; }
+    void setTextWrap(bool) {}
     void fillRect(int, int, int, int, uint16_t) {}
-    void setCursor(int, int) {}
-    void print(const char *text) { printed.emplace_back(text); }
-    void print(const String &text) { printed.emplace_back(text.c_str()); }
+    void fillRoundRect(int x, int y, int w, int h, int, uint16_t color)
+    { roundedRects.push_back({x, y, w, h, color}); }
+    void setCursor(int x, int y) { cursorX = x; cursorY = y; }
+    void print(const char *text)
+    {
+        printed.emplace_back(text);
+        textRecords.push_back({text, cursorX, cursorY, textSize, textColor});
+    }
+    void print(const String &text) { print(text.c_str()); }
     void print(char text) { printed.emplace_back(1, text); }
 };
 extern TestGraphics *gfx;
@@ -145,5 +159,9 @@ void enterAstronomicalScreen();
 void drawAstronomicalScreen();
 void refreshAstronomicalResults();
 void handleAstronomicalTouch(int, int);
+void enterAqiScreen();
+void drawAqiScreen();
+void refreshAqiResults();
+void handleAqiTouch(int, int);
 
 #endif
