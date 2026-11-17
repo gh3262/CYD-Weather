@@ -823,7 +823,11 @@ forecast AQI/category/color, then tomorrow's forecast AQI/category/color.
 Any remaining strings are optional, already-labeled pollutant lines, displayed
 in supplied order while they fit above navigation. Now, Today, and Tomorrow
 appear in three colored rounded rectangles, with centered values and wrapped
-categories below. The feed timestamp appears in small text above navigation as
+categories below. Labels, AQI values, and categories use the same proportional
+FreeSans 9pt body font as Temperatures; pollutant lines and the timestamp stay
+in the small system font. Longer
+categories move the pollutant list down, showing only the lines that fit.
+The feed timestamp appears in small text above navigation as
 `hh:mm mm/dd/yyyy` (24-hour time, preserving the feed's timezone). All seven
 sample pollutant lines still fit above it. Missing data shows
 placeholders; malformed data is logged and marked invalid. Back returns to

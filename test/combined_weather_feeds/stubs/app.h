@@ -52,14 +52,25 @@ static const int NAV_Y = 210;
 
 struct TestGraphics
 {
-    struct Text { std::string text; int x, y, size; uint16_t color; };
+    struct Text { std::string text; int x, y, size; uint16_t color; int font; };
     struct RoundedRect { int x, y, width, height; uint16_t color; };
     std::vector<std::string> printed;
     std::vector<Text> textRecords;
     std::vector<RoundedRect> roundedRects;
     int cursorX = 0, cursorY = 0, textSize = 1;
+    int currentFont = 0;
     uint16_t textColor = 0;
-    void setFont(int) {}
+    void setFont(int font) { currentFont = font; }
+    void getTextBounds(const char *text, int x, int y, int16_t *x1, int16_t *y1,
+                       uint16_t *w, uint16_t *h)
+    {
+        *x1 = x + (currentFont == 2 ? 1 : 0);
+        *y1 = y - (currentFont == 2 ? 13 : 0);
+        *w = 0;
+        for (const char *p = text; *p; ++p)
+            *w += currentFont == 2 ? (*p == 'i' || *p == 'l' || *p == ' ' ? 4 : 9) : 6;
+        *h = currentFont == 2 ? 17 : 8;
+    }
     void setTextSize(int size) { textSize = size; }
     void setTextColor(uint16_t color) { textColor = color; }
     void setTextWrap(bool) {}
@@ -70,7 +81,7 @@ struct TestGraphics
     void print(const char *text)
     {
         printed.emplace_back(text);
-        textRecords.push_back({text, cursorX, cursorY, textSize, textColor});
+        textRecords.push_back({text, cursorX, cursorY, textSize, textColor, currentFont});
     }
     void print(const String &text) { print(text.c_str()); }
     void print(char text) { printed.emplace_back(1, text); }
@@ -88,6 +99,7 @@ void drawCurrentScreen();
 void clearScreen(uint16_t);
 void titleBar(const char *);
 void setDefaultFont();
+inline void setBodyFont() { gfx->setFont(2); }
 void centerText(const char *, int, uint16_t, int);
 void drawNav1(const char *);
 void drawNav2(const char *);

@@ -131,7 +131,7 @@ static void checkNear(double value, double expected, const char *message)
 
 void clearScreen(uint16_t) { graphics.printed.clear(); }
 void titleBar(const char *) {}
-void setDefaultFont() {}
+void setDefaultFont() { gfx->setFont(0); }
 void drawNav1(const char *text) { navLabels[0] = text; }
 void drawNav2(const char *text) { navLabels[1] = text; }
 void drawNav3(const char *text) { navLabels[2] = text; }
@@ -320,18 +320,23 @@ static void testAqiScreen()
               graphics.textRecords[i * 3 + 1].text == readings[i] &&
               graphics.textRecords[i * 3 + 2].text == "Good",
               "AQI uses the specified current/today/tomorrow indices and skips the timestamp");
-        check(rect.color == 0x0720 && rect.x >= 12 &&
-              rect.x + rect.width <= SCREEN_WIDTH - 12 && rect.y > HEADER_HEIGHT,
+        check(rect.color == 0x0720 && rect.x >= 8 &&
+              rect.x + rect.width <= SCREEN_WIDTH - 8 && rect.y > HEADER_HEIGHT,
               "AQI cards convert the supplied RGB color and respect margins");
         if (i)
-            check(rect.x - (graphics.roundedRects[i - 1].x + rect.width) == 8,
+            check(rect.x - (graphics.roundedRects[i - 1].x + rect.width) == 4,
                   "AQI cards have equal spacing");
         for (size_t j = 0; j < 3; ++j)
         {
             const auto &text = graphics.textRecords[i * 3 + j];
-            check(text.x == rect.x +
-                (rect.width - static_cast<int>(text.text.size()) * 6 * text.size) / 2,
-                "labels, readings and categories are centered on their card");
+            int16_t x1, y1;
+            uint16_t width, height;
+            graphics.setFont(text.font);
+            graphics.getTextBounds(text.text.c_str(), 0, 0, &x1, &y1, &width, &height);
+            check(text.size == 1 && text.font == 2 && width <= rect.width,
+                  "AQI labels, values and categories use the unscaled proportional body font");
+            check(text.x == rect.x + (rect.width - width) / 2 - x1,
+                  "proportional text is centered using its glyph bounds and bearing");
         }
     }
     const char *pollutants[] = {"Primary: CO", "PM2.5: 5.4", "PM10:  5.6",
@@ -339,12 +344,13 @@ static void testAqiScreen()
     for (size_t i = 0; i < 7; ++i)
     {
         const auto &text = graphics.textRecords[9 + i];
-        check(text.text == pollutants[i] && text.y + 8 <= NAV_Y - 8 &&
-              text.y == HEADER_HEIGHT + 86 + static_cast<int>(i) * 11,
+        check(text.text == pollutants[i] && text.size == 1 && text.font == 0 &&
+              text.y + 8 <= NAV_Y - 8 &&
+              text.y == HEADER_HEIGHT + 78 + static_cast<int>(i) * 11,
               "all supplied pollutant lines preserve labels, spacing and order above navigation");
     }
     const auto &footer = graphics.textRecords.back();
-    check(footer.text == "21:00 11/16/2026" && footer.size == 1 &&
+    check(footer.text == "21:00 11/16/2026" && footer.size == 1 && footer.font == 0 &&
           footer.y == NAV_Y - 8 &&
           footer.x == (SCREEN_WIDTH - 16 * 6) / 2,
           "AQI timestamp preserves the supplied offset time and is centered in a small footer");
@@ -382,11 +388,13 @@ static void testAqiScreen()
           graphics.roundedRects[1].color == 0xffe0 &&
           graphics.roundedRects[2].color == 0x8010,
           "each period independently uses its own case-insensitive feed color");
-    check(graphics.textRecords[2].text == "Unhealthy for" &&
-          graphics.textRecords[3].text == "Sensitive" &&
-          graphics.textRecords[4].text == "Groups" &&
-          graphics.textRecords[11].text == "Only supplied pollutant" &&
-          graphics.textRecords.size() == 13,
+    check(graphics.textRecords[2].text == "Unhealthy" &&
+          graphics.textRecords[3].text == "for" &&
+          graphics.textRecords[4].text == "Sensitive" &&
+          graphics.textRecords[5].text == "Groups" &&
+          graphics.textRecords[12].text == "Only supplied pollutant" &&
+          graphics.textRecords[12].y >= graphics.textRecords[5].y + 4 &&
+          graphics.textRecords.size() == 14,
           "long categories wrap without overlapping variable pollutant lines");
     for (size_t i = 0; i < 12; ++i)
         document.as<JsonArray>().add("Additional pollutant");

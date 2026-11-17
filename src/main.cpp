@@ -54,7 +54,7 @@ void setup()
     lastTouchActivityMs = millis();
 }
 
-static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 15000;
+static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 static const unsigned long WIFI_RETRY_INTERVAL_MS = 10000;
 
 struct StrongestKnownNetwork
